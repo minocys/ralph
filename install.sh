@@ -5,6 +5,13 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
 BIN_DIR="$HOME/.local/bin"
 
+# Check for required dependencies
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required but not installed."
+    echo "  Install with: brew install jq (macOS) or apt install jq (Linux)"
+    exit 1
+fi
+
 echo "Installing ralph from $REPO_DIR"
 
 # Create target directories if they don't exist

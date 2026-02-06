@@ -37,6 +37,21 @@ fi
 
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
+TMPFILE=$(mktemp)
+trap "rm -f $TMPFILE" EXIT
+
+# jq filter: extract human-readable text from stream-json events
+JQ_FILTER='
+if .type == "assistant" then
+    (.message.content[]? |
+        if .type == "text" then .text
+        elif .type == "tool_use" then "\n🔧 \(.name)\n"
+        else empty end
+    ) // empty
+elif .type == "result" then
+    "\n━━ Done (\(.subtype)) | cost: $\(.total_cost_usd | tostring | .[0:6]) | turns: \(.num_turns) ━━\n"
+else empty end
+'
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Mode:   $MODE"
@@ -51,13 +66,13 @@ while true; do
         break
     fi
 
-    # Run Ralph iteration with selected prompt
-    OUTPUT=$(claude -p $COMMAND \
+    # Run Ralph iteration: save raw JSON to tmpfile, display readable text
+    claude -p $COMMAND \
         --dangerously-skip-permissions \
         --output-format=stream-json \
-        --verbose | tee /dev/stderr)
+        --verbose | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER"
 
-    if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
+    if grep -q "<promise>COMPLETE</promise>" "$TMPFILE"; then
         echo "Ralph completed successfully. Exiting loop."
         echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
         exit 0
