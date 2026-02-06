@@ -1,13 +1,15 @@
 ---
 name: ralph-spec
-description: Convert discussion into markdown specs
+description: Convert current discussion into specs for Ralph
 ---
 # TASK
-Split the JTBD into individual topics of concern, and create spec files for each concern.
+Split the JTBD into topics of concern, and create spec files for each concern.
 
 Save the specs as markdown files in the ./specs folder and update ./specs/README.md.
 
-Create a ./specs folder and ./specs/README.md if it does not exist. README.md should be a lookup table for all other specs.
+Create a ./specs folder and ./specs/README.md if it does not exist. 
+
+README.md should be a lookup table for all other specs.
 
 ## Concepts
 
