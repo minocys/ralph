@@ -1,0 +1,186 @@
+[
+  {
+    "category": "shell-portability",
+    "description": "Change ralph.sh shebang from #!/bin/zsh to #!/bin/bash",
+    "steps": [
+      "Open ralph.sh and replace line 1 '#!/bin/zsh' with '#!/bin/bash'"
+    ],
+    "completed": false
+  },
+  {
+    "category": "shell-portability",
+    "description": "Replace zsh-only 'print' on line 109 with bash-compatible 'printf'",
+    "steps": [
+      "Replace 'print \"\\n\\n======================== LOOP $ITERATION ========================\\n\"' with 'printf \"\\n\\n======================== LOOP %d ========================\\n\" \"$ITERATION\"'"
+    ],
+    "completed": false
+  },
+  {
+    "category": "shell-portability",
+    "description": "Verify ralph.sh has no remaining zsh-only syntax",
+    "steps": [
+      "Run 'bash -n ralph.sh' to confirm the script parses without errors",
+      "Confirm array append (CLAUDE_ARGS+=()), [[ ]] conditionals, and $(( )) arithmetic are all bash-compatible (they are)",
+      "Confirm install.sh is unchanged and still uses #!/bin/bash"
+    ],
+    "completed": false
+  },
+  {
+    "category": "skill-structure",
+    "description": "Restructure ralph-spec/SKILL.md: rename '## Concepts' to '## Context'",
+    "steps": [
+      "Rename the '## Concepts' heading to '## Context' in skills/ralph-spec/SKILL.md",
+      "Keep all content under it (vocabulary table, relationships, examples, scope test) unchanged"
+    ],
+    "completed": false
+  },
+  {
+    "category": "skill-structure",
+    "description": "Restructure ralph-plan/SKILL.md: change '# YOUR TASK' to '# TASK'",
+    "steps": [
+      "Replace '# YOUR TASK' with '# TASK' in skills/ralph-plan/SKILL.md"
+    ],
+    "completed": false
+  },
+  {
+    "category": "skill-structure",
+    "description": "Restructure ralph-plan/SKILL.md: add '## Context', '## Steps', organize content",
+    "steps": [
+      "Add a '## Context' section after the one-line task summary (will hold vocabulary table later)",
+      "Add a '## Steps' section and move the prerequisite steps (0a, 0b, 0c) and main steps (1, 2, 3) under it",
+      "Move the IMPORTANT note ('Plan only. Do NOT implement anything...') to after the steps",
+      "Move the EXAMPLE IMPLEMENTATION_PLAN.json block to after the steps section (it is reference material, not a step)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "skill-structure",
+    "description": "Restructure ralph-build/SKILL.md: add '# TASK' heading with one-line summary",
+    "steps": [
+      "Add '# TASK' heading after the frontmatter closing '---'",
+      "Add a one-line summary such as 'Implement functionality per specifications using parallel subagents.'"
+    ],
+    "completed": false
+  },
+  {
+    "category": "skill-structure",
+    "description": "Restructure ralph-build/SKILL.md: add '## Context', '## Steps', '## Rules' sections",
+    "steps": [
+      "Add a '## Context' section after the one-line task summary (will hold vocabulary table later)",
+      "Add a '## Steps' section and move prerequisite steps (0a, 0b) and main steps (1-5) under it",
+      "Add a '## Rules' section and move the escalating-9s items (99999 through 99999999999999) under it as ungrouped bullet points for now (grouping is handled by build-organization spec)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "skill-structure",
+    "description": "Verify all three SKILL.md files follow the standard skeleton",
+    "steps": [
+      "Confirm ralph-spec/SKILL.md has: frontmatter, '# TASK', '## Context' (with concepts content), no '## Steps' or '## Rules' (allowed per spec since they may be omitted if empty)",
+      "Confirm ralph-plan/SKILL.md has: frontmatter, '# TASK', '## Context', '## Steps'",
+      "Confirm ralph-build/SKILL.md has: frontmatter, '# TASK', '## Context', '## Steps', '## Rules'",
+      "Confirm section ordering is preserved: Context before Steps before Rules in all files",
+      "Confirm no semantic content was changed during restructuring"
+    ],
+    "completed": false
+  },
+  {
+    "category": "shared-vocabulary",
+    "description": "Normalize the vocabulary table in ralph-spec/SKILL.md to match the canonical format",
+    "steps": [
+      "Replace italic term formatting '_Job to be Done (JTBD)_' with plain 'Job to be Done'",
+      "Replace '_Topic of Concern_' with 'Topic of Concern'",
+      "Replace '_Spec_' with 'Spec'",
+      "Replace '_Task_' with 'Task'",
+      "Update the Definition column to match spec exactly: 'High-level user need or outcome', 'A distinct aspect or component within a JTBD', 'Requirements doc for one topic of concern (`specs/<name>.md`)', 'Unit of work derived from comparing specs to code'",
+      "Do NOT change the relationships, examples, or scope test content below the table"
+    ],
+    "completed": false
+  },
+  {
+    "category": "shared-vocabulary",
+    "description": "Add the vocabulary table to ralph-plan/SKILL.md in the ## Context section",
+    "steps": [
+      "Insert the canonical vocabulary table into the '## Context' section of skills/ralph-plan/SKILL.md",
+      "Use the exact table from the shared-vocabulary spec (4 terms: Job to be Done, Topic of Concern, Spec, Task)",
+      "Do NOT include the relationships, examples, or scope test — only the table"
+    ],
+    "completed": false
+  },
+  {
+    "category": "shared-vocabulary",
+    "description": "Add the vocabulary table to ralph-build/SKILL.md in the ## Context section",
+    "steps": [
+      "Insert the canonical vocabulary table into the '## Context' section of skills/ralph-build/SKILL.md",
+      "Use the exact table from the shared-vocabulary spec (4 terms: Job to be Done, Topic of Concern, Spec, Task)",
+      "Do NOT include the relationships, examples, or scope test — only the table"
+    ],
+    "completed": false
+  },
+  {
+    "category": "shared-vocabulary",
+    "description": "Verify the vocabulary table is identical across all three SKILL.md files",
+    "steps": [
+      "Extract the vocabulary table from each of the three SKILL.md files",
+      "Diff the tables to confirm they are character-for-character identical",
+      "Confirm ralph-spec still retains the relationships, examples, and scope test below its table",
+      "Confirm ralph-plan and ralph-build have only the table, not the extra sections"
+    ],
+    "completed": false
+  },
+  {
+    "category": "spec-template",
+    "description": "Add spec output template guidance to ralph-spec/SKILL.md after the ## Context section",
+    "steps": [
+      "After the concepts content (table + relationships + examples + scope test) and before any other instructions, add a section with output format guidance",
+      "The template must include four sections: Overview, Requirements, Constraints, Out of Scope",
+      "Present the template as guidance (not rigid scaffolding) — note the model may adapt section depth to the topic",
+      "Keep the template minimal per the spec-template.md constraints"
+    ],
+    "completed": false
+  },
+  {
+    "category": "spec-template",
+    "description": "Verify the spec template does not alter existing concepts content",
+    "steps": [
+      "Confirm the vocabulary table, relationships, examples, and scope test in ralph-spec/SKILL.md are unchanged",
+      "Confirm the template appears after the concepts content and before other instructions",
+      "Confirm the template includes all four required sections: Overview, Requirements, Constraints, Out of Scope"
+    ],
+    "completed": false
+  },
+  {
+    "category": "build-organization",
+    "description": "Reorganize ralph-build ## Steps into the 8-step sequence from the spec",
+    "steps": [
+      "Replace the current steps 1-5 with the specified 8-step sequence: (1) Study specs and IMPLEMENTATION_PLAN.json, (2) Pick highest-priority incomplete task, (3) Search codebase before implementing, (4) Implement the change, (5) Run tests for changed code, (6) Update IMPLEMENTATION_PLAN.json, (7) Stage changed files and commit, (8) Check if all tasks complete — signal <promise>COMPLETE</promise> if yes",
+      "Keep prerequisite steps 0a and 0b before the main steps",
+      "Preserve the subagent guidance from current step 1 (up to 500 Sonnet for reads, 1 Sonnet for build/test, Opus for complex reasoning) — move to Rules section under Subagents group"
+    ],
+    "completed": false
+  },
+  {
+    "category": "build-organization",
+    "description": "Reorganize ralph-build ## Rules into 4 named groups from the spec",
+    "steps": [
+      "Create 'Quality' group with: no placeholders/stubs (item 99999999999), implement completely, resolve failing tests even if unrelated (item 999999), extra logging for debugging (item 9999999), documentation capturing the why (item 99999)",
+      "Create 'Knowledge' group with: keep IMPLEMENTATION_PLAN.json current with learnings (item 99999999), update AGENTS.md with operational commands only (item 999999999), keep AGENTS.md operational only — no status/progress (item 99999999999999), clean completed items periodically (item 999999999999)",
+      "Create 'Consistency' group with: if spec inconsistencies found use Opus subagent to update specs (item 9999999999999), document discovered bugs in plan even if unrelated (item 9999999999)",
+      "Create 'Subagents' group with: parallelize reads/searches aggressively with Sonnet subagents, use single subagent for build/test, use Opus subagents for complex reasoning (debugging, architectural decisions)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "build-organization",
+    "description": "Verify ralph-build reorganization preserves all content",
+    "steps": [
+      "Confirm all 10 escalating-9s items are accounted for in the 4 rule groups",
+      "Confirm no new rules were added and no existing rules were removed",
+      "Confirm the <promise>COMPLETE</promise> signal is preserved exactly as-is",
+      "Confirm the 'git add -A' instruction remains in the steps",
+      "Confirm the 8-step sequence matches the build-organization spec exactly",
+      "Confirm subagent guidance appears under the Subagents rule group"
+    ],
+    "completed": false
+  }
+]
