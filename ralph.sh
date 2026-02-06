@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Usage: ./loop.sh [plan] [max_iterations]
+# Usage: ./ralph [plan] [max_iterations]
 # Examples:
-#   ./loop.sh              # Build mode, unlimited iterations
-#   ./loop.sh 20           # Build mode, max 20 iterations
-#   ./loop.sh plan         # Plan mode, unlimited iterations
-#   ./loop.sh plan 5       # Plan mode, max 5 iterations
+#   ./ralph              # Build mode, unlimited iterations
+#   ./ralph 20           # Build mode, max 20 iterations
+#   ./ralph plan         # Plan mode, unlimited iterations
+#   ./ralph plan 5       # Plan mode, max 5 iterations
 
 # Parse arguments
 if [ "$1" = "plan" ]; then
@@ -30,8 +30,8 @@ if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     exit 1
 fi
 
-if [ ! -f "./IMPLEMENTATION_PLAN.md" ]; then
-    echo "Error: IMPLEMENTATION_PLAN.md not found. Run /ralph-plan first."
+if [ "$MODE" != "plan" ] && [ ! -f "./IMPLEMENTATION_PLAN.md" ]; then
+    echo "Error: IMPLEMENTATION_PLAN.md not found. Run \"ralph plan\" or /ralph-plan first."
     exit 1
 fi
 
