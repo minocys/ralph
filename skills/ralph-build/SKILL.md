@@ -6,11 +6,12 @@ description: Ralph build loop
 0a. Study `specs/*` with up to 500 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json.
 
-1. Your task is to implement functionality per the specifications using parallel subagents. Follow @IMPLEMENTATION_PLAN.json and choose the most important incomplete item to address. Before making changes, search the codebase (don't assume not implemented) using Sonnet subagents. You may use up to 500 parallel Sonnet subagents for searches/reads and only 1 Sonnet subagent for build/tests. Use Opus subagents when complex reasoning is needed (debugging, architectural decisions).
+1. Your task is to implement functionality per the specifications using parallel subagents. Follow @IMPLEMENTATION_PLAN.json and choose the most important incomplete item to address. Before making changes, search the codebase (don't assume not implemented) using Sonnet subagents. You may use up to 500 parallel Sonnet subagents for searches/reads and only 1 Sonnet subagent for build/tests. Use Opus subagents when complex reasoning is needed (debugging, architectural decisions) **ONLY PICK ONE TASK**.
 2. After implementing functionality or resolving problems, run the tests for that unit of code that was improved. If functionality is missing then it's your job to add it as per the application specifications.
 3. When you discover issues, immediately update @IMPLEMENTATION_PLAN.json with your findings using a subagent. When resolved, update and remove the item.
 4. When the tests pass, update @IMPLEMENTATION_PLAN.json, then `git add -A` then `git commit` with a message describing the changes.
-5. After completing a task, check if ALL tasks are completed. If ALL tasks are complete and passing, reply with: <promise>COMPLETE</promise>. 
+5. After completing a task, mark the task as completed. **DO NOT START A NEW TASK, ONLY WORK ON ONE TASK.**
+6. Check if ALL tasks in @IMPLEMNTATION_PLAN.json are completed. If ALL tasks are complete and passing, reply with: <promise>COMPLETE</promise>. 
 
 99999. Important: When authoring documentation, capture the why — tests and implementation importance.
 999999. Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
