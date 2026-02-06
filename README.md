@@ -10,7 +10,7 @@ Discuss JTBD → ralph-spec → ralph plan → ralph
 
 1. **Discuss** — Start a Claude Code session and have it interview you about what you want to build. Flesh out the Job to be Done (JTBD) through conversation before generating any specs.
 2. **Spec** — Run `/ralph-spec` in the same session. Ralph splits the JTBD into topics of concern and writes a spec file for each under `./specs/`.
-3. **Plan** — Run `ralph plan` from your terminal. Ralph studies the specs and codebase, then produces `IMPLEMENTATION_PLAN.md` — a task list with completion tracking.
+3. **Plan** — Run `ralph --plan` from your terminal. Ralph studies the specs and codebase, then produces `IMPLEMENTATION_PLAN.json` — a task list with completion tracking.
 4. **Build** — Run `ralph` from your terminal. Ralph picks up incomplete tasks from the plan, implements them, runs tests, commits, and loops until everything is done.
 
 ## Concepts
@@ -49,12 +49,17 @@ This symlinks the skills into `~/.claude/skills/` and `ralph` into `~/.local/bin
 /ralph-spec
 
 # Step 2: Generate implementation plan from specs
-ralph plan          # unlimited iterations
-ralph plan 5        # max 5 iterations
+ralph --plan              # plan mode, unlimited iterations
+ralph --plan -n 5         # plan mode, max 5 iterations
 
 # Step 3: Build loop — implement, test, commit, repeat
-ralph               # unlimited iterations
-ralph 20            # max 20 iterations
+ralph                     # build mode, unlimited iterations
+ralph -n 20               # build mode, max 20 iterations
+
+# Options
+ralph --help              # show usage
+ralph --danger            # enable --dangerously-skip-permissions
+ralph --plan -n 5 --danger
 ```
 
 ## Project Structure
