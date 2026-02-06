@@ -10,7 +10,7 @@ description: Ralph build loop
 2. After implementing functionality or resolving problems, run the tests for that unit of code that was improved. If functionality is missing then it's your job to add it as per the application specifications.
 3. When you discover issues, immediately update @IMPLEMENTATION_PLAN.md with your findings using a subagent. When resolved, update and remove the item.
 4. When the tests pass, update @IMPLEMENTATION_PLAN.md, then `git add -A` then `git commit` with a message describing the changes.
-5. After complete a task, check if ALL tasks are completed. If ALL tasks are complete and passing, reply with: <promise>COMPLETE</promise>. If there are still stories with ``
+5. After completing a task, check if ALL tasks are completed. If ALL tasks are complete and passing, reply with: <promise>COMPLETE</promise>. If there are still stories with ``
 
 99999. Important: When authoring documentation, capture the why — tests and implementation importance.
 999999. Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
