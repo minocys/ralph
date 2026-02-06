@@ -75,8 +75,8 @@ if .type == "assistant" then
         elif .type == "tool_use" then
             "\n🔧 \(.name)" +
             (if .name == "Read" then " \(.input.file_path // "")"
-            elif .name == "Write" then " \(.input.file_path // "")"
-            elif .name == "Edit" then " \(.input.file_path // "")"
+            elif .name == "Write" then " \(.input.file_path // "")\n\(.input.content // "" | .[0:500])\n"
+            elif .name == "Edit" then " \(.input.file_path // "")\n   - \(.input.old_string // "" | .[0:200] | gsub("\n"; "\n   - "))\n   + \(.input.new_string // "" | .[0:200] | gsub("\n"; "\n   + "))\n"
             elif .name == "Bash" then "\n   $ \(.input.command // "" | .[0:120])"
             elif .name == "Grep" then " \(.input.pattern // "") \(.input.path // "")"
             elif .name == "Glob" then " \(.input.pattern // "") \(.input.path // "")"
