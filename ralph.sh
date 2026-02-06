@@ -24,6 +24,17 @@ else
     MAX_ITERATIONS=0
 fi
 
+# Preflight checks
+if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
+    echo "Error: No specs found. Run /ralph-spec first to generate specs in ./specs/"
+    exit 1
+fi
+
+if [ ! -f "./IMPLEMENTATION_PLAN.md" ]; then
+    echo "Error: IMPLEMENTATION_PLAN.md not found. Run /ralph-plan first."
+    exit 1
+fi
+
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 
@@ -44,7 +55,7 @@ while true; do
     OUTPUT=$(claude -p $COMMAND \
         --dangerously-skip-permissions \
         --output-format=stream-json \
-        --verbose)
+        --verbose | tee /dev/stderr)
 
     if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
         echo "Ralph completed successfully. Exiting loop."
