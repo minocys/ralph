@@ -72,7 +72,21 @@ JQ_FILTER='
 if .type == "assistant" then
     (.message.content[]? |
         if .type == "text" then .text
-        elif .type == "tool_use" then "\n🔧 \(.name)\n"
+        elif .type == "tool_use" then
+            "\n🔧 \(.name)" +
+            (if .name == "Read" then " \(.input.file_path // "")"
+            elif .name == "Write" then " \(.input.file_path // "")"
+            elif .name == "Edit" then " \(.input.file_path // "")"
+            elif .name == "Bash" then "\n   $ \(.input.command // "" | .[0:120])"
+            elif .name == "Grep" then " \(.input.pattern // "") \(.input.path // "")"
+            elif .name == "Glob" then " \(.input.pattern // "") \(.input.path // "")"
+            elif .name == "Task" then " [\(.input.subagent_type // "")] \(.input.description // "")"
+            elif .name == "TaskCreate" then " \(.input.subject // "")"
+            elif .name == "TaskUpdate" then " #\(.input.taskId // "") → \(.input.status // "")"
+            elif .name == "TodoWrite" then ""
+            elif .name == "Skill" then " /\(.input.skill // "")"
+            else " \(.input | tostring | .[0:200])"
+            end) + "\n"
         else empty end
     ) // empty
 elif .type == "result" then
