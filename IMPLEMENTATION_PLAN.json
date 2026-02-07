@@ -1,59 +1,5 @@
 [
   {
-    "category": "shell-portability",
-    "description": "Change ralph.sh shebang from #!/bin/zsh to #!/bin/bash",
-    "steps": [
-      "Open ralph.sh and replace line 1 '#!/bin/zsh' with '#!/bin/bash'"
-    ],
-    "completed": true
-  },
-  {
-    "category": "shell-portability",
-    "description": "Replace zsh-only 'print' on line 109 with bash-compatible 'printf'",
-    "steps": [
-      "Replace 'print \"\\n\\n======================== LOOP $ITERATION ========================\\n\"' with 'printf \"\\n\\n======================== LOOP %d ========================\\n\" \"$ITERATION\"'"
-    ],
-    "completed": true
-  },
-  {
-    "category": "shell-portability",
-    "description": "Verify ralph.sh has no remaining zsh-only syntax",
-    "steps": [
-      "Run 'bash -n ralph.sh' to confirm the script parses without errors",
-      "Confirm array append (CLAUDE_ARGS+=()), [[ ]] conditionals, and $(( )) arithmetic are all bash-compatible (they are)",
-      "Confirm install.sh is unchanged and still uses #!/bin/bash"
-    ],
-    "completed": true
-  },
-  {
-    "category": "skill-structure",
-    "description": "Restructure ralph-spec/SKILL.md: rename '## Concepts' to '## Context'",
-    "steps": [
-      "Rename the '## Concepts' heading to '## Context' in skills/ralph-spec/SKILL.md",
-      "Keep all content under it (vocabulary table, relationships, examples, scope test) unchanged"
-    ],
-    "completed": true
-  },
-  {
-    "category": "skill-structure",
-    "description": "Restructure ralph-plan/SKILL.md: change '# YOUR TASK' to '# TASK'",
-    "steps": [
-      "Replace '# YOUR TASK' with '# TASK' in skills/ralph-plan/SKILL.md"
-    ],
-    "completed": true
-  },
-  {
-    "category": "skill-structure",
-    "description": "Restructure ralph-plan/SKILL.md: add '## Context', '## Steps', organize content",
-    "steps": [
-      "Add a '## Context' section after the one-line task summary (will hold vocabulary table later)",
-      "Add a '## Steps' section and move the prerequisite steps (0a, 0b, 0c) and main steps (1, 2, 3) under it",
-      "Move the IMPORTANT note ('Plan only. Do NOT implement anything...') to after the steps",
-      "Move the EXAMPLE IMPLEMENTATION_PLAN.json block to after the steps section (it is reference material, not a step)"
-    ],
-    "completed": false
-  },
-  {
     "category": "skill-structure",
     "description": "Restructure ralph-build/SKILL.md: add '# TASK' heading with one-line summary",
     "steps": [
@@ -176,7 +122,7 @@
     "steps": [
       "Confirm all 10 escalating-9s items are accounted for in the 4 rule groups",
       "Confirm no new rules were added and no existing rules were removed",
-      "Confirm the <promise>COMPLETE</promise> signal is preserved exactly as-is",
+      "Confirm the <promise>Tastes Like Burning.</promise> signal is preserved exactly as-is",
       "Confirm the 'git add -A' instruction remains in the steps",
       "Confirm the 8-step sequence matches the build-organization spec exactly",
       "Confirm subagent guidance appears under the Subagents rule group"

@@ -4,6 +4,11 @@ description: Implementation planner that studies and breaks down specs into task
 ---
 
 # TASK
+Study specs and codebase, then create or update IMPLEMENTATION_PLAN.json with prioritized tasks.
+
+## Context
+
+## Steps
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json (if present) to understand the plan so far.
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
@@ -14,7 +19,7 @@ description: Implementation planner that studies and breaks down specs into task
 
 **IMPORTANT**: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
 
-# EXAMPLE IMPLEMENTATION_PLAN.json
+### EXAMPLE IMPLEMENTATION_PLAN.json
 ````
 [
   {
