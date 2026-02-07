@@ -62,6 +62,14 @@ ralph --danger            # enable --dangerously-skip-permissions
 ralph --plan -n 5 --danger
 ```
 
+### AGENTS.md
+
+Ralph respects [`AGENTS.md`](https://agents.md) — a plain-Markdown file at the root of your repo (or in subdirectories) that gives AI coding agents project-specific instructions: build commands, test invocations, code style rules, and other conventions.
+
+If your repo has an `AGENTS.md`, Ralph will pick it up automatically during the plan and build phases. This is a good place to put information that Ralph needs but that would clutter your human-facing README — things like exact linting flags, preferred patterns, or areas of the codebase to avoid touching.
+
+See [agents.md](https://agents.md) for the format and examples.
+
 ## Project Structure
 
 ```
