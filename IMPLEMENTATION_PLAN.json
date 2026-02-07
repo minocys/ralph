@@ -32,7 +32,7 @@
       "Rename the '## Concepts' heading to '## Context' in skills/ralph-spec/SKILL.md",
       "Keep all content under it (vocabulary table, relationships, examples, scope test) unchanged"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "skill-structure",

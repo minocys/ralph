@@ -11,7 +11,7 @@ Create a ./specs folder and ./specs/README.md if it does not exist.
 
 README.md should be a lookup table for all other specs.
 
-## Concepts
+## Context
 
 | Term                    | Definition                                                      |
 | ----------------------- | --------------------------------------------------------------- |
