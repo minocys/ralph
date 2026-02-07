@@ -12,7 +12,7 @@ Restructure `ralph-build/SKILL.md` to separate the sequential workflow from alwa
   5. Run tests for the changed code
   6. Update IMPLEMENTATION_PLAN.json
   7. Stage changed files and commit
-  8. Check if all tasks are complete — if yes, signal `<promise>COMPLETE</promise>`
+  8. Check if all tasks are complete — if yes, signal `<promise>Tastes Like Burning.</promise>`
 - The `## Rules` section must contain non-sequential invariants, grouped into named concerns:
   - **Quality** — No placeholders or stubs; implement completely; resolve failing tests even if unrelated to current work
   - **Knowledge** — Keep IMPLEMENTATION_PLAN.json current with learnings; update AGENTS.md with operational commands only (no status or progress); clean completed items from the plan periodically
@@ -24,7 +24,7 @@ Restructure `ralph-build/SKILL.md` to separate the sequential workflow from alwa
 ## Constraints
 
 - Do not add new rules or remove existing ones — this is a reorganization of existing content
-- Preserve the `<promise>COMPLETE</promise>` signal exactly as-is
+- Preserve the `<promise>Tastes Like Burning.</promise>` signal exactly as-is
 - The step about `git add -A` should remain as-is for now (changing git strategy is out of scope)
 
 ## Out of Scope

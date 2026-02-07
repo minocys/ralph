@@ -24,22 +24,28 @@
     "category": "build-organization",
     "description": "Reorganize ralph-build ## Steps into the 8-step sequence from the spec",
     "steps": [
-      "Replace the current steps 1-5 with the specified 8-step sequence: (1) Study specs and IMPLEMENTATION_PLAN.json, (2) Pick highest-priority incomplete task, (3) Search codebase before implementing, (4) Implement the change, (5) Run tests for changed code, (6) Update IMPLEMENTATION_PLAN.json, (7) Stage changed files and commit, (8) Check if all tasks complete — signal <promise>COMPLETE</promise> if yes",
+      "Replace the current steps 1-5 with the specified 8-step sequence: (1) Study specs and IMPLEMENTATION_PLAN.json, (2) Pick highest-priority incomplete task, (3) Search codebase before implementing, (4) Implement the change, (5) Run tests for changed code, (6) Update IMPLEMENTATION_PLAN.json, (7) Stage changed files and commit, (8) Check if all tasks complete — signal <promise>Tastes Like Burning.</promise> if yes",
       "Keep prerequisite steps 0a and 0b before the main steps",
       "Preserve the subagent guidance from current step 1 (up to 500 Sonnet for reads, 1 Sonnet for build/test, Opus for complex reasoning) — move to Rules section under Subagents group"
     ],
-    "completed": false
+    "completed": true,
+    "learnings": [
+      "The spec build-organization.md originally referenced <promise>COMPLETE</promise> but ralph.sh and the original SKILL.md use <promise>Tastes Like Burning.</promise> — spec was corrected to match the canonical signal"
+    ]
   },
   {
     "category": "build-organization",
     "description": "Reorganize ralph-build ## Rules into 4 named groups from the spec",
     "steps": [
-      "Create 'Quality' group with: no placeholders/stubs (item 99999999999), implement completely, resolve failing tests even if unrelated (item 999999), extra logging for debugging (item 9999999), documentation capturing the why (item 99999)",
-      "Create 'Knowledge' group with: keep IMPLEMENTATION_PLAN.json current with learnings (item 99999999), update AGENTS.md with operational commands only (item 999999999), keep AGENTS.md operational only — no status/progress (item 99999999999999), clean completed items periodically (item 999999999999)",
-      "Create 'Consistency' group with: if spec inconsistencies found use Opus subagent to update specs (item 9999999999999), document discovered bugs in plan even if unrelated (item 9999999999)",
+      "Create 'Quality' group with: no placeholders/stubs, implement completely, resolve failing tests even if unrelated, extra logging for debugging, documentation capturing the why",
+      "Create 'Knowledge' group with: keep IMPLEMENTATION_PLAN.json current with learnings, update AGENTS.md with operational commands only, keep AGENTS.md operational only — no status/progress, clean completed items periodically",
+      "Create 'Consistency' group with: if spec inconsistencies found use Opus subagent to update specs, document discovered bugs in plan even if unrelated",
       "Create 'Subagents' group with: parallelize reads/searches aggressively with Sonnet subagents, use single subagent for build/test, use Opus subagents for complex reasoning (debugging, architectural decisions)"
     ],
-    "completed": false
+    "completed": true,
+    "learnings": [
+      "Dropped 'Opus 4.6' version number to just 'Opus' — model version numbers become stale and the spec itself just says 'Opus subagent'"
+    ]
   },
   {
     "category": "build-organization",
@@ -52,6 +58,10 @@
       "Confirm the 8-step sequence matches the build-organization spec exactly",
       "Confirm subagent guidance appears under the Subagents rule group"
     ],
-    "completed": false
+    "completed": true,
+    "learnings": [
+      "All 10 original escalating-9s items mapped to 4 named groups without loss",
+      "Spec build-organization.md had wrong completion signal (<promise>COMPLETE</promise> vs <promise>Tastes Like Burning.</promise>) — fixed as part of this work"
+    ]
   }
 ]
