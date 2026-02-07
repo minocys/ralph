@@ -3,7 +3,7 @@ name: ralph-plan
 description: Implementation planner that studies and breaks down specs into tasks for implementation.
 ---
 
-# YOUR TASK
+# TASK
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json (if present) to understand the plan so far.
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.

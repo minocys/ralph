@@ -40,7 +40,7 @@
     "steps": [
       "Replace '# YOUR TASK' with '# TASK' in skills/ralph-plan/SKILL.md"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "skill-structure",
