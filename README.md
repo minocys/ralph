@@ -1,5 +1,7 @@
 # Ralph
 
+![Ralph target architecture](./assets/ralph-target.png)
+
 Autonomous build loop powered by Claude Code. Turns a conversation into specs, a plan, and working code.
 
 ## Workflow
@@ -12,6 +14,12 @@ Discuss JTBD → ralph-spec → ralph plan → ralph
 2. **Spec** — Run `/ralph-spec` in the same session. Ralph splits the JTBD into topics of concern and writes a spec file for each under `./specs/`.
 3. **Plan** — Run `ralph --plan` from your terminal. Ralph studies the specs and codebase, then produces `IMPLEMENTATION_PLAN.json` — a task list with completion tracking.
 4. **Build** — Run `ralph` from your terminal. Ralph picks up incomplete tasks from the plan, implements them, runs tests, commits, and loops until everything is done.
+
+### Videos
+
+- [Basic explanation of the technique](https://www.youtube.com/watch?v=I7azCAgoUHc)
+- [First principles from creator](https://www.youtube.com/watch?v=4Nna09dG_c0)
+- [Additional context](https://www.youtube.com/watch?v=SB6cO97tfiY)
 
 ## Concepts
 
@@ -80,3 +88,7 @@ skills/
   ralph-plan/         # Specs → implementation plan
   ralph-build/        # Plan → working code
 ```
+
+## Acknowledgements
+
+Ralph is based on the autonomous build loop technique [created by Geoffrey Huntley](https://ghuntley.com/ralph/). [The Ralph Playbook](https://github.com/ClaytonFarr/ralph-playbook) by Clayton Farr was a key inspiration for this implementation — it organizes the technique's principles, loop mechanics, and file conventions into a clear, actionable reference.
