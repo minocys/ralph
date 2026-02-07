@@ -11,7 +11,7 @@ description: Ralph build loop
 3. When you discover issues, immediately update @IMPLEMENTATION_PLAN.json with your findings using a subagent. When resolved, update and remove the item.
 4. When the tests pass, update @IMPLEMENTATION_PLAN.json, then `git add -A` then `git commit` with a message describing the changes.
 5. After completing a task, mark the task as completed. **DO NOT START A NEW TASK, ONLY WORK ON ONE TASK.**
-6. Check if ALL tasks in @IMPLEMNTATION_PLAN.json are completed. **ONLY IF ALL TASKS ARE COMPLETED, THEN OUTPUT**: <promise>COMPLETE</promise>. 
+6. Check if ALL tasks in @IMPLEMNTATION_PLAN.json are completed. If all tasks are complete, reply with <promise>Tastes Like Burning.</promise>.
 
 99999. Important: When authoring documentation, capture the why — tests and implementation importance.
 999999. Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.

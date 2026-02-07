@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 # Usage: ./ralph [options]
 # Options:
 #   --plan, -p              Plan mode (default: build)
@@ -114,12 +114,13 @@ while true; do
 
     claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER"
 
-    if grep -q "<promise>COMPLETE</promise>" "$TMPFILE"; then
+    if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
+      | grep -q '<promise>Tastes Like Burning.</promise>'; then
         echo "Ralph completed successfully. Exiting loop."
         echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
         exit 0
     fi
 
     ITERATION=$((ITERATION + 1))
-    print "\n\n======================== LOOP $ITERATION ========================\n"
+    printf "\n\n======================== LOOP %d ========================\n" "$ITERATION"
 done

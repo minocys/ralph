@@ -5,7 +5,7 @@
     "steps": [
       "Open ralph.sh and replace line 1 '#!/bin/zsh' with '#!/bin/bash'"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "shell-portability",
@@ -13,7 +13,7 @@
     "steps": [
       "Replace 'print \"\\n\\n======================== LOOP $ITERATION ========================\\n\"' with 'printf \"\\n\\n======================== LOOP %d ========================\\n\" \"$ITERATION\"'"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "shell-portability",
@@ -23,7 +23,7 @@
       "Confirm array append (CLAUDE_ARGS+=()), [[ ]] conditionals, and $(( )) arithmetic are all bash-compatible (they are)",
       "Confirm install.sh is unchanged and still uses #!/bin/bash"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "skill-structure",
