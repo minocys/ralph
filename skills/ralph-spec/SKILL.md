@@ -39,3 +39,12 @@ _Topic Scope Test: "One Sentence Without 'And'"_
   - ✓ "The color extraction system analyzes images to identify dominant colors"
   - ✗ "The user system handles authentication, profiles, and billing" → 3 topics
 - If you need "and" to describe what it does, it's probably multiple topics
+
+## Spec Output Format
+
+Each spec file should follow this structure. Adapt section depth to the topic — not every spec needs lengthy sections.
+
+- **Overview** — What this topic of concern is and why it matters
+- **Requirements** — What the system must do (testable, declarative statements)
+- **Constraints** — Technical or business boundaries that limit implementation choices
+- **Out of Scope** — What this spec explicitly does NOT cover

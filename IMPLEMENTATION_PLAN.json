@@ -8,7 +8,7 @@
       "Present the template as guidance (not rigid scaffolding) — note the model may adapt section depth to the topic",
       "Keep the template minimal per the spec-template.md constraints"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "spec-template",
@@ -18,7 +18,7 @@
       "Confirm the template appears after the concepts content and before other instructions",
       "Confirm the template includes all four required sections: Overview, Requirements, Constraints, Out of Scope"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "build-organization",
