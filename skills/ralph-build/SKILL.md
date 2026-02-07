@@ -3,6 +3,12 @@ name: ralph-build
 description: Ralph build loop
 ---
 
+# TASK
+Implement functionality per specifications using parallel subagents.
+
+## Context
+
+## Steps
 0a. Study `specs/*` with up to 500 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json.
 
@@ -13,14 +19,14 @@ description: Ralph build loop
 5. After completing a task, mark the task as completed. **DO NOT START A NEW TASK, ONLY WORK ON ONE TASK.**
 6. Check if ALL tasks in @IMPLEMNTATION_PLAN.json are completed. If all tasks are complete, reply with <promise>Tastes Like Burning.</promise>.
 
-99999. Important: When authoring documentation, capture the why — tests and implementation importance.
-999999. Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
-9999999. You may add extra logging if required to debug issues.
-99999999. Keep @IMPLEMENTATION_PLAN.json current with learnings using a subagent — future work depends on this to avoid duplicating efforts. Update especially after finishing your turn.
-999999999. When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
-9999999999. For any bugs you notice, resolve them or document them in @IMPLEMENTATION_PLAN.json using a subagent even if it is unrelated to the current piece of work.
-99999999999. Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
-999999999999. When @IMPLEMENTATION_PLAN.json becomes large periodically clean out the items that are completed from the file using a subagent.
-9999999999999. If you find inconsistencies in the specs/* then use an Opus 4.6 subagent requested to update the specs.
-99999999999999. IMPORTANT: Keep @AGENTS.md operational only — status updates and progress notes belong in `IMPLEMENTATION_PLAN.json`. A bloated AGENTS.md pollutes every future loop's context.
-
+## Rules
+- Important: When authoring documentation, capture the why — tests and implementation importance.
+- Important: Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
+- You may add extra logging if required to debug issues.
+- Keep @IMPLEMENTATION_PLAN.json current with learnings using a subagent — future work depends on this to avoid duplicating efforts. Update especially after finishing your turn.
+- When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
+- For any bugs you notice, resolve them or document them in @IMPLEMENTATION_PLAN.json using a subagent even if it is unrelated to the current piece of work.
+- Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
+- When @IMPLEMENTATION_PLAN.json becomes large periodically clean out the items that are completed from the file using a subagent.
+- If you find inconsistencies in the specs/* then use an Opus 4.6 subagent requested to update the specs.
+- IMPORTANT: Keep @AGENTS.md operational only — status updates and progress notes belong in `IMPLEMENTATION_PLAN.json`. A bloated AGENTS.md pollutes every future loop's context.

@@ -6,7 +6,7 @@
       "Add '# TASK' heading after the frontmatter closing '---'",
       "Add a one-line summary such as 'Implement functionality per specifications using parallel subagents.'"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "skill-structure",
@@ -16,7 +16,7 @@
       "Add a '## Steps' section and move prerequisite steps (0a, 0b) and main steps (1-5) under it",
       "Add a '## Rules' section and move the escalating-9s items (99999 through 99999999999999) under it as ungrouped bullet points for now (grouping is handled by build-organization spec)"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "skill-structure",
@@ -28,7 +28,7 @@
       "Confirm section ordering is preserved: Context before Steps before Rules in all files",
       "Confirm no semantic content was changed during restructuring"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "shared-vocabulary",
