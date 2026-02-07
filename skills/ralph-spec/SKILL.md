@@ -13,12 +13,12 @@ README.md should be a lookup table for all other specs.
 
 ## Context
 
-| Term                    | Definition                                                      |
-| ----------------------- | --------------------------------------------------------------- |
-| _Job to be Done (JTBD)_ | High-level user need or outcome                                 |
-| _Topic of Concern_      | A distinct aspect/component within a JTBD                       |
-| _Spec_                  | Requirements doc for one topic of concern (`specs/FILENAME.md`) |
-| _Task_                  | Unit of work derived from comparing specs to code               |
+| Term             | Definition                                                    |
+| ---------------- | ------------------------------------------------------------- |
+| Job to be Done   | High-level user need or outcome                               |
+| Topic of Concern | A distinct aspect or component within a JTBD                  |
+| Spec             | Requirements doc for one topic of concern (`specs/<name>.md`) |
+| Task             | Unit of work derived from comparing specs to code             |
 
 _Relationships:_
 

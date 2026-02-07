@@ -8,6 +8,13 @@ Implement functionality per specifications using parallel subagents.
 
 ## Context
 
+| Term             | Definition                                                    |
+| ---------------- | ------------------------------------------------------------- |
+| Job to be Done   | High-level user need or outcome                               |
+| Topic of Concern | A distinct aspect or component within a JTBD                  |
+| Spec             | Requirements doc for one topic of concern (`specs/<name>.md`) |
+| Task             | Unit of work derived from comparing specs to code             |
+
 ## Steps
 0a. Study `specs/*` with up to 500 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json.

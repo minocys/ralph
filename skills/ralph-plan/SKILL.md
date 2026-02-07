@@ -8,6 +8,13 @@ Study specs and codebase, then create or update IMPLEMENTATION_PLAN.json with pr
 
 ## Context
 
+| Term             | Definition                                                    |
+| ---------------- | ------------------------------------------------------------- |
+| Job to be Done   | High-level user need or outcome                               |
+| Topic of Concern | A distinct aspect or component within a JTBD                  |
+| Spec             | Requirements doc for one topic of concern (`specs/<name>.md`) |
+| Task             | Unit of work derived from comparing specs to code             |
+
 ## Steps
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json (if present) to understand the plan so far.
