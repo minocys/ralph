@@ -5,9 +5,9 @@ description: Convert current discussion into specs for Ralph
 # TASK
 Split the JTBD into topics of concern, and create spec files for each concern.
 
-Save the specs as markdown files in the ./specs folder and update ./specs/README.md.
+Save the specs as markdown files in the specs folder in the current project directory and update specs/README.md.
 
-Create a ./specs folder and ./specs/README.md if it does not exist. 
+Create a specs folder and specs/README.md in the current project directory if it does not exist. 
 
 README.md should be a lookup table for all other specs.
 
