@@ -40,7 +40,7 @@
       "If the result is empty, the alias was not found -- print an error listing available aliases (jq -r 'keys[]' \"$SCRIPT_DIR/models.json\") and exit 1",
       "Store the resolved model ID in RESOLVED_MODEL variable"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",
@@ -49,7 +49,7 @@
       "In the section that builds CLAUDE_ARGS, if RESOLVED_MODEL is non-empty, append --model \"$RESOLVED_MODEL\" to the CLAUDE_ARGS array",
       "When MODEL_ALIAS is empty, do not add --model at all -- let claude use its default"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",
@@ -58,7 +58,7 @@
       "In the startup banner section (between the two echo lines with horizontal rules), if MODEL_ALIAS is non-empty, add a line: echo \"Model:  $MODEL_ALIAS ($RESOLVED_MODEL)\"",
       "Keep existing banner lines unchanged"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",
@@ -68,7 +68,7 @@
       "Add new example line showing --model usage, e.g.: #   ./ralph -m opus                  # Build with opus model",
       "Verify --help output renders correctly via the existing sed command"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "test-infrastructure",
@@ -82,7 +82,7 @@
       "Test 5: --model with each alias in models.json succeeds (loop over all keys in models.json and assert each resolves without error)",
       "Test 6: -m is an alias for --model (run ./ralph.sh -m opus -> same result as --model opus)"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "ci",

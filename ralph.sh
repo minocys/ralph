@@ -3,6 +3,7 @@
 # Options:
 #   --plan, -p              Plan mode (default: build)
 #   --max-iterations N, -n N  Limit loop iterations (default: unlimited)
+#   --model <alias>, -m <alias>  Select model by alias (see models.json)
 #   --danger                Enable --dangerously-skip-permissions
 #   --help, -h              Show this help
 #
@@ -11,6 +12,7 @@
 #   ./ralph --plan                 # Plan mode, safe, unlimited
 #   ./ralph -n 10                  # Build mode, safe, 10 iterations
 #   ./ralph --plan -n 5 --danger   # Plan mode, skip permissions, 5 iterations
+#   ./ralph -m opus                # Build with opus model
 
 # Resolve script directory for locating models.json and other assets
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -70,6 +72,26 @@ else
     ACTIVE_BACKEND="anthropic"
 fi
 
+# Resolve model alias via models.json
+RESOLVED_MODEL=""
+if [ -n "$MODEL_ALIAS" ]; then
+    # Reject full model IDs — only aliases are accepted
+    if echo "$MODEL_ALIAS" | grep -qE '(^claude-|^us\.anthropic\.)'; then
+        echo "Error: Pass a model alias, not a full model ID. Available aliases:"
+        jq -r 'keys[]' "$SCRIPT_DIR/models.json"
+        exit 1
+    fi
+
+    RESOLVED_MODEL=$(jq -r --arg alias "$MODEL_ALIAS" --arg backend "$ACTIVE_BACKEND" \
+        '.[$alias][$backend] // empty' "$SCRIPT_DIR/models.json")
+
+    if [ -z "$RESOLVED_MODEL" ]; then
+        echo "Error: Unknown model alias '$MODEL_ALIAS'. Available aliases:"
+        jq -r 'keys[]' "$SCRIPT_DIR/models.json"
+        exit 1
+    fi
+fi
+
 # Preflight checks
 if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     echo "Error: No specs found. Run /ralph-spec first to generate specs in ./specs/"
@@ -119,6 +141,7 @@ echo "Mode:   $MODE"
 echo "Prompt: $COMMAND"
 echo "Branch: $CURRENT_BRANCH"
 echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
+[ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
 [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -131,6 +154,7 @@ while true; do
     # Run Ralph iteration: save raw JSON to tmpfile, display readable text
     CLAUDE_ARGS=(-p $COMMAND --output-format=stream-json --verbose)
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
+    [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
     claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER"
 
