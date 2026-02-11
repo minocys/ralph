@@ -1,28 +1,104 @@
 [
   {
+    "category": "spec-template",
+    "description": "Add output format guidance to ralph-spec/SKILL.md",
+    "steps": [
+      "Already implemented: ralph-spec/SKILL.md has Spec Output Format section with Overview, Requirements, Constraints, Out of Scope"
+    ],
+    "completed": true
+  },
+  {
+    "category": "shared-vocabulary",
+    "description": "Distribute the concepts table to ralph-plan/SKILL.md",
+    "steps": [
+      "Already implemented: ralph-plan/SKILL.md has the vocabulary table in its Context section matching ralph-spec/SKILL.md"
+    ],
+    "completed": true
+  },
+  {
+    "category": "shell-portability",
+    "description": "Align ralph.sh from zsh to bash",
+    "steps": [
+      "Already implemented: shebang changed to #!/bin/bash, print replaced with printf (commit 459417c)"
+    ],
+    "completed": true
+  },
+  {
     "category": "model-alias-registry",
     "description": "Create models.json with all 6 required aliases mapping to Anthropic and Bedrock model IDs",
     "steps": [
-      "Create models.json in the same directory as ralph.sh",
-      "Add alias 'opus' mapping to anthropic: claude-opus-4-20250514, bedrock: us.anthropic.claude-opus-4-20250514-v1:0",
-      "Add alias 'opus-4.5' mapping to anthropic: claude-opus-4-5-20251101, bedrock: us.anthropic.claude-opus-4-5-20251101-v1:0",
-      "Add alias 'sonnet' mapping to anthropic: claude-sonnet-4-20250514, bedrock: us.anthropic.claude-sonnet-4-20250514-v1:0",
-      "Add alias 'sonnet-3.5' mapping to anthropic: claude-3-5-sonnet-20241022, bedrock: us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-      "Add alias 'haiku' mapping to anthropic: claude-haiku-4-20250514, bedrock: us.anthropic.claude-haiku-4-20250514-v1:0",
-      "Add alias 'haiku-3.5' mapping to anthropic: claude-3-5-haiku-20241022, bedrock: us.anthropic.claude-3-5-haiku-20241022-v1:0",
-      "Ensure the JSON is pretty-printed and human-readable (2-space indent)"
+      "Implemented: Created models.json in the same directory as ralph.sh with all 6 required aliases",
+      "Added alias 'opus' mapping to anthropic: claude-opus-4-20250514, bedrock: us.anthropic.claude-opus-4-20250514-v1:0",
+      "Added alias 'opus-4.5' mapping to anthropic: claude-opus-4-5-20251101, bedrock: us.anthropic.claude-opus-4-5-20251101-v1:0",
+      "Added alias 'sonnet' mapping to anthropic: claude-sonnet-4-20250514, bedrock: us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "Added alias 'sonnet-3.5' mapping to anthropic: claude-3-5-sonnet-20241022, bedrock: us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "Added alias 'haiku' mapping to anthropic: claude-haiku-4-20250514, bedrock: us.anthropic.claude-haiku-4-20250514-v1:0",
+      "Added alias 'haiku-3.5' mapping to anthropic: claude-3-5-haiku-20241022, bedrock: us.anthropic.claude-3-5-haiku-20241022-v1:0",
+      "JSON is pretty-printed and human-readable with 2-space indent"
+    ],
+    "completed": true
+  },
+  {
+    "category": "model-alias-registry",
+    "description": "Validate models.json structure with jq",
+    "steps": [
+      "Validated: Ran 'jq . models.json' and confirmed valid JSON",
+      "Validated: All 6 required aliases exist as top-level keys: opus, opus-4.5, sonnet, sonnet-3.5, haiku, haiku-3.5",
+      "Validated: Each alias has exactly two keys: 'anthropic' and 'bedrock'",
+      "Validated: All values are non-empty strings",
+      "Validated: Lookup like 'jq -r '.opus.anthropic' models.json' returns the expected model ID correctly"
+    ],
+    "completed": true
+  },
+  {
+    "category": "test-infrastructure",
+    "description": "Add bats-support, bats-assert, and bats-file as git submodules under test/libs/",
+    "steps": [
+      "Create test/libs/ directory",
+      "git submodule add https://github.com/bats-core/bats-support test/libs/bats-support",
+      "git submodule add https://github.com/bats-core/bats-assert test/libs/bats-assert",
+      "git submodule add https://github.com/bats-core/bats-file test/libs/bats-file"
     ],
     "completed": false
   },
   {
-    "category": "model-alias-registry",
-    "description": "Test: validate models.json structure with jq",
+    "category": "test-infrastructure",
+    "description": "Create test/test_helper.bash with shared setup, claude stub, and fixture creation",
     "steps": [
-      "Run 'jq . models.json' to confirm valid JSON",
-      "Verify all 6 required aliases exist as top-level keys: opus, opus-4.5, sonnet, sonnet-3.5, haiku, haiku-3.5",
-      "Verify each alias has exactly two keys: 'anthropic' and 'bedrock'",
-      "Verify all values are non-empty strings",
-      "Verify a lookup like 'jq -r '.opus.anthropic' models.json' returns the expected model ID"
+      "Load bats-support, bats-assert, and bats-file from test/libs/ using load",
+      "Set SCRIPT_DIR to the project root so ralph.sh can locate models.json",
+      "Provide a setup function that creates a temp working directory with a minimal specs/ dir containing a dummy .md file and a dummy IMPLEMENTATION_PLAN.json so preflight checks pass",
+      "Create a fake claude stub script in a temp directory that prints its received arguments and exits 0",
+      "Prepend the stub directory to PATH so the stub is invoked instead of real claude",
+      "Provide a teardown function that cleans up temp files"
+    ],
+    "completed": false
+  },
+  {
+    "category": "test-infrastructure",
+    "description": "Create test/ralph_args.bats with 8 argument parsing test cases",
+    "steps": [
+      "Source test_helper.bash",
+      "Test 1: --help prints usage and exits 0 (assert_success + assert_output --partial 'Usage')",
+      "Test 2: -h is an alias for --help (same assertions as test 1)",
+      "Test 3: Unknown flag exits 1 with error (run ./ralph.sh --bogus -> assert_failure + assert_output --partial 'Unknown option')",
+      "Test 4: --max-iterations without value exits 1 (run ./ralph.sh -n -> assert_failure + assert_output --partial 'requires a number')",
+      "Test 5: --plan sets plan mode (verify banner output contains plan mode)",
+      "Test 6: -p is an alias for --plan (same as test 5)",
+      "Test 7: --danger flag is accepted (verify banner shows 'NO (--dangerously-skip-permissions)')",
+      "Test 8: Multiple flags combine correctly (run ./ralph.sh --plan -n 2 --danger -> banner includes plan mode, iteration cap, and danger notice)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "test-infrastructure",
+    "description": "Create test/ralph_preflight.bats with 4 preflight check test cases",
+    "steps": [
+      "Source test_helper.bash",
+      "Test 1: Missing specs/ directory exits 1 (remove specs dir -> assert_failure + assert_output --partial 'No specs found')",
+      "Test 2: Empty specs/ directory exits 1 (create empty specs dir -> assert_failure + assert_output --partial 'No specs found')",
+      "Test 3: Missing IMPLEMENTATION_PLAN.json in build mode exits 1 (remove plan file -> assert_failure + assert_output --partial 'IMPLEMENTATION_PLAN.json not found')",
+      "Test 4: Missing plan file is OK in plan mode (run ./ralph.sh --plan with no plan file -> preflight passes, may fail later at claude invocation which is fine)"
     ],
     "completed": false
   },
@@ -30,8 +106,8 @@
     "category": "cli-model-selection",
     "description": "Add SCRIPT_DIR resolution to ralph.sh so models.json is found relative to the script, not the working directory",
     "steps": [
-      "Near the top of ralph.sh (before argument parsing), resolve the script's own directory: SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
-      "This will be used later to locate models.json as $SCRIPT_DIR/models.json"
+      "Near the top of ralph.sh (before argument parsing and after the shebang/comments), add: SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+      "This variable will be used later to locate models.json as $SCRIPT_DIR/models.json"
     ],
     "completed": false
   },
@@ -39,10 +115,10 @@
     "category": "cli-model-selection",
     "description": "Add --model/-m flag parsing to ralph.sh argument parser",
     "steps": [
-      "Add a default variable: MODEL_ALIAS=\"\"",
-      "Add a case for --model|-m in the argument parser that captures the alias into MODEL_ALIAS",
-      "If the alias argument is missing (empty or starts with -), print an error and exit",
-      "Do not perform alias resolution yet — just capture the raw alias string"
+      "Add a default variable MODEL_ALIAS=\"\" alongside the other defaults",
+      "Add a case for --model|-m in the while loop argument parser that captures the next argument into MODEL_ALIAS",
+      "If the alias argument is missing (empty or starts with -), print an error and exit 1",
+      "Do not perform alias resolution yet -- just capture the raw alias string"
     ],
     "completed": false
   },
@@ -50,10 +126,10 @@
     "category": "cli-model-selection",
     "description": "Add backend detection from ~/.claude/settings.json",
     "steps": [
-      "After argument parsing, detect the active backend",
-      "Read CLAUDE_CODE_USE_BEDROCK from ~/.claude/settings.json using jq: jq -r '.env.CLAUDE_CODE_USE_BEDROCK // \"\"' ~/.claude/settings.json",
+      "After the argument parsing while-loop, detect the active backend",
+      "Read CLAUDE_CODE_USE_BEDROCK from ~/.claude/settings.json using jq: jq -r '.env.CLAUDE_CODE_USE_BEDROCK // \"\"' ~/.claude/settings.json 2>/dev/null",
       "If the value is '1', set ACTIVE_BACKEND=\"bedrock\"; otherwise set ACTIVE_BACKEND=\"anthropic\"",
-      "Handle the case where ~/.claude/settings.json does not exist (default to anthropic)"
+      "Handle the case where ~/.claude/settings.json does not exist by defaulting to anthropic"
     ],
     "completed": false
   },
@@ -63,8 +139,8 @@
     "steps": [
       "After backend detection, if MODEL_ALIAS is non-empty, first check if it looks like a full model ID (contains 'claude-' prefix or 'us.anthropic.')",
       "If it looks like a full model ID, print an error: 'Error: Pass a model alias, not a full model ID. Available aliases:' followed by the alias list from models.json, then exit 1",
-      "If it's an alias, resolve it using jq: jq -r --arg alias \"$MODEL_ALIAS\" --arg backend \"$ACTIVE_BACKEND\" '.[$alias][$backend] // empty' \"$SCRIPT_DIR/models.json\"",
-      "If the result is empty, the alias was not found — print an error listing available aliases (jq -r 'keys[]' models.json) and exit 1",
+      "If it is an alias, resolve it using jq: jq -r --arg alias \"$MODEL_ALIAS\" --arg backend \"$ACTIVE_BACKEND\" '.[$alias][$backend] // empty' \"$SCRIPT_DIR/models.json\"",
+      "If the result is empty, the alias was not found -- print an error listing available aliases (jq -r 'keys[]' \"$SCRIPT_DIR/models.json\") and exit 1",
       "Store the resolved model ID in RESOLVED_MODEL variable"
     ],
     "completed": false
@@ -74,7 +150,7 @@
     "description": "Add --model argument passthrough to the claude CLI invocation",
     "steps": [
       "In the section that builds CLAUDE_ARGS, if RESOLVED_MODEL is non-empty, append --model \"$RESOLVED_MODEL\" to the CLAUDE_ARGS array",
-      "When MODEL_ALIAS is empty, do not add --model at all — let claude use its default"
+      "When MODEL_ALIAS is empty, do not add --model at all -- let claude use its default"
     ],
     "completed": false
   },
@@ -82,7 +158,7 @@
     "category": "cli-model-selection",
     "description": "Add model and backend info to the startup banner",
     "steps": [
-      "In the startup banner section, if MODEL_ALIAS is non-empty, add a line: echo \"Model:  $MODEL_ALIAS ($RESOLVED_MODEL)\"",
+      "In the startup banner section (between the two echo lines with horizontal rules), if MODEL_ALIAS is non-empty, add a line: echo \"Model:  $MODEL_ALIAS ($RESOLVED_MODEL)\"",
       "Keep existing banner lines unchanged"
     ],
     "completed": false
@@ -91,22 +167,36 @@
     "category": "cli-model-selection",
     "description": "Update help text in ralph.sh to document --model/-m flag",
     "steps": [
-      "Add to the header comment block: --model <alias>, -m <alias>  Select model by alias (see models.json)",
-      "Add new example line showing --model usage, e.g.: ./ralph -m opus",
+      "In the header comment block, add a line: #   --model <alias>, -m <alias>  Select model by alias (see models.json)",
+      "Add new example line showing --model usage, e.g.: #   ./ralph -m opus                  # Build with opus model",
       "Verify --help output renders correctly via the existing sed command"
     ],
     "completed": false
   },
   {
-    "category": "cli-model-selection",
-    "description": "Test: verify all CLI flag combinations produce correct behavior",
+    "category": "test-infrastructure",
+    "description": "Create test/ralph_model.bats with 6 model and backend resolution test cases",
     "steps": [
-      "Test --help shows the new --model/-m flag",
-      "Test -m opus alone resolves correctly (check CLAUDE_ARGS would include --model with the anthropic model ID)",
-      "Test -m nonexistent produces an error with the alias list",
-      "Test passing a full model ID like 'claude-opus-4-20250514' is rejected with an error",
-      "Test no --model flag means no --model in CLAUDE_ARGS",
-      "Test unknown flags still produce the existing error message"
+      "Source test_helper.bash",
+      "Test 1: --model opus resolves to anthropic ID (mock ~/.claude/settings.json without bedrock flag -> run with --model opus -> assert banner contains the anthropic model ID for opus)",
+      "Test 2: --model opus resolves to bedrock ID (mock settings with CLAUDE_CODE_USE_BEDROCK: '1' -> run with --model opus -> assert banner contains the bedrock model ID for opus)",
+      "Test 3: Invalid alias exits 1 with available list (run ./ralph.sh --model nonexistent -> assert_failure + assert_output --partial 'nonexistent' + output lists valid aliases)",
+      "Test 4: No --model flag omits --model from claude args (run without --model -> verify --model is NOT in the constructed claude command)",
+      "Test 5: --model with each alias in models.json succeeds (loop over all keys in models.json and assert each resolves without error)",
+      "Test 6: -m is an alias for --model (run ./ralph.sh -m opus -> same result as --model opus)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "ci",
+    "description": "Create .github/workflows/test.yml for GitHub Actions CI",
+    "steps": [
+      "Create .github/workflows/ directory",
+      "Create test.yml with triggers on push to main and pull_request to main",
+      "Use actions/checkout@v4 with submodules: recursive",
+      "Install jq via apt-get",
+      "Use mig4/setup-bats@v1 with bats-version: 1.11.1",
+      "Run 'bats --tap test/' as the test step"
     ],
     "completed": false
   }
