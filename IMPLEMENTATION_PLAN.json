@@ -9,7 +9,7 @@
       "Test 3: Missing IMPLEMENTATION_PLAN.json in build mode exits 1 (remove plan file -> assert_failure + assert_output --partial 'IMPLEMENTATION_PLAN.json not found')",
       "Test 4: Missing plan file is OK in plan mode (run ./ralph.sh --plan with no plan file -> preflight passes, may fail later at claude invocation which is fine)"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",
