@@ -1,35 +1,6 @@
 [
   {
     "category": "test-infrastructure",
-    "description": "Create test/test_helper.bash with shared setup, claude stub, and fixture creation",
-    "steps": [
-      "Load bats-support, bats-assert, and bats-file from test/libs/ using load",
-      "Set SCRIPT_DIR to the project root so ralph.sh can locate models.json",
-      "Provide a setup function that creates a temp working directory with a minimal specs/ dir containing a dummy .md file and a dummy IMPLEMENTATION_PLAN.json so preflight checks pass",
-      "Create a fake claude stub script in a temp directory that prints its received arguments and exits 0",
-      "Prepend the stub directory to PATH so the stub is invoked instead of real claude",
-      "Provide a teardown function that cleans up temp files"
-    ],
-    "completed": true
-  },
-  {
-    "category": "test-infrastructure",
-    "description": "Create test/ralph_args.bats with 8 argument parsing test cases",
-    "steps": [
-      "Source test_helper.bash",
-      "Test 1: --help prints usage and exits 0 (assert_success + assert_output --partial 'Usage')",
-      "Test 2: -h is an alias for --help (same assertions as test 1)",
-      "Test 3: Unknown flag exits 1 with error (run ./ralph.sh --bogus -> assert_failure + assert_output --partial 'Unknown option')",
-      "Test 4: --max-iterations without value exits 1 (run ./ralph.sh -n -> assert_failure + assert_output --partial 'requires a number')",
-      "Test 5: --plan sets plan mode (verify banner output contains plan mode)",
-      "Test 6: -p is an alias for --plan (same as test 5)",
-      "Test 7: --danger flag is accepted (verify banner shows 'NO (--dangerously-skip-permissions)')",
-      "Test 8: Multiple flags combine correctly (run ./ralph.sh --plan -n 2 --danger -> banner includes plan mode, iteration cap, and danger notice)"
-    ],
-    "completed": false
-  },
-  {
-    "category": "test-infrastructure",
     "description": "Create test/ralph_preflight.bats with 4 preflight check test cases",
     "steps": [
       "Source test_helper.bash",
