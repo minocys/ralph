@@ -95,6 +95,6 @@
       "Use mig4/setup-bats@v1 with bats-version: 1.11.1",
       "Run 'bats --tap test/' as the test step"
     ],
-    "completed": false
+    "completed": true
   }
 ]
