@@ -63,5 +63,154 @@
       "All 10 original escalating-9s items mapped to 4 named groups without loss",
       "Spec build-organization.md had wrong completion signal (<promise>COMPLETE</promise> vs <promise>Tastes Like Burning.</promise>) — fixed as part of this work"
     ]
+  },
+  {
+    "category": "model-alias-registry",
+    "description": "Create models.json with all 6 required aliases mapping to Anthropic and Bedrock model IDs",
+    "steps": [
+      "Create models.json in the same directory as ralph.sh",
+      "Add alias 'opus' mapping to anthropic: claude-opus-4-20250514, bedrock: us.anthropic.claude-opus-4-20250514-v1:0",
+      "Add alias 'opus-4.5' mapping to anthropic: claude-opus-4-5-20251101, bedrock: us.anthropic.claude-opus-4-5-20251101-v1:0",
+      "Add alias 'sonnet' mapping to anthropic: claude-sonnet-4-20250514, bedrock: us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "Add alias 'sonnet-3.5' mapping to anthropic: claude-3-5-sonnet-20241022, bedrock: us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "Add alias 'haiku' mapping to anthropic: claude-haiku-4-20250514, bedrock: us.anthropic.claude-haiku-4-20250514-v1:0",
+      "Add alias 'haiku-3.5' mapping to anthropic: claude-3-5-haiku-20241022, bedrock: us.anthropic.claude-3-5-haiku-20241022-v1:0",
+      "Ensure the JSON is pretty-printed and human-readable (2-space indent)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "model-alias-registry",
+    "description": "Test: validate models.json structure with jq",
+    "steps": [
+      "Run 'jq . models.json' to confirm valid JSON",
+      "Verify all 6 required aliases exist as top-level keys: opus, opus-4.5, sonnet, sonnet-3.5, haiku, haiku-3.5",
+      "Verify each alias has exactly two keys: 'anthropic' and 'bedrock'",
+      "Verify all values are non-empty strings",
+      "Verify a lookup like 'jq -r '.opus.anthropic' models.json' returns the expected model ID"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add SCRIPT_DIR resolution to ralph.sh so models.json is found relative to the script, not the working directory",
+    "steps": [
+      "Near the top of ralph.sh (before argument parsing), resolve the script's own directory: SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+      "This will be used later to locate models.json as $SCRIPT_DIR/models.json"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add --model/-m flag parsing to ralph.sh argument parser",
+    "steps": [
+      "Add a default variable: MODEL_ALIAS=\"\"",
+      "Add a case for --model|-m in the argument parser that captures the alias into MODEL_ALIAS",
+      "If the alias argument is missing (empty or starts with -), print an error and exit",
+      "Do not perform alias resolution yet — just capture the raw alias string"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add --bedrock and --anthropic flag parsing with mutual exclusivity check",
+    "steps": [
+      "Add a default variable: BACKEND_OVERRIDE=\"\" (empty means no override)",
+      "Add a case for --bedrock that sets BACKEND_OVERRIDE=\"bedrock\"",
+      "Add a case for --anthropic that sets BACKEND_OVERRIDE=\"anthropic\"",
+      "After the argument parsing loop, check if both were somehow set (detect conflict by checking if --bedrock is passed after --anthropic or vice versa). Simplest: set BACKEND_OVERRIDE each time and track if it was already set to a different value",
+      "If conflict detected, print error and exit 1"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add default backend detection from ~/.claude/settings.json",
+    "steps": [
+      "After argument parsing, if BACKEND_OVERRIDE is empty, detect default backend",
+      "Read CLAUDE_CODE_USE_BEDROCK from ~/.claude/settings.json using jq: jq -r '.env.CLAUDE_CODE_USE_BEDROCK // \"\"' ~/.claude/settings.json",
+      "If the value is '1', set ACTIVE_BACKEND=\"bedrock\"; otherwise set ACTIVE_BACKEND=\"anthropic\"",
+      "If BACKEND_OVERRIDE is not empty, set ACTIVE_BACKEND to the override value",
+      "Handle the case where ~/.claude/settings.json does not exist (default to anthropic)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add model alias resolution via models.json lookup",
+    "steps": [
+      "After backend detection, if MODEL_ALIAS is non-empty, resolve it to a full model ID",
+      "Read from $SCRIPT_DIR/models.json using jq: jq -r --arg alias \"$MODEL_ALIAS\" --arg backend \"$ACTIVE_BACKEND\" '.[$alias][$backend] // empty' \"$SCRIPT_DIR/models.json\"",
+      "If the result is empty, the alias was not found — print an error listing available aliases (jq -r 'keys[]' models.json) and exit 1",
+      "Store the resolved model ID in RESOLVED_MODEL variable"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add full-model-ID rejection — ralph.sh only accepts aliases, not raw model IDs",
+    "steps": [
+      "After capturing MODEL_ALIAS, check if it looks like a full model ID (contains 'claude-' prefix or matches a pattern like 'us.anthropic.')",
+      "If it does, print an error: 'Error: Pass a model alias, not a full model ID. Available aliases:' followed by the alias list from models.json",
+      "Exit 1 on rejection"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add CLAUDE_CODE_USE_BEDROCK env export when --bedrock or --anthropic is specified",
+    "steps": [
+      "After backend resolution, if BACKEND_OVERRIDE is 'bedrock', add: export CLAUDE_CODE_USE_BEDROCK=1",
+      "If BACKEND_OVERRIDE is 'anthropic', add: export CLAUDE_CODE_USE_BEDROCK=0",
+      "If BACKEND_OVERRIDE is empty, do not modify the environment — inherit from settings.json"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add --model argument passthrough to the claude CLI invocation",
+    "steps": [
+      "In the section that builds CLAUDE_ARGS, if RESOLVED_MODEL is non-empty, append --model \"$RESOLVED_MODEL\" to the CLAUDE_ARGS array",
+      "When MODEL_ALIAS is empty, do not add --model at all — let claude use its default"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add model and backend info to the startup banner",
+    "steps": [
+      "In the startup banner section, if MODEL_ALIAS is non-empty, add a line: echo \"Model:  $MODEL_ALIAS ($RESOLVED_MODEL)\"",
+      "If BACKEND_OVERRIDE is non-empty, add a line: echo \"Backend: $ACTIVE_BACKEND (override)\"",
+      "Keep existing banner lines unchanged"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Update help text in ralph.sh to document all new flags",
+    "steps": [
+      "Add to the header comment block: --model <alias>, -m <alias>  Select model by alias (see models.json)",
+      "Add: --bedrock                Force Bedrock backend",
+      "Add: --anthropic              Force Anthropic API backend",
+      "Add new example lines showing --model and --bedrock usage",
+      "Verify --help output renders correctly via the existing sed command"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Test: verify all CLI flag combinations produce correct behavior",
+    "steps": [
+      "Test --help shows all new flags",
+      "Test -m opus alone resolves correctly (check CLAUDE_ARGS would include --model with the right ID)",
+      "Test --bedrock sets CLAUDE_CODE_USE_BEDROCK=1",
+      "Test --anthropic sets CLAUDE_CODE_USE_BEDROCK=0",
+      "Test --bedrock --anthropic together produces a mutual exclusivity error",
+      "Test -m nonexistent produces an error with the alias list",
+      "Test passing a full model ID like 'claude-opus-4-20250514' is rejected",
+      "Test no --model flag means no --model in CLAUDE_ARGS",
+      "Test -m sonnet --bedrock resolves to the bedrock model ID for sonnet"
+    ],
+    "completed": false
   }
 ]
