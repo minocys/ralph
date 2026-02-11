@@ -1,24 +1,12 @@
 [
   {
-    "category": "test-infrastructure",
-    "description": "Create test/ralph_preflight.bats with 4 preflight check test cases",
-    "steps": [
-      "Source test_helper.bash",
-      "Test 1: Missing specs/ directory exits 1 (remove specs dir -> assert_failure + assert_output --partial 'No specs found')",
-      "Test 2: Empty specs/ directory exits 1 (create empty specs dir -> assert_failure + assert_output --partial 'No specs found')",
-      "Test 3: Missing IMPLEMENTATION_PLAN.json in build mode exits 1 (remove plan file -> assert_failure + assert_output --partial 'IMPLEMENTATION_PLAN.json not found')",
-      "Test 4: Missing plan file is OK in plan mode (run ./ralph.sh --plan with no plan file -> preflight passes, may fail later at claude invocation which is fine)"
-    ],
-    "completed": true
-  },
-  {
     "category": "cli-model-selection",
     "description": "Add SCRIPT_DIR resolution to ralph.sh so models.json is found relative to the script, not the working directory",
     "steps": [
       "Near the top of ralph.sh (before argument parsing and after the shebang/comments), add: SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
       "This variable will be used later to locate models.json as $SCRIPT_DIR/models.json"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",

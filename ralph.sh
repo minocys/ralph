@@ -12,6 +12,9 @@
 #   ./ralph -n 10                  # Build mode, safe, 10 iterations
 #   ./ralph --plan -n 5 --danger   # Plan mode, skip permissions, 5 iterations
 
+# Resolve script directory for locating models.json and other assets
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Defaults
 MODE="build"
 COMMAND="/ralph-build"
