@@ -20,6 +20,7 @@ MODE="build"
 COMMAND="/ralph-build"
 MAX_ITERATIONS=0
 DANGER=false
+MODEL_ALIAS=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -35,6 +36,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             MAX_ITERATIONS="$2"
+            shift 2
+            ;;
+        --model|-m)
+            if [[ -z "$2" || "$2" = -* ]]; then
+                echo "Error: --model requires an alias (e.g. opus, sonnet, haiku)"
+                exit 1
+            fi
+            MODEL_ALIAS="$2"
             shift 2
             ;;
         --danger)

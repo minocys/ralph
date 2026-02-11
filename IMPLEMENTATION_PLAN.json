@@ -17,7 +17,7 @@
       "If the alias argument is missing (empty or starts with -), print an error and exit 1",
       "Do not perform alias resolution yet -- just capture the raw alias string"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",
