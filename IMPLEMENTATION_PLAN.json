@@ -10,7 +10,7 @@
       "Prepend the stub directory to PATH so the stub is invoked instead of real claude",
       "Provide a teardown function that cleans up temp files"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "test-infrastructure",
