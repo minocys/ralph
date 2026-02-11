@@ -62,6 +62,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Detect active backend from ~/.claude/settings.json
+BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
+if [ "$BEDROCK_FLAG" = "1" ]; then
+    ACTIVE_BACKEND="bedrock"
+else
+    ACTIVE_BACKEND="anthropic"
+fi
+
 # Preflight checks
 if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     echo "Error: No specs found. Run /ralph-spec first to generate specs in ./specs/"

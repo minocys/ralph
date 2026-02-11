@@ -28,7 +28,7 @@
       "If the value is '1', set ACTIVE_BACKEND=\"bedrock\"; otherwise set ACTIVE_BACKEND=\"anthropic\"",
       "Handle the case where ~/.claude/settings.json does not exist by defaulting to anthropic"
     ],
-    "completed": false
+    "completed": true
   },
   {
     "category": "cli-model-selection",
