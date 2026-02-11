@@ -37,6 +37,152 @@ New CLI flags for `ralph.sh` that let the user choose a model and backend when l
 - Model resolution reads `models.json` relative to the script's own directory, not the working directory.
 - The `~/.claude/settings.json` file is read-only — `ralph.sh` never writes to it.
 
+## Testing
+
+### Framework
+
+Use [bats-core](https://github.com/bats-core/bats-core) (Bash Automated Testing System) for all `ralph.sh` tests. Bats is a TAP-compliant testing framework purpose-built for Bash.
+
+### Helper libraries
+
+Install the following bats helper libraries as git submodules under `test/libs/`:
+
+- **bats-support** (`bats-core/bats-support`) — core helper library required by bats-assert.
+- **bats-assert** (`bats-core/bats-assert`) — assertion functions: `assert_success`, `assert_failure`, `assert_output`, `assert_line`, `refute_output`, etc.
+- **bats-file** (`bats-core/bats-file`) — file-existence assertions: `assert_file_exists`, `assert_dir_exists`, etc.
+
+### Test file layout
+
+```
+test/
+├── libs/
+│   ├── bats-support/   # git submodule
+│   ├── bats-assert/    # git submodule
+│   └── bats-file/      # git submodule
+├── test_helper.bash    # shared setup: load libs, set SCRIPT_DIR, create fixtures
+├── ralph_args.bats     # argument parsing tests
+├── ralph_preflight.bats # preflight check tests
+└── ralph_model.bats    # model/backend resolution tests
+```
+
+### Shared test helper (`test/test_helper.bash`)
+
+- Load `bats-support`, `bats-assert`, and `bats-file` via `bats_load_library` or `load` from `test/libs/`.
+- Set `SCRIPT_DIR` to the project root so the script under test can locate `models.json`.
+- Provide a `setup` function that creates a temporary working directory (`$BATS_TMPDIR`) with a minimal `specs/` directory and dummy `IMPLEMENTATION_PLAN.json` so preflight checks pass when not under test.
+- Provide a `teardown` function that cleans up temp files.
+
+### Test cases
+
+#### `ralph_args.bats` — argument parsing
+
+| # | Test | How |
+|---|------|-----|
+| 1 | `--help` prints usage and exits 0 | `run ./ralph.sh --help` → `assert_success` + `assert_output --partial "Usage"` |
+| 2 | `-h` is an alias for `--help` | Same as above with `-h` |
+| 3 | Unknown flag exits 1 with error | `run ./ralph.sh --bogus` → `assert_failure` + `assert_output --partial "Unknown option"` |
+| 4 | `--max-iterations` without value exits 1 | `run ./ralph.sh -n` → `assert_failure` + `assert_output --partial "requires a number"` |
+| 5 | `--plan` sets plan mode | `run ./ralph.sh --plan ...` and verify mode is reflected in banner output |
+| 6 | `-p` is an alias for `--plan` | Same as above with `-p` |
+| 7 | `--danger` flag is accepted | Verify banner shows `NO (--dangerously-skip-permissions)` |
+| 8 | Multiple flags combine correctly | `run ./ralph.sh --plan -n 2 --danger` → banner includes plan mode, iteration cap, and danger notice |
+
+#### `ralph_preflight.bats` — preflight checks
+
+| # | Test | How |
+|---|------|-----|
+| 1 | Missing `specs/` directory exits 1 | Remove the specs dir before run → `assert_failure` + `assert_output --partial "No specs found"` |
+| 2 | Empty `specs/` directory exits 1 | Create empty specs dir → `assert_failure` + `assert_output --partial "No specs found"` |
+| 3 | Missing `IMPLEMENTATION_PLAN.json` in build mode exits 1 | Remove the plan file → `assert_failure` + `assert_output --partial "IMPLEMENTATION_PLAN.json not found"` |
+| 4 | Missing plan file is OK in plan mode | `run ./ralph.sh --plan` with no plan file → should not fail on that check (will fail later at `claude` invocation, which is fine — preflight passed) |
+
+#### `ralph_model.bats` — model & backend resolution
+
+| # | Test | How |
+|---|------|-----|
+| 1 | `--model opus` resolves to anthropic ID | Mock `~/.claude/settings.json` without bedrock flag → run with `--model opus` → assert banner contains the anthropic model ID from `models.json` |
+| 2 | `--model opus` resolves to bedrock ID | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `--model opus` → assert banner contains the bedrock model ID |
+| 3 | Invalid alias exits 1 with available list | `run ./ralph.sh --model nonexistent` → `assert_failure` + `assert_output --partial "nonexistent"` + output lists valid aliases |
+| 4 | No `--model` flag omits `--model` from claude args | Run without `--model` → verify `--model` is NOT in the constructed claude command |
+| 5 | `--model` with each alias in `models.json` succeeds | Loop over all keys in `models.json` and assert each resolves without error |
+| 6 | `-m` is an alias for `--model` | `run ./ralph.sh -m opus` → same result as `--model opus` |
+
+### Testing technique: isolate from `claude` CLI
+
+Because `ralph.sh` ultimately invokes `claude` (which is not available in CI), tests must **stub** the `claude` command. The recommended approach:
+
+- In the test helper, create a fake `claude` script in a temp directory that simply prints its received arguments and exits 0.
+- Prepend that directory to `PATH` so the stub is invoked instead of the real `claude`.
+- Tests that verify `--model <id>` is passed to `claude` can then inspect the stub's captured arguments.
+
+### Running tests locally
+
+```bash
+# Install bats-core (macOS)
+brew install bats-core
+
+# Or via npm
+npm install -g bats
+
+# Initialize submodules (first time)
+git submodule update --init --recursive
+
+# Run all tests
+bats test/
+
+# Run a specific test file
+bats test/ralph_args.bats
+
+# TAP output for machine consumption
+bats --tap test/
+```
+
+## CI/CD — GitHub Actions
+
+### Workflow file
+
+Create `.github/workflows/test.yml`:
+
+```yaml
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  bats:
+    name: BATS tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Setup BATS
+        uses: mig4/setup-bats@v1
+        with:
+          bats-version: 1.11.1
+
+      - name: Run tests
+        run: bats --tap test/
+```
+
+### CI requirements
+
+- The workflow triggers on pushes to `main` and on pull requests targeting `main`.
+- `actions/checkout@v4` with `submodules: recursive` ensures the bats helper libraries in `test/libs/` are available.
+- `mig4/setup-bats@v1` installs the specified bats-core version onto the runner.
+- `jq` is pre-installed on GitHub-hosted runners, but the explicit install step ensures it.
+- The `claude` CLI is **not** installed in CI — the stub approach described above makes this unnecessary.
+
 ## Out of Scope
 
 - Passing full model IDs directly (bypassing aliases).
