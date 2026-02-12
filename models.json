@@ -1,38 +1,18 @@
 {
   "opus-4.6": {
     "anthropic": "claude --model claude-opus-4-6",
-    "bedrock": "us.anthropic.claude-opus-4-20250514-v1:0"
+    "bedrock": "global.anthropic.claude-opus-4-6-v1"
   },
   "opus-4.5": {
     "anthropic": "claude-opus-4-5-20251101",
-    "bedrock": "us.anthropic.claude-opus-4-5-20251101-v1:0"
-  },
-  "opus-4.1": {
-    "anthropic": "claude-opus-4-1-20250805",
-    "bedrock": "us.anthropic.claude-opus-4-5-20251101-v1:0"
-  },
-  "opus-4": {
-    "anthropic": "claude-opus-4-20250514",
-    "bedrock": "us.anthropic.claude-opus-4-5-20251101-v1:0"
+    "bedrock": "global.anthropic.claude-opus-4-5-20251101-v1:0"
   },
   "sonnet-4.5": {
     "anthropic": "claude-sonnet-4-5-20250929",
-    "bedrock": "us.anthropic.claude-sonnet-4-20250514-v1:0"
-  },
-  "sonnet-4": {
-    "anthropic": "claude-sonnet-4-20250514",
-    "bedrock": "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    "bedrock": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
   },
   "haiku-4.5": {
     "anthropic": "claude-haiku-4-5-20251001",
-    "bedrock": "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-  },
-  "haiku-3.5": {
-    "anthropic": "claude-3-5-haiku-20241022",
-    "bedrock": "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-  },,,,
-  "haiku-3": {
-    "anthropic": "claude-3-haiku-20240307",
-    "bedrock": "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+    "bedrock": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
   }
 }
