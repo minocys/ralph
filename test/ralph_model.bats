@@ -22,18 +22,18 @@ EOF
     export HOME="$fake_home"
 }
 
-@test "--model opus resolves to anthropic ID" {
+@test "--model opus-4.5 resolves to anthropic ID" {
     mock_settings_json
-    run "$SCRIPT_DIR/ralph.sh" --model opus -n 1
+    run "$SCRIPT_DIR/ralph.sh" --model opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus (claude-opus-4-20250514)"
+    assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
 }
 
-@test "--model opus resolves to bedrock ID" {
+@test "--model opus-4.5 resolves to bedrock ID" {
     mock_settings_json bedrock
-    run "$SCRIPT_DIR/ralph.sh" --model opus -n 1
+    run "$SCRIPT_DIR/ralph.sh" --model opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus (us.anthropic.claude-opus-4-20250514-v1:0)"
+    assert_output --partial "Model:  opus-4.5 (global.anthropic.claude-opus-4-5-20251101-v1:0)"
 }
 
 @test "invalid alias exits 1 with available list" {
@@ -41,7 +41,8 @@ EOF
     run "$SCRIPT_DIR/ralph.sh" --model nonexistent -n 1
     assert_failure
     assert_output --partial "Unknown model alias 'nonexistent'"
-    assert_output --partial "opus"
+    assert_output --partial "opus-4.6"
+    assert_output --partial "opus-4.5"
     assert_output --partial "sonnet"
     assert_output --partial "haiku"
 }
@@ -68,7 +69,7 @@ EOF
 
 @test "-m is an alias for --model" {
     mock_settings_json
-    run "$SCRIPT_DIR/ralph.sh" -m opus -n 1
+    run "$SCRIPT_DIR/ralph.sh" -m opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus (claude-opus-4-20250514)"
+    assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
 }
