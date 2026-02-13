@@ -144,7 +144,7 @@ while true; do
     fi
 
     # Run Ralph iteration: save raw JSON to tmpfile, display readable text
-    CLAUDE_ARGS=(-p $COMMAND --output-format=stream-json --verbose)
+    CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
     [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
