@@ -12,7 +12,7 @@
 #   ./ralph --plan                 # Plan mode, safe, unlimited
 #   ./ralph -n 10                  # Build mode, safe, 10 iterations
 #   ./ralph --plan -n 5 --danger   # Plan mode, skip permissions, 5 iterations
-#   ./ralph -m opus                # Build with opus model
+#   ./ralph -m opus-4.5             # Build with opus-4.5 model
 
 # Resolve script directory for locating models.json and other assets
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --model|-m)
             if [[ -z "$2" || "$2" = -* ]]; then
-                echo "Error: --model requires an alias (e.g. opus, sonnet, haiku)"
+                echo "Error: --model requires an alias (e.g. opus-4.5, sonnet, haiku)"
                 exit 1
             fi
             MODEL_ALIAS="$2"
