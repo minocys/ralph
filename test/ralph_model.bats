@@ -47,8 +47,6 @@ EOF
     mock_settings_json
     run "$SCRIPT_DIR/ralph.sh" -n 1
     assert_success
-    refute_output --partial "ARGS: .*--model"
-    # The stub prints ARGS: ..., verify --model is not in it
     refute_line --partial "--model"
 }
 

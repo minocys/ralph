@@ -10,7 +10,7 @@ A JSON file (`models.json`) that lives next to `ralph.sh` and maps shorthand ali
 - Each entry is keyed by a shorthand alias (e.g., `opus`, `sonnet`, `haiku`).
 - Each alias maps to an object with exactly two keys: `anthropic` and `bedrock`, each containing the full model ID string for that backend.
 - The registry must include aliases for at least the following model families:
-  - `opus-4.6` — Claude Opus 4
+  - `opus-4.6` — Claude Opus 4.6
   - `opus-4.5` — Claude Opus 4.5
   - `sonnet` — Claude Sonnet 4
   - `haiku` — Claude 3.5 Haiku
