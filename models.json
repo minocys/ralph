@@ -7,11 +7,11 @@
     "anthropic": "claude-opus-4-5-20251101",
     "bedrock": "global.anthropic.claude-opus-4-5-20251101-v1:0"
   },
-  "sonnet-4.5": {
+  "sonnet": {
     "anthropic": "claude-sonnet-4-5-20250929",
     "bedrock": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
   },
-  "haiku-4.5": {
+  "haiku": {
     "anthropic": "claude-haiku-4-5-20251001",
     "bedrock": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
   }
