@@ -75,20 +75,12 @@ fi
 # Resolve model alias via models.json
 RESOLVED_MODEL=""
 if [ -n "$MODEL_ALIAS" ]; then
-    # Reject full model IDs — only aliases are accepted
-    if echo "$MODEL_ALIAS" | grep -qE '(^claude-|^us\.anthropic\.)'; then
-        echo "Error: Pass a model alias, not a full model ID. Available aliases:"
-        jq -r 'keys[]' "$SCRIPT_DIR/models.json"
-        exit 1
-    fi
-
     RESOLVED_MODEL=$(jq -r --arg alias "$MODEL_ALIAS" --arg backend "$ACTIVE_BACKEND" \
         '.[$alias][$backend] // empty' "$SCRIPT_DIR/models.json")
 
+    # Pass-through: if alias not found in models.json, use raw value as model ID
     if [ -z "$RESOLVED_MODEL" ]; then
-        echo "Error: Unknown model alias '$MODEL_ALIAS'. Available aliases:"
-        jq -r 'keys[]' "$SCRIPT_DIR/models.json"
-        exit 1
+        RESOLVED_MODEL="$MODEL_ALIAS"
     fi
 fi
 

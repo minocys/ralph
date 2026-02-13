@@ -36,15 +36,11 @@ EOF
     assert_output --partial "Model:  opus-4.5 (global.anthropic.claude-opus-4-5-20251101-v1:0)"
 }
 
-@test "invalid alias exits 1 with available list" {
+@test "unknown alias passes through as model ID" {
     mock_settings_json
     run "$SCRIPT_DIR/ralph.sh" --model nonexistent -n 1
-    assert_failure
-    assert_output --partial "Unknown model alias 'nonexistent'"
-    assert_output --partial "opus-4.6"
-    assert_output --partial "opus-4.5"
-    assert_output --partial "sonnet"
-    assert_output --partial "haiku"
+    assert_success
+    assert_output --partial "Model:  nonexistent (nonexistent)"
 }
 
 @test "no --model flag omits --model from claude args" {
@@ -72,4 +68,18 @@ EOF
     run "$SCRIPT_DIR/ralph.sh" -m opus-4.5 -n 1
     assert_success
     assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
+}
+
+@test "full model ID passes through unchanged" {
+    mock_settings_json
+    run "$SCRIPT_DIR/ralph.sh" --model claude-opus-4-5-20251101 -n 1
+    assert_success
+    assert_output --partial "Model:  claude-opus-4-5-20251101 (claude-opus-4-5-20251101)"
+}
+
+@test "arbitrary string passes through as model ID" {
+    mock_settings_json
+    run "$SCRIPT_DIR/ralph.sh" --model my-custom-model -n 1
+    assert_success
+    assert_output --partial "Model:  my-custom-model (my-custom-model)"
 }
