@@ -1,6 +1,6 @@
 {
   "opus-4.6": {
-    "anthropic": "claude --model claude-opus-4-6",
+    "anthropic": "claude-opus-4-6",
     "bedrock": "global.anthropic.claude-opus-4-6-v1"
   },
   "opus-4.5": {
