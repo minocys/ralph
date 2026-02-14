@@ -68,7 +68,25 @@ ralph -n 20               # build mode, max 20 iterations
 ralph --help              # show usage
 ralph --danger            # enable --dangerously-skip-permissions
 ralph --plan -n 5 --danger
+
+# Model selection
+ralph -m opus-4.5         # use a model alias from models.json
+ralph --model sonnet      # long form
+ralph --model claude-opus-4-5-20251101  # full model ID pass-through
 ```
+
+### Model Selection
+
+Use `--model` (or `-m`) to pick which Claude model to run. Ralph resolves short aliases via `models.json`, which maps each alias to the correct model ID for your backend (Anthropic API or Bedrock). The backend is detected automatically from `~/.claude/settings.json`.
+
+| Alias | Anthropic | Bedrock |
+| --- | --- | --- |
+| `opus-4.6` | `claude-opus-4-6` | `global.anthropic.claude-opus-4-6-v1` |
+| `opus-4.5` | `claude-opus-4-5-20251101` | `global.anthropic.claude-opus-4-5-20251101-v1:0` |
+| `sonnet` | `claude-sonnet-4-5-20250929` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| `haiku` | `claude-haiku-4-5-20251001` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+
+If the value you pass isn't a known alias, Ralph passes it through as a literal model ID. Omitting `--model` uses Claude Code's default.
 
 ### AGENTS.md
 
@@ -82,6 +100,7 @@ See [agents.md](https://agents.md) for the format and examples.
 
 ```
 ralph.sh              # Main loop runner
+models.json           # Model alias → ID mapping
 install.sh            # Installer (symlinks skills + CLI)
 skills/
   ralph-spec/         # JTBD → spec files
