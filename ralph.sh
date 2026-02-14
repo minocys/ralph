@@ -3,7 +3,6 @@
 # Options:
 #   --plan, -p              Plan mode (default: build)
 #   --max-iterations N, -n N  Limit loop iterations (default: unlimited)
-#   --model <alias>, -m <alias>  Select model by alias (see models.json)
 #   --danger                Enable --dangerously-skip-permissions
 #   --help, -h              Show this help
 #
@@ -12,17 +11,12 @@
 #   ./ralph --plan                 # Plan mode, safe, unlimited
 #   ./ralph -n 10                  # Build mode, safe, 10 iterations
 #   ./ralph --plan -n 5 --danger   # Plan mode, skip permissions, 5 iterations
-#   ./ralph -m opus-4.5             # Build with opus-4.5 model
-
-# Resolve script directory for locating models.json and other assets
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Defaults
 MODE="build"
 COMMAND="/ralph-build"
 MAX_ITERATIONS=0
 DANGER=false
-MODEL_ALIAS=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -38,14 +32,6 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             MAX_ITERATIONS="$2"
-            shift 2
-            ;;
-        --model|-m)
-            if [[ -z "$2" || "$2" = -* ]]; then
-                echo "Error: --model requires an alias (e.g. opus-4.5, sonnet, haiku)"
-                exit 1
-            fi
-            MODEL_ALIAS="$2"
             shift 2
             ;;
         --danger)
@@ -64,26 +50,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Detect active backend from ~/.claude/settings.json
-BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
-if [ "$BEDROCK_FLAG" = "1" ]; then
-    ACTIVE_BACKEND="bedrock"
-else
-    ACTIVE_BACKEND="anthropic"
-fi
-
-# Resolve model alias via models.json
-RESOLVED_MODEL=""
-if [ -n "$MODEL_ALIAS" ]; then
-    RESOLVED_MODEL=$(jq -r --arg alias "$MODEL_ALIAS" --arg backend "$ACTIVE_BACKEND" \
-        '.[$alias][$backend] // empty' "$SCRIPT_DIR/models.json")
-
-    # Pass-through: if alias not found in models.json, use raw value as model ID
-    if [ -z "$RESOLVED_MODEL" ]; then
-        RESOLVED_MODEL="$MODEL_ALIAS"
-    fi
-fi
-
 # Preflight checks
 if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     echo "Error: No specs found. Run /ralph-spec first to generate specs in ./specs/"
@@ -98,7 +64,7 @@ fi
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT
+trap "rm -f $TMPFILE" EXIT
 trap "exit 130" INT TERM
 
 # jq filter: extract human-readable text from stream-json events
@@ -133,7 +99,6 @@ echo "Mode:   $MODE"
 echo "Prompt: $COMMAND"
 echo "Branch: $CURRENT_BRANCH"
 echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
-[ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
 [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -144,9 +109,8 @@ while true; do
     fi
 
     # Run Ralph iteration: save raw JSON to tmpfile, display readable text
-    CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
+    CLAUDE_ARGS=(-p $COMMAND --output-format=stream-json --verbose)
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
-    [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
     claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER"
 

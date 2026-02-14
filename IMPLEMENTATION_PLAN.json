@@ -1,0 +1,113 @@
+[
+  {
+    "category": "model-alias-registry",
+    "description": "Create models.json with all 6 required aliases mapping to Anthropic and Bedrock model IDs",
+    "steps": [
+      "Create models.json in the same directory as ralph.sh",
+      "Add alias 'opus' mapping to anthropic: claude-opus-4-20250514, bedrock: us.anthropic.claude-opus-4-20250514-v1:0",
+      "Add alias 'opus-4.5' mapping to anthropic: claude-opus-4-5-20251101, bedrock: us.anthropic.claude-opus-4-5-20251101-v1:0",
+      "Add alias 'sonnet' mapping to anthropic: claude-sonnet-4-20250514, bedrock: us.anthropic.claude-sonnet-4-20250514-v1:0",
+      "Add alias 'sonnet-3.5' mapping to anthropic: claude-3-5-sonnet-20241022, bedrock: us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "Add alias 'haiku' mapping to anthropic: claude-haiku-4-20250514, bedrock: us.anthropic.claude-haiku-4-20250514-v1:0",
+      "Add alias 'haiku-3.5' mapping to anthropic: claude-3-5-haiku-20241022, bedrock: us.anthropic.claude-3-5-haiku-20241022-v1:0",
+      "Ensure the JSON is pretty-printed and human-readable (2-space indent)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "model-alias-registry",
+    "description": "Test: validate models.json structure with jq",
+    "steps": [
+      "Run 'jq . models.json' to confirm valid JSON",
+      "Verify all 6 required aliases exist as top-level keys: opus, opus-4.5, sonnet, sonnet-3.5, haiku, haiku-3.5",
+      "Verify each alias has exactly two keys: 'anthropic' and 'bedrock'",
+      "Verify all values are non-empty strings",
+      "Verify a lookup like 'jq -r '.opus.anthropic' models.json' returns the expected model ID"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add SCRIPT_DIR resolution to ralph.sh so models.json is found relative to the script, not the working directory",
+    "steps": [
+      "Near the top of ralph.sh (before argument parsing), resolve the script's own directory: SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+      "This will be used later to locate models.json as $SCRIPT_DIR/models.json"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add --model/-m flag parsing to ralph.sh argument parser",
+    "steps": [
+      "Add a default variable: MODEL_ALIAS=\"\"",
+      "Add a case for --model|-m in the argument parser that captures the alias into MODEL_ALIAS",
+      "If the alias argument is missing (empty or starts with -), print an error and exit",
+      "Do not perform alias resolution yet — just capture the raw alias string"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add backend detection from ~/.claude/settings.json",
+    "steps": [
+      "After argument parsing, detect the active backend",
+      "Read CLAUDE_CODE_USE_BEDROCK from ~/.claude/settings.json using jq: jq -r '.env.CLAUDE_CODE_USE_BEDROCK // \"\"' ~/.claude/settings.json",
+      "If the value is '1', set ACTIVE_BACKEND=\"bedrock\"; otherwise set ACTIVE_BACKEND=\"anthropic\"",
+      "Handle the case where ~/.claude/settings.json does not exist (default to anthropic)"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add model alias resolution via models.json lookup with full-model-ID rejection",
+    "steps": [
+      "After backend detection, if MODEL_ALIAS is non-empty, first check if it looks like a full model ID (contains 'claude-' prefix or 'us.anthropic.')",
+      "If it looks like a full model ID, print an error: 'Error: Pass a model alias, not a full model ID. Available aliases:' followed by the alias list from models.json, then exit 1",
+      "If it's an alias, resolve it using jq: jq -r --arg alias \"$MODEL_ALIAS\" --arg backend \"$ACTIVE_BACKEND\" '.[$alias][$backend] // empty' \"$SCRIPT_DIR/models.json\"",
+      "If the result is empty, the alias was not found — print an error listing available aliases (jq -r 'keys[]' models.json) and exit 1",
+      "Store the resolved model ID in RESOLVED_MODEL variable"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add --model argument passthrough to the claude CLI invocation",
+    "steps": [
+      "In the section that builds CLAUDE_ARGS, if RESOLVED_MODEL is non-empty, append --model \"$RESOLVED_MODEL\" to the CLAUDE_ARGS array",
+      "When MODEL_ALIAS is empty, do not add --model at all — let claude use its default"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Add model and backend info to the startup banner",
+    "steps": [
+      "In the startup banner section, if MODEL_ALIAS is non-empty, add a line: echo \"Model:  $MODEL_ALIAS ($RESOLVED_MODEL)\"",
+      "Keep existing banner lines unchanged"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Update help text in ralph.sh to document --model/-m flag",
+    "steps": [
+      "Add to the header comment block: --model <alias>, -m <alias>  Select model by alias (see models.json)",
+      "Add new example line showing --model usage, e.g.: ./ralph -m opus",
+      "Verify --help output renders correctly via the existing sed command"
+    ],
+    "completed": false
+  },
+  {
+    "category": "cli-model-selection",
+    "description": "Test: verify all CLI flag combinations produce correct behavior",
+    "steps": [
+      "Test --help shows the new --model/-m flag",
+      "Test -m opus alone resolves correctly (check CLAUDE_ARGS would include --model with the anthropic model ID)",
+      "Test -m nonexistent produces an error with the alias list",
+      "Test passing a full model ID like 'claude-opus-4-20250514' is rejected with an error",
+      "Test no --model flag means no --model in CLAUDE_ARGS",
+      "Test unknown flags still produce the existing error message"
+    ],
+    "completed": false
+  }
+]
