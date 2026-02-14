@@ -21,7 +21,7 @@ Study specs and codebase, then create or update IMPLEMENTATION_PLAN.json with pr
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Study @IMPLEMENTATION_PLAN.json (if present; it may be incorrect) and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`. 
-2. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.json. **Take a TDD approach, writing tests with expected input/output pairs. Make each task the smallest possible unit of work. Aim for one small change per task!**  Study @IMPLEMENTATION_PLAN.json to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents. .
+2. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.json. **Try to take a TDD approach, writing tests with expected input/output pairs. Make each task the smallest possible unit of work. Aim for one small change per task!**  Study @IMPLEMENTATION_PLAN.json to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents. .
 3. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
 4. When complete, reply with: <promise>Tastes Like Burning.</promise>
 

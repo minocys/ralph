@@ -16,11 +16,11 @@ New CLI flags for `ralph.sh` that let the user choose a model and backend when l
 
 ### Model resolution
 
+- When `--model` is not provided, no `--model` argument is passed to `claude` — the default from `settings.json` is used.
 - When `--model` is provided, look up the alias in `models.json`.
 - Select the model ID corresponding to the active backend (`anthropic` or `bedrock` key).
-- If the alias is not found in `models.json`, exit with an error and list available aliases.
 - The resolved model ID is passed to `claude` via the `--model` CLI argument.
-- When `--model` is not provided, no `--model` argument is passed to `claude` — the default from `settings.json` is used.
+- If the alias is not found in `models.json`, pass through the submitted model ID.
 
 ### Startup banner
 
@@ -100,12 +100,12 @@ test/
 
 | # | Test | How |
 |---|------|-----|
-| 1 | `--model opus` resolves to anthropic ID | Mock `~/.claude/settings.json` without bedrock flag → run with `--model opus` → assert banner contains the anthropic model ID from `models.json` |
-| 2 | `--model opus` resolves to bedrock ID | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `--model opus` → assert banner contains the bedrock model ID |
-| 3 | Invalid alias exits 1 with available list | `run ./ralph.sh --model nonexistent` → `assert_failure` + `assert_output --partial "nonexistent"` + output lists valid aliases |
+| 1 | `--model opus-4.5` resolves to anthropic ID | Mock `~/.claude/settings.json` without bedrock flag → run with `--model opus-4.5` → assert banner contains the anthropic model ID from `models.json` |
+| 2 | `--model opus-4.5` resolves to bedrock ID | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `--model opus-4.5` → assert banner contains the bedrock model ID |
+| 3 | Unknown alias passes through as model ID | `run ./ralph.sh --model nonexistent` → `assert_success` + `assert_output --partial "nonexistent"` (raw value used as model ID) |
 | 4 | No `--model` flag omits `--model` from claude args | Run without `--model` → verify `--model` is NOT in the constructed claude command |
 | 5 | `--model` with each alias in `models.json` succeeds | Loop over all keys in `models.json` and assert each resolves without error |
-| 6 | `-m` is an alias for `--model` | `run ./ralph.sh -m opus` → same result as `--model opus` |
+| 6 | `-m` is an alias for `--model` | `run ./ralph.sh -m opus-4.5` → same result as `--model opus-4.5` |
 
 ### Testing technique: isolate from `claude` CLI
 
@@ -185,7 +185,6 @@ jobs:
 
 ## Out of Scope
 
-- Passing full model IDs directly (bypassing aliases).
 - Modifying `~/.claude/settings.json` from `ralph.sh`.
 - Model-specific behavior changes (e.g., different prompts per model).
 - Validation that the resolved model ID is actually available on the selected backend.
