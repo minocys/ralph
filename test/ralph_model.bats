@@ -90,3 +90,27 @@ EOF
     assert_output --partial "Backend: bedrock"
     unset CLAUDE_CODE_USE_BEDROCK
 }
+
+@test "inline env var takes precedence over all settings files" {
+    # Set up conflicting settings files (all set to anthropic/empty)
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings files also without bedrock flag
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    cat > "$TEST_WORK_DIR/.claude/settings.local.json" <<'EOF'
+{"env":{}}
+EOF
+
+    # Run with inline env var set to bedrock - should override all settings files
+    CLAUDE_CODE_USE_BEDROCK=1 run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
