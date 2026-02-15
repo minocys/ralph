@@ -207,3 +207,27 @@ EOF
     assert_success
     assert_output --partial "Backend: anthropic"
 }
+
+@test "malformed JSON in settings file gracefully falls back to anthropic backend" {
+    # Set up fake home without bedrock
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings.json with malformed JSON
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"
+EOF
+
+    # Ensure no environment variable is set
+    unset CLAUDE_CODE_USE_BEDROCK
+
+    # Run ralph.sh - should gracefully fall back to anthropic (jq error suppressed by 2>/dev/null)
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: anthropic"
+}
