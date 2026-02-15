@@ -81,3 +81,12 @@ EOF
     assert_success
     assert_output --partial "Model:  my-custom-model (my-custom-model)"
 }
+
+@test "environment variable CLAUDE_CODE_USE_BEDROCK=1 selects bedrock" {
+    mock_settings_json
+    export CLAUDE_CODE_USE_BEDROCK=1
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+    unset CLAUDE_CODE_USE_BEDROCK
+}
