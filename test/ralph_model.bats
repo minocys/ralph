@@ -169,3 +169,17 @@ EOF
     assert_success
     assert_output --partial "Backend: bedrock"
 }
+
+@test "backend banner shows anthropic when bedrock is not configured" {
+    mock_settings_json
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: anthropic"
+}
+
+@test "backend banner shows bedrock when bedrock is configured" {
+    mock_settings_json bedrock
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
