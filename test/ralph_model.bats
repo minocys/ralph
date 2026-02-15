@@ -183,3 +183,27 @@ EOF
     assert_success
     assert_output --partial "Backend: bedrock"
 }
+
+@test "CLAUDE_CODE_USE_BEDROCK=0 with bedrock settings files still uses anthropic" {
+    # Set up settings files that would select bedrock
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+    export HOME="$fake_home"
+
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+    cat > "$TEST_WORK_DIR/.claude/settings.local.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+
+    # Run with CLAUDE_CODE_USE_BEDROCK=0 as inline env var
+    # The env var should take precedence even when value is '0'
+    CLAUDE_CODE_USE_BEDROCK=0 run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: anthropic"
+}
