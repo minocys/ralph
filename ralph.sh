@@ -64,12 +64,32 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Detect active backend from ~/.claude/settings.json
-BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
-if [ "$BEDROCK_FLAG" = "1" ]; then
-    ACTIVE_BACKEND="bedrock"
-else
-    ACTIVE_BACKEND="anthropic"
+# Detect active backend (priority order: env var → settings.local.json → settings.json → ~/.claude/settings.json)
+ACTIVE_BACKEND="anthropic"  # Default to anthropic
+
+# 1. Check environment variable (highest priority)
+if [ -n "${CLAUDE_CODE_USE_BEDROCK}" ]; then
+    if [ "${CLAUDE_CODE_USE_BEDROCK}" = "1" ]; then
+        ACTIVE_BACKEND="bedrock"
+    fi
+# 2. Check ./.claude/settings.local.json
+elif [ -f "./.claude/settings.local.json" ]; then
+    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.local.json 2>/dev/null)
+    if [ "$BEDROCK_FLAG" = "1" ]; then
+        ACTIVE_BACKEND="bedrock"
+    fi
+# 3. Check ./.claude/settings.json
+elif [ -f "./.claude/settings.json" ]; then
+    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.json 2>/dev/null)
+    if [ "$BEDROCK_FLAG" = "1" ]; then
+        ACTIVE_BACKEND="bedrock"
+    fi
+# 4. Check ~/.claude/settings.json (lowest priority)
+elif [ -f "$HOME/.claude/settings.json" ]; then
+    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
+    if [ "$BEDROCK_FLAG" = "1" ]; then
+        ACTIVE_BACKEND="bedrock"
+    fi
 fi
 
 # Resolve model alias via models.json
@@ -134,6 +154,7 @@ echo "Prompt: $COMMAND"
 echo "Branch: $CURRENT_BRANCH"
 echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
 [ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
+echo "Backend: $ACTIVE_BACKEND"
 [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
