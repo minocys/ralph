@@ -145,3 +145,27 @@ EOF
     assert_success
     assert_output --partial "Backend: bedrock"
 }
+
+@test "./.claude/settings.json takes precedence over ~/.claude/settings.json" {
+    # Set up fake home with bedrock settings (lowest priority)
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings.json with bedrock - should win over user settings
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+
+    # Ensure no environment variable or settings.local.json exists
+    unset CLAUDE_CODE_USE_BEDROCK
+
+    # Run ralph.sh - project-level settings.json should take precedence
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
