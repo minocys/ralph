@@ -22,11 +22,11 @@ EOF
     export HOME="$fake_home"
 }
 
-@test "--model opus-4.5 resolves to anthropic ID" {
+@test "--model opus-4.5 passes through on anthropic backend" {
     mock_settings_json
     run "$SCRIPT_DIR/ralph.sh" --model opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
+    assert_output --partial "Model:  opus-4.5 (opus-4.5)"
 }
 
 @test "--model opus-4.5 resolves to bedrock ID" {
@@ -65,7 +65,7 @@ EOF
     mock_settings_json
     run "$SCRIPT_DIR/ralph.sh" -m opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
+    assert_output --partial "Model:  opus-4.5 (opus-4.5)"
 }
 
 @test "full model ID passes through unchanged" {

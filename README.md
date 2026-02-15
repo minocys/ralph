@@ -79,12 +79,14 @@ ralph --model claude-opus-4-5-20251101  # full model ID pass-through
 
 Use `--model` (or `-m`) to pick which Claude model to run. Ralph resolves short aliases via `models.json`, which maps each alias to the correct model ID for your backend (Anthropic API or Bedrock). The backend is detected automatically from `~/.claude/settings.json`.
 
-| Alias | Anthropic | Bedrock |
-| --- | --- | --- |
-| `opus-4.6` | `claude-opus-4-6` | `global.anthropic.claude-opus-4-6-v1` |
-| `opus-4.5` | `claude-opus-4-5-20251101` | `global.anthropic.claude-opus-4-5-20251101-v1:0` |
-| `sonnet` | `claude-sonnet-4-5-20250929` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
-| `haiku` | `claude-haiku-4-5-20251001` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Alias | Bedrock Model ID |
+| --- | --- |
+| `opus-4.6` | `global.anthropic.claude-opus-4-6-v1` |
+| `opus-4.5` | `global.anthropic.claude-opus-4-5-20251101-v1:0` |
+| `sonnet` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| `haiku` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+
+**Note**: When using the Anthropic backend, aliases are passed through as-is to Claude Code. The table above shows Bedrock-specific model ID mappings only.
 
 If the value you pass isn't a known alias, Ralph passes it through as a literal model ID. Omitting `--model` uses Claude Code's default.
 
