@@ -72,23 +72,29 @@ if [ -n "${CLAUDE_CODE_USE_BEDROCK}" ]; then
     if [ "${CLAUDE_CODE_USE_BEDROCK}" = "1" ]; then
         ACTIVE_BACKEND="bedrock"
     fi
-# 2. Check ./.claude/settings.local.json
-elif [ -f "./.claude/settings.local.json" ]; then
-    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.local.json 2>/dev/null)
-    if [ "$BEDROCK_FLAG" = "1" ]; then
-        ACTIVE_BACKEND="bedrock"
+else
+    # 2. Check ./.claude/settings.local.json for VALUE (not just file existence)
+    if [ "$ACTIVE_BACKEND" = "anthropic" ] && [ -f "./.claude/settings.local.json" ]; then
+        BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.local.json 2>/dev/null)
+        if [ "$BEDROCK_FLAG" = "1" ]; then
+            ACTIVE_BACKEND="bedrock"
+        fi
     fi
-# 3. Check ./.claude/settings.json
-elif [ -f "./.claude/settings.json" ]; then
-    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.json 2>/dev/null)
-    if [ "$BEDROCK_FLAG" = "1" ]; then
-        ACTIVE_BACKEND="bedrock"
+
+    # 3. Check ./.claude/settings.json for VALUE (if backend not yet set)
+    if [ "$ACTIVE_BACKEND" = "anthropic" ] && [ -f "./.claude/settings.json" ]; then
+        BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.json 2>/dev/null)
+        if [ "$BEDROCK_FLAG" = "1" ]; then
+            ACTIVE_BACKEND="bedrock"
+        fi
     fi
-# 4. Check ~/.claude/settings.json (lowest priority)
-elif [ -f "$HOME/.claude/settings.json" ]; then
-    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
-    if [ "$BEDROCK_FLAG" = "1" ]; then
-        ACTIVE_BACKEND="bedrock"
+
+    # 4. Check ~/.claude/settings.json for VALUE (lowest priority)
+    if [ "$ACTIVE_BACKEND" = "anthropic" ] && [ -f "$HOME/.claude/settings.json" ]; then
+        BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
+        if [ "$BEDROCK_FLAG" = "1" ]; then
+            ACTIVE_BACKEND="bedrock"
+        fi
     fi
 fi
 
@@ -118,8 +124,38 @@ fi
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
-trap "rm -f $TMPFILE" EXIT
-trap "exit 130" INT TERM
+trap 'rm -f "$TMPFILE"' EXIT
+
+# --- Graceful interrupt handling ---
+# Two-stage Ctrl+C: first INT lets claude clean up, second INT force-kills.
+# SIGTERM always force-kills immediately.
+INTERRUPTED=0
+PIPELINE_PID=""
+
+handle_int() {
+    INTERRUPTED=$((INTERRUPTED + 1))
+    if [ "$INTERRUPTED" -ge 2 ]; then
+        # Second Ctrl+C: force-kill pipeline and exit
+        trap - INT TERM
+        [ -n "$PIPELINE_PID" ] && kill -9 -- -$PIPELINE_PID 2>/dev/null
+        exit 130
+    fi
+    # First Ctrl+C: print waiting message, let claude finish
+    echo ""
+    echo "Waiting for claude to finish cleanup... Press Ctrl+C again to force quit."
+}
+
+handle_term() {
+    # SIGTERM: force-kill pipeline immediately, no grace period
+    trap - INT TERM
+    if [ -n "$PIPELINE_PID" ]; then
+        kill -9 -- -$PIPELINE_PID 2>/dev/null
+    fi
+    exit 130
+}
+
+trap handle_int INT
+trap handle_term TERM
 
 # jq filter: extract human-readable text from stream-json events
 JQ_FILTER='
@@ -153,8 +189,8 @@ echo "Mode:   $MODE"
 echo "Prompt: $COMMAND"
 echo "Branch: $CURRENT_BRANCH"
 echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
-[ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
 echo "Backend: $ACTIVE_BACKEND"
+[ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
 [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -169,7 +205,25 @@ while true; do
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
     [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
-    claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER"
+    # Reset interrupt counter for this iteration
+    INTERRUPTED=0
+
+    # Run pipeline in background subshell so wait is interruptible by signals
+    ( claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER" ) &
+    PIPELINE_PID=$!
+
+    # Wait for pipeline; re-wait after first interrupt to let claude finish
+    while kill -0 "$PIPELINE_PID" 2>/dev/null; do
+        wait "$PIPELINE_PID" 2>/dev/null || true
+    done
+    wait "$PIPELINE_PID" 2>/dev/null
+    PIPELINE_STATUS=$?
+    PIPELINE_PID=""
+
+    # If interrupted, exit 130 — do not continue to next iteration
+    if [ "$INTERRUPTED" -gt 0 ]; then
+        exit 130
+    fi
 
     if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
       | grep -q '<promise>Tastes Like Burning.</promise>'; then
