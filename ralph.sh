@@ -119,7 +119,35 @@ ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
-trap "exit 130" INT TERM
+
+# --- Graceful interrupt handling ---
+# Two-stage Ctrl+C: first INT lets claude clean up, second INT force-kills.
+# SIGTERM always force-kills immediately.
+INTERRUPTED=0
+PIPELINE_PID=""
+
+handle_int() {
+    INTERRUPTED=$((INTERRUPTED + 1))
+    if [ "$INTERRUPTED" -ge 2 ]; then
+        # Second Ctrl+C: force-kill everything
+        trap - INT TERM
+        kill 0
+        exit 130
+    fi
+    # First Ctrl+C: print waiting message, let claude finish
+    echo ""
+    echo "Waiting for claude to finish cleanup... Press Ctrl+C again to force quit."
+}
+
+handle_term() {
+    # SIGTERM: force-kill immediately, no grace period
+    trap - INT TERM
+    kill 0
+    exit 130
+}
+
+trap handle_int INT
+trap handle_term TERM
 
 # jq filter: extract human-readable text from stream-json events
 JQ_FILTER='
@@ -169,7 +197,25 @@ while true; do
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
     [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
-    claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER"
+    # Reset interrupt counter for this iteration
+    INTERRUPTED=0
+
+    # Run pipeline in background subshell so wait is interruptible by signals
+    ( claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER" ) &
+    PIPELINE_PID=$!
+
+    # Wait for pipeline; re-wait after first interrupt to let claude finish
+    while kill -0 "$PIPELINE_PID" 2>/dev/null; do
+        wait "$PIPELINE_PID" 2>/dev/null || true
+    done
+    wait "$PIPELINE_PID" 2>/dev/null
+    PIPELINE_STATUS=$?
+    PIPELINE_PID=""
+
+    # If interrupted, exit 130 — do not continue to next iteration
+    if [ "$INTERRUPTED" -gt 0 ]; then
+        exit 130
+    fi
 
     if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
       | grep -q '<promise>Tastes Like Burning.</promise>'; then
