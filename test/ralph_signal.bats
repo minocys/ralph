@@ -59,6 +59,10 @@ STUB
     PID_FILE="$(mktemp)"
     export PID_FILE
 
+    # Tracker file: mktemp stub records created temp file paths here
+    TMPFILE_TRACKER="$(mktemp)"
+    export TMPFILE_TRACKER
+
     # Change to the temp working directory
     cd "$TEST_WORK_DIR"
 }
@@ -80,7 +84,7 @@ teardown() {
     fi
 
     # Clean up temp directories and files
-    rm -f "$OUTPUT_FILE" "$PID_FILE" 2>/dev/null
+    rm -f "$OUTPUT_FILE" "$PID_FILE" "$TMPFILE_TRACKER" 2>/dev/null
     if [[ -d "$TEST_WORK_DIR" ]]; then
         rm -rf "$TEST_WORK_DIR"
     fi
@@ -243,4 +247,94 @@ STUB
 
     # Verify the ralph process is actually gone
     ! kill -0 "$RALPH_PID" 2>/dev/null
+}
+
+# --- Test 4: Temp file is cleaned up after force-kill ---
+
+@test "temp file cleaned up after double Ctrl+C" {
+    # Create a mktemp stub that delegates to real mktemp but records paths.
+    # ralph.sh calls mktemp once to create TMPFILE; the EXIT trap removes it.
+    # This test verifies that the EXIT trap fires even after force-kill (exit 130).
+    cat > "$STUB_DIR/mktemp" <<STUB
+#!/bin/bash
+result=\$(/usr/bin/mktemp "\$@")
+echo "\$result" >> "$TMPFILE_TRACKER"
+echo "\$result"
+STUB
+    chmod +x "$STUB_DIR/mktemp"
+
+    # Create a claude stub that traps INT and ignores it (stays alive forever).
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+trap '' INT
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working"}]}}'
+while true; do sleep 1; done
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    # Launch ralph.sh in its own session
+    launch_ralph_in_session -n 1
+
+    # Wait for ralph to start and create the temp file
+    sleep 2
+
+    # Verify at least one temp file was recorded by the mktemp stub
+    [ -s "$TMPFILE_TRACKER" ]
+
+    # Remember the temp file paths before kill
+    local tracked_files
+    tracked_files="$(cat "$TMPFILE_TRACKER")"
+
+    # Double Ctrl+C: force-kill
+    send_sigint
+    sleep 1
+    send_sigint
+
+    # Wait for ralph to exit
+    wait_for_ralph 10 || true
+
+    # Assert every temp file recorded by mktemp stub has been cleaned up
+    local f
+    while IFS= read -r f; do
+        [ -n "$f" ] && ! [ -e "$f" ]
+    done <<< "$tracked_files"
+}
+
+# --- Test 5: SIGTERM force-kills immediately ---
+
+@test "SIGTERM force-kills immediately and exits 130" {
+    # Create a claude stub that stays alive (traps nothing, just sleeps).
+    # SIGTERM to the group should kill everything immediately.
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working"}]}}'
+sleep 30 &
+wait $!
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    # Launch ralph.sh in its own session
+    launch_ralph_in_session -n 1
+
+    # Wait for ralph to start and reach the pipeline
+    sleep 2
+
+    # Send SIGTERM (no grace period expected)
+    send_sigterm
+
+    # Wait for ralph to exit — should be fast (no waiting for claude cleanup)
+    local exit_code=0
+    wait_for_ralph 5 || exit_code=$?
+
+    # ralph should exit with code 130
+    [ "$exit_code" -eq 130 ]
+
+    # Verify the ralph process is actually gone
+    ! kill -0 "$RALPH_PID" 2>/dev/null
+
+    # Check output does NOT contain the "Waiting for claude" message
+    # (SIGTERM should force-kill, not enter graceful mode)
+    local output
+    output="$(cat "$OUTPUT_FILE")"
+    [[ "$output" != *"Waiting for claude to finish"* ]]
 }
