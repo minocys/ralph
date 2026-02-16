@@ -38,11 +38,11 @@ This spec replaces the current signal handling with a background-pipeline + `wai
 ### TERM signal
 
 - SIGTERM should force-kill immediately (no two-stage grace period). This matches expected behavior for non-interactive termination (e.g., `kill <pid>`, system shutdown).
-- The TERM handler uses `kill -9 -- -$$` to kill the entire process group of the ralph script itself.
-  - `$$` is the PID of the current shell (ralph.sh).
-  - `-$$` (negative) means "the process group of $$".
-  - This is simpler than tracking `PIPELINE_PID` and kills everything spawned by ralph in one operation.
-  - This pattern is idiomatic in production bash scripts for immediate shutdown.
+- The TERM handler uses `kill -9 -- -$PIPELINE_PID` to kill the pipeline's process group, identical to the second Ctrl+C force-kill mechanism.
+  - `$PIPELINE_PID` is the PID of the pipeline subshell captured with `$!`.
+  - `-$PIPELINE_PID` (negative) means "the process group of the pipeline subshell".
+  - This kills all pipeline components (`claude`, `tee`, `jq`) and their descendants while allowing ralph to exit cleanly with code 130.
+  - Using the same process group kill as handle_int's second Ctrl+C ensures consistent cleanup behavior.
 
 ## Implementation Best Practices
 
@@ -68,11 +68,11 @@ kill -9 $SUBSHELL_PID
 kill -9 -- -$SUBSHELL_PID
 ```
 
-**Why `kill -9 -- -$$` in TERM handler?**
-- `$$` is the PID of the ralph.sh script itself
-- `-$$` targets ralph's entire process group (ralph + all children/grandchildren)
-- Simpler than tracking individual PIDs
-- Common pattern in daemon scripts and container entrypoints
+**Why `kill -9 -- -$PIPELINE_PID` in TERM handler?**
+- `$PIPELINE_PID` is the PID of the pipeline subshell (captured with `$!`)
+- `-$PIPELINE_PID` targets the pipeline's process group (all pipeline components and descendants)
+- Using `-$$` (ralph's own process group) would send SIGKILL to ralph itself, which is unblockable and prevents `exit 130` from executing
+- By targeting only the pipeline's process group, ralph can kill the children and then exit cleanly with code 130, ensuring EXIT trap runs for temp file cleanup
 
 ### Research sources
 

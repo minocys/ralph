@@ -148,7 +148,9 @@ handle_int() {
 handle_term() {
     # SIGTERM: force-kill pipeline immediately, no grace period
     trap - INT TERM
-    [ -n "$PIPELINE_PID" ] && kill -9 "$PIPELINE_PID" 2>/dev/null
+    if [ -n "$PIPELINE_PID" ]; then
+        kill -9 -- -$PIPELINE_PID 2>/dev/null
+    fi
     exit 130
 }
 
