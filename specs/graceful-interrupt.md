@@ -26,7 +26,9 @@ This spec replaces the current signal handling with a background-pipeline + `wai
 
 ### Force-kill mechanism
 
-- On second interrupt, the handler resets traps (`trap - INT TERM`) to prevent recursive signals, then sends `kill 0` (SIGTERM to the entire process group) to ensure `claude`, `tee`, `jq`, and any grandchildren are terminated.
+- On second interrupt, the handler resets traps (`trap - INT TERM`) to prevent recursive signals, then sends `kill -9 -- -$PIPELINE_PID` (SIGKILL to the pipeline's process group) to ensure `claude`, `tee`, `jq`, and any grandchildren are terminated.
+  - The `-- -$PID` syntax kills the entire process group of the subshell, not just the subshell itself.
+  - This is more robust than `kill -9 $PIPELINE_PID` because it guarantees all pipeline components are killed even if they've spawned their own children.
 - The handler then calls `exit 130`.
 
 ### Temp file cleanup
@@ -36,6 +38,50 @@ This spec replaces the current signal handling with a background-pipeline + `wai
 ### TERM signal
 
 - SIGTERM should force-kill immediately (no two-stage grace period). This matches expected behavior for non-interactive termination (e.g., `kill <pid>`, system shutdown).
+- The TERM handler uses `kill -9 -- -$$` to kill the entire process group of the ralph script itself.
+  - `$$` is the PID of the current shell (ralph.sh).
+  - `-$$` (negative) means "the process group of $$".
+  - This is simpler than tracking `PIPELINE_PID` and kills everything spawned by ralph in one operation.
+  - This pattern is idiomatic in production bash scripts for immediate shutdown.
+
+## Implementation Best Practices
+
+### Process group kill syntax
+
+The spec uses **process group kill** syntax (`kill -- -$PID`) rather than simple `kill $PID`. This is a common idiom in production bash scripts for robust cleanup.
+
+**Why `kill -- -$PID`?**
+- `--` prevents argument parsing issues if PID is negative or looks like a flag
+- `-$PID` (negative) targets the **process group** of PID, not just the single process
+- For a subshell `( pipeline ) &`, this kills all pipeline components (`claude | tee | jq`) and their descendants
+- Without the negative sign, only the subshell itself dies; child processes may continue running
+
+**Example:**
+```bash
+( sleep 30 | tee output.log ) &
+SUBSHELL_PID=$!
+
+# ❌ Only kills the subshell; sleep and tee keep running
+kill -9 $SUBSHELL_PID
+
+# ✅ Kills subshell AND all its children (sleep, tee)
+kill -9 -- -$SUBSHELL_PID
+```
+
+**Why `kill -9 -- -$$` in TERM handler?**
+- `$$` is the PID of the ralph.sh script itself
+- `-$$` targets ralph's entire process group (ralph + all children/grandchildren)
+- Simpler than tracking individual PIDs
+- Common pattern in daemon scripts and container entrypoints
+
+### Research sources
+
+These patterns were validated against production codebases:
+- **dygraphs/scripts/watch.sh**: `trap "kill -- -$$" SIGINT`
+- **PeerTube/scripts/nightly.sh**: `kill -- -$PGID` for process group cleanup
+- **JetBrains/teamcity-docker-minimal-agent**: Force-stop with process group management
+
+The two-stage interrupt approach is more sophisticated than most patterns found in the wild, which typically use either immediate kill or timeout-based polling. Ralph's signal-driven design provides better user experience for interactive CLI use.
 
 ## Constraints
 
