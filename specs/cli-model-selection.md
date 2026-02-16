@@ -12,19 +12,31 @@ New CLI flags for `ralph.sh` that let the user choose a model and backend when l
 
 ### Backend resolution
 
-- Backend is determined by the precense of `CLAUDE_CODE_USE_BEDROCK` environment variable in `~/.claude/settings.json`. If `CLAUDE_CODE_USE_BEDROCK` is `"1"`, the default backend is `bedrock`; otherwise it is `anthropic`.
+Backend is determined by checking `CLAUDE_CODE_USE_BEDROCK` in order of precedence:
+
+1. **Environment variable** (inline or exported): `CLAUDE_CODE_USE_BEDROCK=1 ./ralph.sh`
+2. **Local settings (project-specific, git-ignored)**: `./.claude/settings.local.json` → `.env.CLAUDE_CODE_USE_BEDROCK`
+3. **Local settings (project-level)**: `./.claude/settings.json` → `.env.CLAUDE_CODE_USE_BEDROCK`
+4. **User settings (fallback)**: `~/.claude/settings.json` → `.env.CLAUDE_CODE_USE_BEDROCK`
+
+If `CLAUDE_CODE_USE_BEDROCK` equals `"1"` (from any source), the backend is `bedrock`; otherwise it is `anthropic`.
+
+The active backend is displayed in the startup banner.
 
 ### Model resolution
 
 - When `--model` is not provided, no `--model` argument is passed to `claude` — the default from `settings.json` is used.
-- When `--model` is provided, look up the alias in `models.json`.
-- Select the model ID corresponding to the active backend (`anthropic` or `bedrock` key).
-- The resolved model ID is passed to `claude` via the `--model` CLI argument.
-- If the alias is not found in `models.json`, pass through the submitted model ID.
+- When `--model` is provided:
+  - Look up the alias in `models.json`
+  - If found, use the model ID for the active backend key (e.g., `bedrock`)
+  - If the alias exists but has no mapping for the active backend, pass through the alias as-is
+  - If the alias is not found in `models.json`, pass through the alias as-is
+- The resolved/pass-through model ID is passed to `claude` via the `--model` CLI argument.
 
 ### Startup banner
 
-- When a model is explicitly selected, display the alias and resolved model ID in the startup banner.
+- Display the active backend (`anthropic` or `bedrock`) in the startup banner
+- When a model is explicitly selected, display the alias and resolved/pass-through model ID
 
 ### Help text
 
@@ -35,7 +47,7 @@ New CLI flags for `ralph.sh` that let the user choose a model and backend when l
 
 - `ralph.sh` must remain a pure bash script with no dependencies beyond `jq` (already required).
 - Model resolution reads `models.json` relative to the script's own directory, not the working directory.
-- The `~/.claude/settings.json` file is read-only — `ralph.sh` never writes to it.
+- Settings files (`./.claude/settings.json`, `./.claude/settings.local.json`, `~/.claude/settings.json`) are read-only — `ralph.sh` never writes to them.
 
 ## Testing
 
@@ -100,12 +112,17 @@ test/
 
 | # | Test | How |
 |---|------|-----|
-| 1 | `--model opus-4.5` resolves to anthropic ID | Mock `~/.claude/settings.json` without bedrock flag → run with `--model opus-4.5` → assert banner contains the anthropic model ID from `models.json` |
-| 2 | `--model opus-4.5` resolves to bedrock ID | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `--model opus-4.5` → assert banner contains the bedrock model ID |
+| 1 | `--model opus-4.5` resolves to bedrock ID when bedrock backend | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `--model opus-4.5` → assert banner contains the bedrock model ID |
+| 2 | `--model opus-4.5` passes through on anthropic backend | Mock anthropic backend → run with `--model opus-4.5` → assert banner contains `opus-4.5` (no mapping exists for anthropic) |
 | 3 | Unknown alias passes through as model ID | `run ./ralph.sh --model nonexistent` → `assert_success` + `assert_output --partial "nonexistent"` (raw value used as model ID) |
 | 4 | No `--model` flag omits `--model` from claude args | Run without `--model` → verify `--model` is NOT in the constructed claude command |
 | 5 | `--model` with each alias in `models.json` succeeds | Loop over all keys in `models.json` and assert each resolves without error |
 | 6 | `-m` is an alias for `--model` | `run ./ralph.sh -m opus-4.5` → same result as `--model opus-4.5` |
+| 7 | Environment variable `CLAUDE_CODE_USE_BEDROCK=1` selects bedrock | Set env var before running → assert bedrock backend in banner |
+| 8 | Inline env var takes precedence over all settings files | Mock all settings with anthropic → run with `CLAUDE_CODE_USE_BEDROCK=1 ./ralph.sh` → assert bedrock |
+| 9 | `./.claude/settings.local.json` takes precedence over `./.claude/settings.json` | Set different backends in each → assert local.json wins |
+| 10 | `./.claude/settings.json` takes precedence over `~/.claude/settings.json` | Set different backends in each → assert local wins |
+| 11 | Backend is shown in startup banner | Both backends → assert "Backend: anthropic" or "Backend: bedrock" in output |
 
 ### Testing technique: isolate from `claude` CLI
 

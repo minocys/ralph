@@ -22,11 +22,11 @@ EOF
     export HOME="$fake_home"
 }
 
-@test "--model opus-4.5 resolves to anthropic ID" {
+@test "--model opus-4.5 passes through on anthropic backend" {
     mock_settings_json
     run "$SCRIPT_DIR/ralph.sh" --model opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
+    assert_output --partial "Model:  opus-4.5 (opus-4.5)"
 }
 
 @test "--model opus-4.5 resolves to bedrock ID" {
@@ -65,7 +65,7 @@ EOF
     mock_settings_json
     run "$SCRIPT_DIR/ralph.sh" -m opus-4.5 -n 1
     assert_success
-    assert_output --partial "Model:  opus-4.5 (claude-opus-4-5-20251101)"
+    assert_output --partial "Model:  opus-4.5 (opus-4.5)"
 }
 
 @test "full model ID passes through unchanged" {
@@ -80,4 +80,154 @@ EOF
     run "$SCRIPT_DIR/ralph.sh" --model my-custom-model -n 1
     assert_success
     assert_output --partial "Model:  my-custom-model (my-custom-model)"
+}
+
+@test "environment variable CLAUDE_CODE_USE_BEDROCK=1 selects bedrock" {
+    mock_settings_json
+    export CLAUDE_CODE_USE_BEDROCK=1
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+    unset CLAUDE_CODE_USE_BEDROCK
+}
+
+@test "inline env var takes precedence over all settings files" {
+    # Set up conflicting settings files (all set to anthropic/empty)
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings files also without bedrock flag
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    cat > "$TEST_WORK_DIR/.claude/settings.local.json" <<'EOF'
+{"env":{}}
+EOF
+
+    # Run with inline env var set to bedrock - should override all settings files
+    CLAUDE_CODE_USE_BEDROCK=1 run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
+
+@test "./.claude/settings.local.json takes precedence over ./.claude/settings.json" {
+    # Set up fake home with anthropic settings
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings files with conflicting backends
+    mkdir -p "$TEST_WORK_DIR/.claude"
+
+    # settings.json has anthropic (no bedrock flag)
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+
+    # settings.local.json has bedrock - should win
+    cat > "$TEST_WORK_DIR/.claude/settings.local.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+
+    # Ensure no environment variable is set
+    unset CLAUDE_CODE_USE_BEDROCK
+
+    # Run ralph.sh - settings.local.json should take precedence
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
+
+@test "./.claude/settings.json takes precedence over ~/.claude/settings.json" {
+    # Set up fake home with bedrock settings (lowest priority)
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings.json with bedrock - should win over user settings
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+
+    # Ensure no environment variable or settings.local.json exists
+    unset CLAUDE_CODE_USE_BEDROCK
+
+    # Run ralph.sh - project-level settings.json should take precedence
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
+
+@test "backend banner shows anthropic when bedrock is not configured" {
+    mock_settings_json
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: anthropic"
+}
+
+@test "backend banner shows bedrock when bedrock is configured" {
+    mock_settings_json bedrock
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
+}
+
+@test "CLAUDE_CODE_USE_BEDROCK=0 with bedrock settings files still uses anthropic" {
+    # Set up settings files that would select bedrock
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+    export HOME="$fake_home"
+
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+    cat > "$TEST_WORK_DIR/.claude/settings.local.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+
+    # Run with CLAUDE_CODE_USE_BEDROCK=0 as inline env var
+    # The env var should take precedence even when value is '0'
+    CLAUDE_CODE_USE_BEDROCK=0 run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: anthropic"
+}
+
+@test "malformed JSON in settings file gracefully falls back to anthropic backend" {
+    # Set up fake home without bedrock
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create project-level settings.json with malformed JSON
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"
+EOF
+
+    # Ensure no environment variable is set
+    unset CLAUDE_CODE_USE_BEDROCK
+
+    # Run ralph.sh - should gracefully fall back to anthropic (jq error suppressed by 2>/dev/null)
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: anthropic"
 }

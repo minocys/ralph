@@ -79,14 +79,35 @@ ralph --model claude-opus-4-5-20251101  # full model ID pass-through
 
 Use `--model` (or `-m`) to pick which Claude model to run. Ralph resolves short aliases via `models.json`, which maps each alias to the correct model ID for your backend (Anthropic API or Bedrock). The backend is detected automatically from `~/.claude/settings.json`.
 
-| Alias | Anthropic | Bedrock |
-| --- | --- | --- |
-| `opus-4.6` | `claude-opus-4-6` | `global.anthropic.claude-opus-4-6-v1` |
-| `opus-4.5` | `claude-opus-4-5-20251101` | `global.anthropic.claude-opus-4-5-20251101-v1:0` |
-| `sonnet` | `claude-sonnet-4-5-20250929` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
-| `haiku` | `claude-haiku-4-5-20251001` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Alias | Bedrock Model ID |
+| --- | --- |
+| `opus-4.6` | `global.anthropic.claude-opus-4-6-v1` |
+| `opus-4.5` | `global.anthropic.claude-opus-4-5-20251101-v1:0` |
+| `sonnet` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| `haiku` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+
+**Note**: When using the Anthropic backend, aliases are passed through as-is to Claude Code. The table above shows Bedrock-specific model ID mappings only.
 
 If the value you pass isn't a known alias, Ralph passes it through as a literal model ID. Omitting `--model` uses Claude Code's default.
+
+#### Backend Selection
+
+The backend (Anthropic API or AWS Bedrock) is determined by checking `CLAUDE_CODE_USE_BEDROCK` in the following order of precedence:
+
+1. **Environment variable** (inline or exported): `CLAUDE_CODE_USE_BEDROCK=1 ./ralph.sh`
+2. **Local settings (project-specific, git-ignored)**: `./.claude/settings.local.json` → `.env.CLAUDE_CODE_USE_BEDROCK`
+3. **Local settings (project-level)**: `./.claude/settings.json` → `.env.CLAUDE_CODE_USE_BEDROCK`
+4. **User settings (fallback)**: `~/.claude/settings.json` → `.env.CLAUDE_CODE_USE_BEDROCK`
+
+If `CLAUDE_CODE_USE_BEDROCK` equals `"1"` from any source, the backend is `bedrock`; otherwise it is `anthropic`.
+
+The active backend is displayed in the startup banner when Ralph runs.
+
+**Example**: Force Bedrock backend for a single run:
+
+```sh
+CLAUDE_CODE_USE_BEDROCK=1 ralph -m opus-4.5
+```
 
 ### AGENTS.md
 
@@ -106,7 +127,45 @@ skills/
   ralph-spec/         # JTBD → spec files
   ralph-plan/         # Specs → implementation plan
   ralph-build/        # Plan → working code
+test/
+  ralph_args.bats     # Argument parsing tests
+  ralph_preflight.bats # Preflight check tests
+  ralph_model.bats    # Model/backend resolution tests
+  test_helper.bash    # Shared test setup
+  libs/               # BATS helper libraries (git submodules)
 ```
+
+## Testing
+
+Ralph uses [bats-core](https://github.com/bats-core/bats-core) for testing the shell script logic.
+
+### Setup
+
+```sh
+# Install bats-core (macOS)
+brew install bats-core
+
+# Or via npm
+npm install -g bats
+
+# Initialize test helper submodules (first time only)
+git submodule update --init --recursive
+```
+
+### Running tests
+
+```sh
+# Run all tests
+bats test/
+
+# Run a specific test file
+bats test/ralph_args.bats
+
+# TAP output for machine consumption
+bats --tap test/
+```
+
+The test suite covers argument parsing, preflight checks, and model/backend resolution logic. All tests run in isolation using temporary directories and stub the `claude` CLI to avoid external dependencies.
 
 ## Acknowledgements
 
