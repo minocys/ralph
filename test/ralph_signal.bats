@@ -169,3 +169,37 @@ STUB
     # The output should contain the waiting/grace message
     [[ "$output" == *"Waiting for claude to finish"* ]]
 }
+
+# --- Test 2: Single Ctrl+C exits 130 after claude cleanup ---
+
+@test "single Ctrl+C exits 130 after claude cleanup" {
+    # Create a claude stub that traps SIGINT, sleeps 1s for cleanup, then exits 0.
+    # This simulates claude receiving INT, performing cleanup, and exiting normally.
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+trap 'sleep 1; exit 0' INT
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working"}]}}'
+sleep 30 &
+wait $!
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    # Launch ralph.sh in its own session
+    launch_ralph_in_session -n 1
+
+    # Wait for ralph to start and reach the pipeline
+    sleep 2
+
+    # Send a single SIGINT (simulating Ctrl+C) to the process group
+    send_sigint
+
+    # Wait for ralph to exit on its own (claude should finish cleanup in ~1s)
+    local exit_code=0
+    wait_for_ralph 10 || exit_code=$?
+
+    # ralph should exit with code 130 (standard SIGINT exit code)
+    [ "$exit_code" -eq 130 ]
+
+    # Verify the ralph process is actually gone
+    ! kill -0 "$RALPH_PID" 2>/dev/null
+}
