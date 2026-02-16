@@ -203,3 +203,44 @@ STUB
     # Verify the ralph process is actually gone
     ! kill -0 "$RALPH_PID" 2>/dev/null
 }
+
+# --- Test 3: Second Ctrl+C force-kills and exits 130 ---
+
+@test "second Ctrl+C force-kills and exits 130" {
+    # Create a claude stub that traps INT and IGNORES it (stays alive forever).
+    # This simulates a claude process that won't exit on its own after SIGINT.
+    # The only way to stop it is ralph's second-INT force-kill mechanism.
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+trap '' INT
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working"}]}}'
+while true; do sleep 1; done
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    # Launch ralph.sh in its own session
+    launch_ralph_in_session -n 1
+
+    # Wait for ralph to start and reach the pipeline
+    sleep 2
+
+    # First SIGINT: ralph should print waiting message but NOT exit
+    # (because the claude stub ignores INT and stays alive)
+    send_sigint
+
+    # Brief pause to let the first INT handler fire and print the message
+    sleep 1
+
+    # Second SIGINT: ralph should force-kill everything and exit 130
+    send_sigint
+
+    # Wait for ralph to exit
+    local exit_code=0
+    wait_for_ralph 10 || exit_code=$?
+
+    # ralph should exit with code 130
+    [ "$exit_code" -eq 130 ]
+
+    # Verify the ralph process is actually gone
+    ! kill -0 "$RALPH_PID" 2>/dev/null
+}

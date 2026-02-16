@@ -129,9 +129,9 @@ PIPELINE_PID=""
 handle_int() {
     INTERRUPTED=$((INTERRUPTED + 1))
     if [ "$INTERRUPTED" -ge 2 ]; then
-        # Second Ctrl+C: force-kill everything
+        # Second Ctrl+C: force-kill pipeline and exit
         trap - INT TERM
-        kill 0
+        [ -n "$PIPELINE_PID" ] && kill -9 "$PIPELINE_PID" 2>/dev/null
         exit 130
     fi
     # First Ctrl+C: print waiting message, let claude finish
@@ -140,9 +140,9 @@ handle_int() {
 }
 
 handle_term() {
-    # SIGTERM: force-kill immediately, no grace period
+    # SIGTERM: force-kill pipeline immediately, no grace period
     trap - INT TERM
-    kill 0
+    [ -n "$PIPELINE_PID" ] && kill -9 "$PIPELINE_PID" 2>/dev/null
     exit 130
 }
 
