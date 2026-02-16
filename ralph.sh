@@ -98,7 +98,7 @@ fi
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT
+trap "rm -f $TMPFILE" EXIT
 trap "exit 130" INT TERM
 
 # jq filter: extract human-readable text from stream-json events
