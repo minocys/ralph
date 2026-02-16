@@ -8,6 +8,7 @@ load test_helper
 # With no args: anthropic backend (no bedrock flag)
 # With "bedrock": sets CLAUDE_CODE_USE_BEDROCK to "1"
 mock_settings_json() {
+    unset CLAUDE_CODE_USE_BEDROCK
     local fake_home="$TEST_WORK_DIR/fakehome"
     mkdir -p "$fake_home/.claude"
     if [ "${1:-}" = "bedrock" ]; then
