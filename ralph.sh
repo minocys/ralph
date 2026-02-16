@@ -72,23 +72,29 @@ if [ -n "${CLAUDE_CODE_USE_BEDROCK}" ]; then
     if [ "${CLAUDE_CODE_USE_BEDROCK}" = "1" ]; then
         ACTIVE_BACKEND="bedrock"
     fi
-# 2. Check ./.claude/settings.local.json
-elif [ -f "./.claude/settings.local.json" ]; then
-    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.local.json 2>/dev/null)
-    if [ "$BEDROCK_FLAG" = "1" ]; then
-        ACTIVE_BACKEND="bedrock"
+else
+    # 2. Check ./.claude/settings.local.json for VALUE (not just file existence)
+    if [ "$ACTIVE_BACKEND" = "anthropic" ] && [ -f "./.claude/settings.local.json" ]; then
+        BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.local.json 2>/dev/null)
+        if [ "$BEDROCK_FLAG" = "1" ]; then
+            ACTIVE_BACKEND="bedrock"
+        fi
     fi
-# 3. Check ./.claude/settings.json
-elif [ -f "./.claude/settings.json" ]; then
-    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.json 2>/dev/null)
-    if [ "$BEDROCK_FLAG" = "1" ]; then
-        ACTIVE_BACKEND="bedrock"
+
+    # 3. Check ./.claude/settings.json for VALUE (if backend not yet set)
+    if [ "$ACTIVE_BACKEND" = "anthropic" ] && [ -f "./.claude/settings.json" ]; then
+        BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ./.claude/settings.json 2>/dev/null)
+        if [ "$BEDROCK_FLAG" = "1" ]; then
+            ACTIVE_BACKEND="bedrock"
+        fi
     fi
-# 4. Check ~/.claude/settings.json (lowest priority)
-elif [ -f "$HOME/.claude/settings.json" ]; then
-    BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
-    if [ "$BEDROCK_FLAG" = "1" ]; then
-        ACTIVE_BACKEND="bedrock"
+
+    # 4. Check ~/.claude/settings.json for VALUE (lowest priority)
+    if [ "$ACTIVE_BACKEND" = "anthropic" ] && [ -f "$HOME/.claude/settings.json" ]; then
+        BEDROCK_FLAG=$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // ""' ~/.claude/settings.json 2>/dev/null)
+        if [ "$BEDROCK_FLAG" = "1" ]; then
+            ACTIVE_BACKEND="bedrock"
+        fi
     fi
 fi
 
