@@ -50,7 +50,8 @@
       "If --steps provided, DELETE existing steps and INSERT new ones",
       "Write bats tests: update title, update priority, reject update on done task"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_update with flag parsing (--title, --priority, --description, --steps, --status). Checks task exists (exit 2 if not found) and is not done (exit 1 if done). Dynamic SET clause builds only provided fields. Steps replacement uses DELETE+INSERT in a transaction. SQL escaping via sed for single quotes. Prints 'updated <id>' on success. Test file: test/task_update.bats with 14 tests covering validation, field updates, steps replacement, multiple fields, special characters."
   },
   {
     "category": "feat",
