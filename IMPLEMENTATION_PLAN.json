@@ -73,7 +73,8 @@
       "task unblock <id> --by <blocker-id>: DELETE from task_deps where task_id and blocked_by match",
       "Write bats tests: add dependency, remove dependency, verify deps appear in task show"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_block and cmd_unblock. block validates both task and blocker exist (exit 2 if not found), uses ON CONFLICT DO NOTHING for idempotency. unblock checks DELETE row count, exits 2 if dependency not found. SQL escaping via sed for single quotes. Test file: test/task_block.bats with 16 tests covering argument validation, not found cases, successful block/unblock, idempotency, integration with show and list --json, selective unblock, and special characters."
   },
   {
     "category": "feat",

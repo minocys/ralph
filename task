@@ -531,8 +531,107 @@ cmd_delete() {
     echo "deleted $id"
 }
 cmd_deps()         { echo "deps: not yet implemented" >&2; exit 1; }
-cmd_block()        { echo "block: not yet implemented" >&2; exit 1; }
-cmd_unblock()      { echo "unblock: not yet implemented" >&2; exit 1; }
+cmd_block() {
+    local id="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task block <id> --by <blocker-id>" >&2
+        exit 1
+    fi
+
+    local blocker_id=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --by) blocker_id="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    if [[ -z "$blocker_id" ]]; then
+        echo "Error: missing --by <blocker-id>" >&2
+        echo "Usage: task block <id> --by <blocker-id>" >&2
+        exit 1
+    fi
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id esc_blocker
+    esc_id=$(sql_esc "$id")
+    esc_blocker=$(sql_esc "$blocker_id")
+
+    # Check both tasks exist
+    local task_exists
+    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE id = '${esc_id}';")
+    if [[ -z "$task_exists" ]]; then
+        echo "Error: task '$id' not found" >&2
+        exit 2
+    fi
+
+    local blocker_exists
+    blocker_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE id = '${esc_blocker}';")
+    if [[ -z "$blocker_exists" ]]; then
+        echo "Error: blocker task '$blocker_id' not found" >&2
+        exit 2
+    fi
+
+    # Insert dependency
+    psql_cmd -c "
+        INSERT INTO task_deps (task_id, blocked_by)
+        VALUES ('${esc_id}', '${esc_blocker}')
+        ON CONFLICT DO NOTHING;
+    " > /dev/null
+
+    echo "blocked $id by $blocker_id"
+}
+cmd_unblock() {
+    local id="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task unblock <id> --by <blocker-id>" >&2
+        exit 1
+    fi
+
+    local blocker_id=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --by) blocker_id="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    if [[ -z "$blocker_id" ]]; then
+        echo "Error: missing --by <blocker-id>" >&2
+        echo "Usage: task unblock <id> --by <blocker-id>" >&2
+        exit 1
+    fi
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id esc_blocker
+    esc_id=$(sql_esc "$id")
+    esc_blocker=$(sql_esc "$blocker_id")
+
+    # Delete the dependency
+    local result
+    result=$(psql_cmd -c "
+        DELETE FROM task_deps
+        WHERE task_id = '${esc_id}' AND blocked_by = '${esc_blocker}';
+    ")
+
+    # Check if any row was deleted (DELETE N returns "DELETE N")
+    if [[ "$result" == "DELETE 0" ]]; then
+        echo "Error: dependency not found" >&2
+        exit 2
+    fi
+
+    echo "unblocked $id from $blocker_id"
+}
 
 cmd_agent() {
     local subcmd="${1:-}"
