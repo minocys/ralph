@@ -145,7 +145,8 @@
       "UPDATE: set status='open', clear assignee, clear lease_expires_at, increment retry_count, set updated_at",
       "Write bats tests: fail releases task, retry_count increments, task is re-claimable"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_fail with positional <id> arg and optional --reason flag. Validates task exists (exit 2 if not found) and status is active (exit 1 if not). Updates: status='open', assignee=NULL, lease_expires_at=NULL, retry_count incremented, updated_at=now(). The --reason flag is accepted but not persisted (no schema column for it). Prints 'failed <id>' on success. SQL escaping via sed for single quotes. Test file: test/task_fail.bats with 16 tests covering argument validation, not found, status checks (open/done), successful fail, state changes (status/assignee/lease/retry_count/updated_at), cumulative retry_count, --reason flag, re-claim integration, claim-fail cycle retry tracking, and special characters."
   },
   {
     "category": "feat",
