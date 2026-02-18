@@ -123,6 +123,8 @@ See [agents.md](https://agents.md) for the format and examples.
 ralph.sh              # Main loop runner
 models.json           # Model alias → ID mapping
 install.sh            # Installer (symlinks skills + CLI)
+task                  # Task management CLI (PostgreSQL-backed)
+docker-compose.yml    # PostgreSQL dev database
 skills/
   ralph-spec/         # JTBD → spec files
   ralph-plan/         # Specs → implementation plan
@@ -131,9 +133,33 @@ test/
   ralph_args.bats     # Argument parsing tests
   ralph_preflight.bats # Preflight check tests
   ralph_model.bats    # Model/backend resolution tests
+  task_cli.bats       # Task CLI tests
   test_helper.bash    # Shared test setup
   libs/               # BATS helper libraries (git submodules)
 ```
+
+## Development Database
+
+The `task` CLI requires PostgreSQL. A Docker Compose file is provided for local development:
+
+```sh
+# Start PostgreSQL
+docker compose up -d
+
+# Set the connection URL
+export RALPH_DB_URL="postgres://ralph:ralph@localhost:5432/ralph"
+
+# Verify the connection
+task --help
+
+# Stop (data persists across restarts)
+docker compose down
+
+# Stop and wipe data
+docker compose down -v
+```
+
+The database schema is created automatically on first `task` invocation.
 
 ## Testing
 
