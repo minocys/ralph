@@ -109,7 +109,225 @@ EOF
 # ---------------------------------------------------------------------------
 # Subcommand stubs (will be implemented in subsequent tasks)
 # ---------------------------------------------------------------------------
-cmd_plan_sync()    { echo "plan-sync: not yet implemented" >&2; exit 1; }
+cmd_plan_sync() {
+    # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
+    # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":[{"content":"..."}]}
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    # Read all stdin lines into an array
+    local lines=()
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        lines+=("$line")
+    done
+
+    if [[ ${#lines[@]} -eq 0 ]]; then
+        echo "inserted: 0, updated: 0, deleted: 0, skipped (done): 0"
+        return 0
+    fi
+
+    # Collect all task IDs and spec_refs from stdin
+    local all_ids=()
+    local all_spec_refs=()
+    for line in "${lines[@]}"; do
+        local tid spec
+        tid=$(printf '%s' "$line" | jq -r '.id')
+        spec=$(printf '%s' "$line" | jq -r '.spec // empty')
+        all_ids+=("$tid")
+        if [[ -n "$spec" ]]; then
+            # Track unique spec_refs
+            local found=0
+            for s in "${all_spec_refs[@]+"${all_spec_refs[@]}"}"; do
+                if [[ "$s" == "$spec" ]]; then found=1; break; fi
+            done
+            if [[ "$found" -eq 0 ]]; then
+                all_spec_refs+=("$spec")
+            fi
+        fi
+    done
+
+    local inserted=0 updated=0 deleted=0 skipped=0
+
+    # Build the entire sync as a single SQL transaction
+    local sql="BEGIN;"
+
+    # Process each task from stdin
+    for line in "${lines[@]}"; do
+        local tid title desc priority category spec_ref ref deps_json steps_json
+        tid=$(printf '%s' "$line" | jq -r '.id')
+        title=$(printf '%s' "$line" | jq -r '.t // empty')
+        desc=$(printf '%s' "$line" | jq -r '.d // empty')
+        priority=$(printf '%s' "$line" | jq -r '.p // 2')
+        category=$(printf '%s' "$line" | jq -r '.cat // empty')
+        spec_ref=$(printf '%s' "$line" | jq -r '.spec // empty')
+        ref=$(printf '%s' "$line" | jq -r '.ref // empty')
+        deps_json=$(printf '%s' "$line" | jq -c '.deps // []')
+        steps_json=$(printf '%s' "$line" | jq -c '.steps // []')
+
+        local esc_id esc_title esc_desc esc_category esc_spec esc_ref
+        esc_id=$(sql_esc "$tid")
+        esc_title=$(sql_esc "$title")
+        esc_desc=$(sql_esc "$desc")
+        esc_category=$(sql_esc "$category")
+        esc_spec=$(sql_esc "$spec_ref")
+        esc_ref=$(sql_esc "$ref")
+
+        # Check if task exists in DB and get its status
+        local existing_status
+        existing_status=$(psql_cmd -c "SELECT status FROM tasks WHERE id = '${esc_id}';")
+
+        if [[ -n "$existing_status" ]]; then
+            # Task exists in DB
+            if [[ "$existing_status" == "done" ]]; then
+                # Skip done tasks — they are immutable
+                skipped=$((skipped + 1))
+                continue
+            fi
+
+            # Update existing non-done task
+            local set_parts="title = '${esc_title}', priority = ${priority}, updated_at = now()"
+            if [[ -n "$desc" ]]; then
+                set_parts+=", description = '${esc_desc}'"
+            else
+                set_parts+=", description = NULL"
+            fi
+            if [[ -n "$category" ]]; then
+                set_parts+=", category = '${esc_category}'"
+            else
+                set_parts+=", category = NULL"
+            fi
+            if [[ -n "$spec_ref" ]]; then
+                set_parts+=", spec_ref = '${esc_spec}'"
+            else
+                set_parts+=", spec_ref = NULL"
+            fi
+            if [[ -n "$ref" ]]; then
+                set_parts+=", ref = '${esc_ref}'"
+            else
+                set_parts+=", ref = NULL"
+            fi
+
+            sql+="
+UPDATE tasks SET ${set_parts} WHERE id = '${esc_id}';"
+
+            # Replace steps
+            sql+="
+DELETE FROM task_steps WHERE task_id = '${esc_id}';"
+            local step_count
+            step_count=$(printf '%s' "$steps_json" | jq 'length')
+            for ((i=0; i<step_count; i++)); do
+                local step_content esc_step
+                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
+                esc_step=$(sql_esc "$step_content")
+                sql+="
+INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
+            done
+
+            # Replace deps
+            sql+="
+DELETE FROM task_deps WHERE task_id = '${esc_id}';"
+            local dep_count
+            dep_count=$(printf '%s' "$deps_json" | jq 'length')
+            for ((i=0; i<dep_count; i++)); do
+                local dep_id esc_dep
+                dep_id=$(printf '%s' "$deps_json" | jq -r ".[$i]")
+                esc_dep=$(sql_esc "$dep_id")
+                sql+="
+INSERT INTO task_deps (task_id, blocked_by) VALUES ('${esc_id}', '${esc_dep}');"
+            done
+
+            updated=$((updated + 1))
+        else
+            # Insert new task
+            local desc_val cat_val spec_val ref_val
+            [[ -n "$desc" ]] && desc_val="'${esc_desc}'" || desc_val="NULL"
+            [[ -n "$category" ]] && cat_val="'${esc_category}'" || cat_val="NULL"
+            [[ -n "$spec_ref" ]] && spec_val="'${esc_spec}'" || spec_val="NULL"
+            [[ -n "$ref" ]] && ref_val="'${esc_ref}'" || ref_val="NULL"
+
+            sql+="
+INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, updated_at)
+VALUES ('${esc_id}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, now());"
+
+            # Insert steps
+            local step_count
+            step_count=$(printf '%s' "$steps_json" | jq 'length')
+            for ((i=0; i<step_count; i++)); do
+                local step_content esc_step
+                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
+                esc_step=$(sql_esc "$step_content")
+                sql+="
+INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
+            done
+
+            # Insert deps
+            local dep_count
+            dep_count=$(printf '%s' "$deps_json" | jq 'length')
+            for ((i=0; i<dep_count; i++)); do
+                local dep_id esc_dep
+                dep_id=$(printf '%s' "$deps_json" | jq -r ".[$i]")
+                esc_dep=$(sql_esc "$dep_id")
+                sql+="
+INSERT INTO task_deps (task_id, blocked_by) VALUES ('${esc_id}', '${esc_dep}');"
+            done
+
+            inserted=$((inserted + 1))
+        fi
+    done
+
+    # Soft-delete tasks in DB whose spec_ref is in the stdin set but whose ID is NOT in stdin
+    # Only delete non-done tasks
+    for spec in "${all_spec_refs[@]}"; do
+        local esc_spec_del
+        esc_spec_del=$(sql_esc "$spec")
+
+        # Build an IN clause of IDs from stdin for this spec_ref
+        local id_in_list=""
+        for line in "${lines[@]}"; do
+            local line_spec line_id
+            line_spec=$(printf '%s' "$line" | jq -r '.spec // empty')
+            line_id=$(printf '%s' "$line" | jq -r '.id')
+            if [[ "$line_spec" == "$spec" ]]; then
+                local esc_line_id
+                esc_line_id=$(sql_esc "$line_id")
+                if [[ -n "$id_in_list" ]]; then
+                    id_in_list+=","
+                fi
+                id_in_list+="'${esc_line_id}'"
+            fi
+        done
+
+        # Find tasks in DB with this spec_ref but not in stdin's ID set (and not done)
+        local orphaned
+        orphaned=$(psql_cmd -c "
+            SELECT id FROM tasks
+            WHERE spec_ref = '${esc_spec_del}'
+              AND id NOT IN (${id_in_list})
+              AND status != 'done';
+        ")
+
+        if [[ -n "$orphaned" ]]; then
+            while IFS= read -r orphan_id; do
+                [[ -z "$orphan_id" ]] && continue
+                local esc_orphan
+                esc_orphan=$(sql_esc "$orphan_id")
+                sql+="
+UPDATE tasks SET status = 'deleted', deleted_at = now(), updated_at = now() WHERE id = '${esc_orphan}';"
+                deleted=$((deleted + 1))
+            done <<< "$orphaned"
+        fi
+    done
+
+    sql+="
+COMMIT;"
+
+    # Execute the entire transaction
+    printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1 > /dev/null
+
+    echo "inserted: ${inserted}, updated: ${updated}, deleted: ${deleted}, skipped (done): ${skipped}"
+}
 cmd_plan_export()  { echo "plan-export: not yet implemented" >&2; exit 1; }
 cmd_plan_status()  { echo "plan-status: not yet implemented" >&2; exit 1; }
 cmd_claim() {

@@ -158,7 +158,8 @@
       "Print summary: inserted: N, updated: N, deleted: N, skipped (done): N",
       "Write bats tests: sync inserts new tasks, sync updates existing, sync deletes removed, sync skips done, sync is idempotent (second run = no changes)"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_plan_sync with full diff algorithm per spec. Reads JSONL from stdin, processes per spec_ref group: skips done tasks (immutable), updates existing non-done tasks (title, description, category, priority, steps, deps), inserts new tasks as open. Soft-deletes tasks in DB whose spec_ref matches stdin but whose ID is not in stdin (preserves done tasks). Single SQL transaction via BEGIN/COMMIT with ON_ERROR_STOP. Prints summary: inserted: N, updated: N, deleted: N, skipped (done): N. Idempotent — second run with same input produces no new inserts. Uses jq for JSON parsing, sql_esc for SQL injection protection. Test file: test/task_plan_sync.bats with 13 tests covering empty input, inserts, steps/deps, updates, step/dep replacement, done task skipping, soft-delete of removed tasks, done task preservation, idempotency, multiple spec_refs, no-spec-ref isolation, special characters, and mixed operations."
   },
   {
     "category": "feat",
