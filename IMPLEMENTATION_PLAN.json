@@ -227,7 +227,8 @@
       "Add trap handler: on EXIT/INT/TERM, call `task agent deregister <id>`",
       "Write bats test: ralph.sh in build mode registers and deregisters agent (requires task script stub)"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented in ralph.sh: In build mode, registers agent via $SCRIPT_DIR/task agent register before loop entry, exports RALPH_AGENT_ID env var for Claude to use when claiming tasks. Cleanup function deregisters agent on EXIT (covers both normal exit and INT/TERM signals). Agent ID displayed in startup banner. Gracefully handles missing/non-executable task script (registration silently skipped). Plan mode skips registration entirely. Test file: test/ralph_agent_lifecycle.bats with 6 tests covering registration, deregistration on exit, RALPH_AGENT_ID export, plan mode exclusion, missing task script handling, and DB state verification."
   },
   {
     "category": "feat",

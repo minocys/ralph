@@ -118,7 +118,26 @@ fi
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
-trap "rm -f $TMPFILE" EXIT
+AGENT_ID=""
+
+# Register agent in build mode if task script is available
+TASK_SCRIPT="$SCRIPT_DIR/task"
+if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+    AGENT_ID=$("$TASK_SCRIPT" agent register 2>/dev/null) || true
+    if [ -n "$AGENT_ID" ]; then
+        export RALPH_AGENT_ID="$AGENT_ID"
+    fi
+fi
+
+cleanup() {
+    # Deregister agent if one was registered
+    if [ -n "$AGENT_ID" ] && [ -x "$TASK_SCRIPT" ]; then
+        "$TASK_SCRIPT" agent deregister "$AGENT_ID" 2>/dev/null || true
+    fi
+    rm -f "$TMPFILE"
+}
+
+trap cleanup EXIT
 trap "exit 130" INT TERM
 
 # jq filter: extract human-readable text from stream-json events
@@ -155,6 +174,7 @@ echo "Branch: $CURRENT_BRANCH"
 echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
 [ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
 echo "Backend: $ACTIVE_BACKEND"
+[ -n "$AGENT_ID" ] && echo "Agent:  $AGENT_ID"
 [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
