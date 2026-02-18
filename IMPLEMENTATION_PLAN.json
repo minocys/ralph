@@ -85,7 +85,8 @@
       "Print tree showing blocker chain",
       "Write bats tests: deps with no blockers, deps with chain"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_deps with recursive CTE (WITH RECURSIVE dep_tree) to walk the full dependency graph. Accepts <id> positional arg, validates task exists (exit 2 if not found), exit 1 if missing ID. Prints '(no dependencies)' when no blockers. Tree output shows indented hierarchy with depth-based indentation (2 spaces per level), blocker ID, status in brackets, and title. Handles diamond dependencies, deep chains (3+ levels), and special characters. Test file: test/task_deps.bats with 11 tests covering argument validation, not found, no deps, direct blockers, status display, title display, transitive chains, indentation, deep chains, diamond patterns, and special characters."
   },
   {
     "category": "feat",

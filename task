@@ -530,7 +530,61 @@ cmd_delete() {
 
     echo "deleted $id"
 }
-cmd_deps()         { echo "deps: not yet implemented" >&2; exit 1; }
+cmd_deps() {
+    local id="${1:-}"
+
+    if [[ -z "$id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task deps <id>" >&2
+        exit 1
+    fi
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id
+    esc_id=$(sql_esc "$id")
+
+    # Check task exists
+    local task_exists
+    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE id = '${esc_id}';")
+    if [[ -z "$task_exists" ]]; then
+        echo "Error: task '$id' not found" >&2
+        exit 2
+    fi
+
+    # Recursive CTE to walk the full dependency tree
+    local tree_output
+    tree_output=$(psql_cmd -c "
+        WITH RECURSIVE dep_tree AS (
+            SELECT td.blocked_by, t.status, t.title, 1 AS depth, td.task_id AS parent
+            FROM task_deps td
+            JOIN tasks t ON t.id = td.blocked_by
+            WHERE td.task_id = '${esc_id}'
+            UNION
+            SELECT td.blocked_by, t.status, t.title, dt.depth + 1, td.task_id AS parent
+            FROM task_deps td
+            JOIN tasks t ON t.id = td.blocked_by
+            JOIN dep_tree dt ON dt.blocked_by = td.task_id
+        )
+        SELECT blocked_by, status, title, depth FROM dep_tree
+        ORDER BY depth ASC, blocked_by ASC;
+    ")
+
+    if [[ -z "$tree_output" ]]; then
+        echo "(no dependencies)"
+        return 0
+    fi
+
+    # Print tree with indentation based on depth
+    while IFS='|' read -r dep_id dep_status dep_title dep_depth; do
+        local indent=""
+        for ((i=1; i<dep_depth; i++)); do
+            indent+="  "
+        done
+        printf '%s%s [%s] %s\n' "$indent" "$dep_id" "$dep_status" "$dep_title"
+    done <<< "$tree_output"
+}
 cmd_block() {
     local id="${1:-}"
     shift 2>/dev/null || true
