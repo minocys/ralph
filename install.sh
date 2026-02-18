@@ -49,5 +49,19 @@ if [ ! -e "$RALPH_LINK" ]; then
     echo "  Linked script: ralph.sh -> $RALPH_LINK"
 fi
 
+# Symlink task into ~/.local/bin
+TASK_LINK="$BIN_DIR/task"
+if [ -L "$TASK_LINK" ]; then
+    echo "  Updating symlink: $TASK_LINK"
+    rm "$TASK_LINK"
+elif [ -e "$TASK_LINK" ]; then
+    echo "  Warning: $TASK_LINK already exists and is not a symlink, skipping"
+fi
+
+if [ ! -e "$TASK_LINK" ]; then
+    ln -s "$REPO_DIR/task" "$TASK_LINK"
+    echo "  Linked script: task -> $TASK_LINK"
+fi
+
 echo ""
 echo "Done. Make sure $BIN_DIR is in your PATH."

@@ -237,7 +237,8 @@
       "Symlink `task` script into ~/.local/bin alongside ralph",
       "Write bats test: install.sh creates task symlink"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Added task symlink block to install.sh following the same pattern as the ralph symlink (handles existing symlink update, skips non-symlink files with warning). Ensured task script is executable (chmod +x). Test file: test/install.bats with 6 tests covering ralph symlink creation, task symlink creation, executable permission, symlink update on reinstall, non-symlink skip with warning, and output message verification."
   },
   {
     "category": "doc",
