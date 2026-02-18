@@ -23,7 +23,8 @@
       "With --json: output JSONL with short keys (id, t, d, p, s, cat, spec, ref, deps, steps)",
       "Write bats tests: list default, list --status open, list --json format"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented with --status (comma-separated filter, default excludes deleted) and --json flags. Table format shows ID, P, S, CAT, TITLE, AGENT columns aligned. JSONL uses short keys (id, t, d, p, s, cat, spec, ref, deps, steps) with subquery joins for deps/steps. Fixed ensure_schema to suppress NOTICE messages with SET client_min_messages TO WARNING. Test file: test/task_list.bats with 13 tests."
   },
   {
     "category": "feat",

@@ -22,6 +22,7 @@ psql_cmd() {
 # ---------------------------------------------------------------------------
 ensure_schema() {
     psql_cmd -c "
+    SET client_min_messages TO WARNING;
     CREATE TABLE IF NOT EXISTS tasks (
         id              TEXT PRIMARY KEY,
         title           TEXT NOT NULL,
@@ -116,7 +117,76 @@ cmd_renew()        { echo "renew: not yet implemented" >&2; exit 1; }
 cmd_step_done()    { echo "step-done: not yet implemented" >&2; exit 1; }
 cmd_done()         { echo "done: not yet implemented" >&2; exit 1; }
 cmd_fail()         { echo "fail: not yet implemented" >&2; exit 1; }
-cmd_list()         { echo "list: not yet implemented" >&2; exit 1; }
+cmd_list() {
+    local status_filter=""
+    local json_output=0
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --status) status_filter="$2"; shift 2 ;;
+            --json)   json_output=1; shift ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # Build WHERE clause
+    local where_clause
+    if [[ -n "$status_filter" ]]; then
+        # Convert comma-separated statuses to SQL IN clause
+        local in_list=""
+        IFS=',' read -ra statuses <<< "$status_filter"
+        for s in "${statuses[@]}"; do
+            s=$(printf '%s' "$s" | xargs)  # trim whitespace
+            if [[ -n "$in_list" ]]; then
+                in_list+=","
+            fi
+            in_list+="'${s}'"
+        done
+        where_clause="WHERE status IN (${in_list})"
+    else
+        where_clause="WHERE status != 'deleted'"
+    fi
+
+    if [[ "$json_output" -eq 1 ]]; then
+        # JSONL output with short keys
+        psql_cmd -c "
+            SELECT json_build_object(
+                'id', t.id,
+                't', t.title,
+                'd', t.description,
+                'p', t.priority,
+                's', t.status,
+                'cat', t.category,
+                'spec', t.spec_ref,
+                'ref', t.ref,
+                'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
+                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = t.id), '[]'::json)
+            )
+            FROM tasks t
+            ${where_clause}
+            ORDER BY t.priority ASC, t.created_at ASC;
+        "
+    else
+        # Table output: ID, P, S, CAT, TITLE, AGENT
+        local result
+        result=$(psql_cmd -c "
+            SELECT t.id, t.priority, t.status, COALESCE(t.category, '-'), t.title, COALESCE(t.assignee, '-')
+            FROM tasks t
+            ${where_clause}
+            ORDER BY t.priority ASC, t.created_at ASC;
+        ")
+
+        if [[ -z "$result" ]]; then
+            return 0
+        fi
+
+        # Print header and rows with column alignment
+        printf '%-20s %s %-8s %-5s %-35s %s\n' "ID" "P" "S" "CAT" "TITLE" "AGENT"
+        while IFS='|' read -r id priority status category title assignee; do
+            printf '%-20s %s %-8s %-5s %-35s %s\n' "$id" "$priority" "$status" "$category" "$title" "$assignee"
+        done <<< "$result"
+    fi
+}
 cmd_show()         { echo "show: not yet implemented" >&2; exit 1; }
 cmd_create() {
     local id="${1:-}"
