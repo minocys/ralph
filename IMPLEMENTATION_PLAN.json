@@ -99,7 +99,8 @@
       "Exit code 2 if no eligible task",
       "Write bats tests: claim returns task, claim with no tasks exits 2, claim skips blocked tasks"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_claim with single atomic SQL transaction using CTE (WITH eligible AS ... WITH claimed AS ...). Uses SELECT FOR UPDATE SKIP LOCKED for concurrent safety. Eligible tasks: status='open' OR (status='active' AND lease_expires_at < now()), with all blockers done/deleted via NOT EXISTS subquery. Priority ordering: priority ASC, created_at ASC. Updates: status='active', assignee from --agent flag or RALPH_AGENT_ID env var, lease_expires_at=now()+interval, retry_count incremented only on reclaim of expired lease. Returns JSON with short keys (id, t, d, p, s, cat, spec, ref, assignee, lease_expires_at, retry_count, deps, steps, blocker_results). Exit 2 if no eligible task. Test file: test/task_claim.bats with 18 tests covering priority ordering, blocked task skipping, lease expiry/reclaim, retry_count increment, steps/deps in output, blocker_results, edge cases."
   },
   {
     "category": "feat",
