@@ -1288,13 +1288,52 @@ cmd_unblock() {
     echo "unblocked $id from $blocker_id"
 }
 
+cmd_agent_register() {
+    ensure_schema
+
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local agent_id attempt max_attempts=10
+    local pid="$$"
+    local host="${HOSTNAME:-$(hostname)}"
+
+    for (( attempt=0; attempt<max_attempts; attempt++ )); do
+        # Generate random 4-char hex ID
+        agent_id=$(head -c 2 /dev/urandom | od -An -tx1 | tr -d ' \n')
+
+        # Try to insert; ON CONFLICT means collision — retry
+        local result
+        result=$(psql "$RALPH_DB_URL" -tAX -v ON_ERROR_STOP=1 -c "
+            INSERT INTO agents (id, pid, hostname) VALUES ('$(sql_esc "$agent_id")', $pid, '$(sql_esc "$host")')
+            ON CONFLICT (id) DO NOTHING
+            RETURNING id;
+        " 2>&1)
+
+        if [[ -n "$result" ]]; then
+            echo "$agent_id"
+            return 0
+        fi
+    done
+
+    echo "Error: failed to generate unique agent ID after $max_attempts attempts" >&2
+    exit 1
+}
+
+cmd_agent_list() {
+    echo "agent list: not yet implemented" >&2; exit 1
+}
+
+cmd_agent_deregister() {
+    echo "agent deregister: not yet implemented" >&2; exit 1
+}
+
 cmd_agent() {
     local subcmd="${1:-}"
     shift 2>/dev/null || true
     case "$subcmd" in
-        register)   echo "agent register: not yet implemented" >&2; exit 1 ;;
-        list)       echo "agent list: not yet implemented" >&2; exit 1 ;;
-        deregister) echo "agent deregister: not yet implemented" >&2; exit 1 ;;
+        register)   cmd_agent_register "$@" ;;
+        list)       cmd_agent_list "$@" ;;
+        deregister) cmd_agent_deregister "$@" ;;
         "")
             echo "Error: missing agent subcommand" >&2
             echo "Usage: task agent <register|list|deregister>" >&2

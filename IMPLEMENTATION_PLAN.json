@@ -194,7 +194,8 @@
       "Print agent ID to stdout",
       "Write bats tests: register returns 4-char hex, register creates active agent"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_agent_register with random 4-char hex ID generation via /dev/urandom + od. Collision-safe with INSERT ON CONFLICT DO NOTHING + RETURNING id pattern, retries up to 10 times. Records shell PID ($$) and hostname ($HOSTNAME or $(hostname)). Sets started_at=now() and status='active' via schema defaults. Prints agent ID to stdout. sql_esc for SQL injection protection. Test file: test/task_agent_register.bats with 11 tests covering ID format validation, DB record creation (PID, hostname, status, started_at), uniqueness across multiple registrations, multiple agent records, and subcommand routing (missing/unknown)."
   },
   {
     "category": "feat",
