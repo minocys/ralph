@@ -215,7 +215,8 @@
       "UPDATE agents SET status='stopped' WHERE id=<id>",
       "Write bats tests: deregister changes status to stopped"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_agent_deregister with positional <id> arg. Validates agent exists via SELECT before UPDATE (exit 2 if not found), exit 1 if missing ID with usage hint. Sets status='stopped' idempotently (deregistering already-stopped agent succeeds). SQL escaping via local sql_esc function (pattern used by all cmd_* functions). Prints 'deregistered <id>' on success. Key learning: psql -tAX still outputs 'UPDATE 0' text for UPDATE...RETURNING with no matching rows, so must use SELECT-then-UPDATE pattern instead. Test file: test/task_agent_deregister.bats with 10 tests covering argument validation, not found, status change, idempotency, selective deregistration, agent list visibility, and full register+deregister workflow."
   },
   {
     "category": "feat",

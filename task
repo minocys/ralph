@@ -1340,7 +1340,31 @@ cmd_agent_list() {
 }
 
 cmd_agent_deregister() {
-    echo "agent deregister: not yet implemented" >&2; exit 1
+    local id="${1:-}"
+    if [[ -z "$id" ]]; then
+        echo "Error: missing agent ID" >&2
+        echo "Usage: task agent deregister <id>" >&2
+        exit 1
+    fi
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id
+    esc_id=$(sql_esc "$id")
+
+    # Check agent exists
+    local current
+    current=$(psql_cmd -c "SELECT id FROM agents WHERE id = '${esc_id}';")
+
+    if [[ -z "$current" ]]; then
+        echo "Error: agent '$id' not found" >&2
+        exit 2
+    fi
+
+    psql_cmd -c "UPDATE agents SET status = 'stopped' WHERE id = '${esc_id}';" > /dev/null
+
+    echo "deregistered $id"
 }
 
 cmd_agent() {
