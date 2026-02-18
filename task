@@ -260,7 +260,54 @@ cmd_renew() {
 
     echo "renewed $task_id"
 }
-cmd_step_done()    { echo "step-done: not yet implemented" >&2; exit 1; }
+cmd_step_done() {
+    local task_id="${1:-}"
+    shift 2>/dev/null || true
+    local seq="${1:-}"
+
+    if [[ -z "$task_id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task step-done <id> <seq>" >&2
+        exit 1
+    fi
+
+    if [[ -z "$seq" ]]; then
+        echo "Error: missing step sequence number" >&2
+        echo "Usage: task step-done <id> <seq>" >&2
+        exit 1
+    fi
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id
+    esc_id=$(sql_esc "$task_id")
+
+    # Check task exists
+    local task_exists
+    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE id = '${esc_id}';")
+    if [[ -z "$task_exists" ]]; then
+        echo "Error: task '$task_id' not found" >&2
+        exit 2
+    fi
+
+    # Check step exists
+    local step_exists
+    step_exists=$(psql_cmd -c "SELECT seq FROM task_steps WHERE task_id = '${esc_id}' AND seq = ${seq};")
+    if [[ -z "$step_exists" ]]; then
+        echo "Error: step $seq not found for task '$task_id'" >&2
+        exit 2
+    fi
+
+    # Update the step status to 'done' (idempotent — no error if already done)
+    psql_cmd -c "
+        UPDATE task_steps
+        SET status = 'done'
+        WHERE task_id = '${esc_id}' AND seq = ${seq};
+    " > /dev/null
+
+    echo "step-done $task_id $seq"
+}
 cmd_done()         { echo "done: not yet implemented" >&2; exit 1; }
 cmd_fail()         { echo "fail: not yet implemented" >&2; exit 1; }
 cmd_list() {

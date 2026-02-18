@@ -122,7 +122,8 @@
       "UPDATE task_steps SET status='done' WHERE task_id=id AND seq=seq",
       "Write bats test: mark step done, verify step status changes"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_step_done with positional <id> and <seq> args. Validates task exists (exit 2 if not found), validates step exists (exit 2 if not found). Updates step status to 'done' idempotently (marking already-done step succeeds). Prints 'step-done <id> <seq>' on success. SQL escaping via sed for single quotes. Test file: test/task_step_done.bats with 11 tests covering argument validation, not found cases (task and step), successful marking, selective step update, idempotency, integration with show output, special characters, single quotes, and sequential multi-step completion."
   },
   {
     "category": "feat",
