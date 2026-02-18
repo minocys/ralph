@@ -134,7 +134,8 @@
       "UPDATE: set status='done', store result JSONB, set updated_at",
       "Write bats tests: done on active task, done on non-active exits 1, result JSON stored correctly"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_done with positional <id> arg and --result flag (JSON string). Validates task exists (exit 2 if not found) and status is active (exit 1 if not). Updates status to 'done', sets updated_at=now(), optionally stores result as JSONB via '::jsonb' cast. SQL escaping via sed for single quotes. Prints 'done <id>' on success. Implicitly unblocks downstream tasks (verified in integration test with claim). Test file: test/task_done.bats with 14 tests covering argument validation, not found, status checks (open/already done), successful completion, updated_at, result JSONB storage, no-result case, downstream unblocking, show integration, special characters, single quotes, and special JSON characters."
   },
   {
     "category": "feat",

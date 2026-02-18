@@ -308,7 +308,65 @@ cmd_step_done() {
 
     echo "step-done $task_id $seq"
 }
-cmd_done()         { echo "done: not yet implemented" >&2; exit 1; }
+cmd_done() {
+    local task_id="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$task_id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task done <id> [--result '<json>']" >&2
+        exit 1
+    fi
+
+    local result_json=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --result) result_json="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id
+    esc_id=$(sql_esc "$task_id")
+
+    # Check task exists and get current status
+    local current_status
+    current_status=$(psql_cmd -c "SELECT status FROM tasks WHERE id = '${esc_id}';")
+
+    if [[ -z "$current_status" ]]; then
+        echo "Error: task '$task_id' not found" >&2
+        exit 2
+    fi
+
+    if [[ "$current_status" != "active" ]]; then
+        echo "Error: task '$task_id' is not active (status: $current_status)" >&2
+        exit 1
+    fi
+
+    # Build the UPDATE with optional result JSONB
+    local result_clause
+    if [[ -n "$result_json" ]]; then
+        local esc_result
+        esc_result=$(sql_esc "$result_json")
+        result_clause=", result = '${esc_result}'::jsonb"
+    else
+        result_clause=""
+    fi
+
+    psql_cmd -c "
+        UPDATE tasks
+        SET status = 'done',
+            updated_at = now()
+            ${result_clause}
+        WHERE id = '${esc_id}';
+    " > /dev/null
+
+    echo "done $task_id"
+}
 cmd_fail()         { echo "fail: not yet implemented" >&2; exit 1; }
 cmd_list() {
     local status_filter=""
