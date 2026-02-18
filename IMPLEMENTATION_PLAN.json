@@ -204,7 +204,8 @@
       "Query agents table, print ID, PID, hostname, started_at, status",
       "Write bats test: list shows registered agent"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_agent_list with ensure_schema call, SQL query ordering by started_at DESC. Output: aligned table format (ID, PID, HOSTNAME, STARTED, STATUS) with header row. Shows all agents (active and stopped). Returns 0 with no output when no agents exist. Test file: test/task_agent_list.bats with 10 tests covering empty database, single agent display, header row, status/PID/hostname/timestamp display, multiple agents, stopped agent visibility, column alignment."
   },
   {
     "category": "feat",

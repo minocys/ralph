@@ -1320,7 +1320,23 @@ cmd_agent_register() {
 }
 
 cmd_agent_list() {
-    echo "agent list: not yet implemented" >&2; exit 1
+    ensure_schema
+
+    local result
+    result=$(psql_cmd -c "
+        SELECT id, pid, hostname, started_at, status
+        FROM agents
+        ORDER BY started_at DESC;
+    ")
+
+    if [[ -z "$result" ]]; then
+        return 0
+    fi
+
+    printf '%-6s %-8s %-20s %-25s %s\n' "ID" "PID" "HOSTNAME" "STARTED" "STATUS"
+    while IFS='|' read -r id pid hostname started status; do
+        printf '%-6s %-8s %-20s %-25s %s\n' "$id" "$pid" "$hostname" "$started" "$status"
+    done <<< "$result"
 }
 
 cmd_agent_deregister() {
