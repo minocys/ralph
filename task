@@ -61,7 +61,7 @@ ensure_schema() {
         started_at TIMESTAMPTZ DEFAULT now(),
         status     TEXT DEFAULT 'active'
     );
-    " > /dev/null 2>&1
+    " > /dev/null
 }
 
 # ---------------------------------------------------------------------------

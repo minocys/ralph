@@ -4,28 +4,19 @@ description: Implementation planner that studies and breaks down specs into task
 ---
 
 # TASK
-Study specs and codebase, then create or update IMPLEMENTATION_PLAN.json with prioritized tasks.
-
-## Context
-
-| Term             | Definition                                                    |
-| ---------------- | ------------------------------------------------------------- |
-| Job to be Done   | High-level user need or outcome                               |
-| Topic of Concern | A distinct aspect or component within a JTBD                  |
-| Spec             | Requirements doc for one topic of concern (`specs/<name>.md`) |
-| Task             | Unit of work derived from comparing specs to code             |
-
-## Steps
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.json (if present) to understand the plan so far.
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Study @IMPLEMENTATION_PLAN.json (if present; it may be incorrect) and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`. 
-2. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.json. **Try to take a TDD approach, writing tests with expected input/output pairs. Make each task the smallest possible unit of work. Aim for one small change per task!**  Study @IMPLEMENTATION_PLAN.json to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents. .
-3. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
-4. When complete, reply with: <promise>Tastes Like Burning.</promise>
+2. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.json, a list sorted in priority of items yet to be implemented. **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
+3. Study @IMPLEMENTATION_PLAN.json to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
+4. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
+5. When complete, reply with: <promise>Tastes Like Burning.</promise>
 
 **IMPORTANT**: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
+
+Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at specs/FILENAME.md. If you create a new element then document the plan to implement it in @IMPLEMENTATION_PLAN.json using a subagent.
 
 ### EXAMPLE IMPLEMENTATION_PLAN.json
 ````
@@ -53,3 +44,13 @@ Study specs and codebase, then create or update IMPLEMENTATION_PLAN.json with pr
   }
 ]
 ````
+
+## Context
+
+| Term             | Definition                                                    |
+| ---------------- | ------------------------------------------------------------- |
+| Job to be Done   | High-level user need or outcome                               |
+| Topic of Concern | A distinct aspect or component within a JTBD                  |
+| Spec             | Requirements doc for one topic of concern (`specs/<name>.md`) |
+| Task             | Unit of work derived from comparing specs to code             |
+
