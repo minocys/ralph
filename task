@@ -376,7 +376,41 @@ cmd_plan_export() {
         done <<< "$result"
     fi
 }
-cmd_plan_status()  { echo "plan-status: not yet implemented" >&2; exit 1; }
+cmd_plan_status() {
+    # Reject unknown flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # Count tasks by status, with "blocked" computed as tasks that have
+    # at least one unresolved blocker (blocker status not in done/deleted)
+    local result
+    result=$(psql_cmd -c "
+        SELECT
+            COALESCE(SUM(CASE WHEN s.status = 'open'    AND NOT s.is_blocked THEN 1 ELSE 0 END), 0) AS open_count,
+            COALESCE(SUM(CASE WHEN s.status = 'active'  AND NOT s.is_blocked THEN 1 ELSE 0 END), 0) AS active_count,
+            COALESCE(SUM(CASE WHEN s.status = 'done'    THEN 1 ELSE 0 END), 0) AS done_count,
+            COALESCE(SUM(CASE WHEN s.is_blocked          THEN 1 ELSE 0 END), 0) AS blocked_count,
+            COALESCE(SUM(CASE WHEN s.status = 'deleted'  THEN 1 ELSE 0 END), 0) AS deleted_count
+        FROM (
+            SELECT t.id, t.status,
+                   EXISTS (
+                       SELECT 1 FROM task_deps d
+                       JOIN tasks b ON b.id = d.blocked_by
+                       WHERE d.task_id = t.id
+                         AND b.status NOT IN ('done', 'deleted')
+                   ) AS is_blocked
+            FROM tasks t
+        ) s;
+    ")
+
+    local open active done blocked deleted
+    IFS='|' read -r open active done blocked deleted <<< "$result"
+
+    echo "${open} open, ${active} active, ${done} done, ${blocked} blocked, ${deleted} deleted"
+}
 cmd_claim() {
     local lease=600
     local agent_id="${RALPH_AGENT_ID:-}"

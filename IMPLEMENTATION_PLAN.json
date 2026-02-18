@@ -182,7 +182,8 @@
       "Print summary line: N open, N active, N done, N blocked, N deleted",
       "Write bats test: status output matches expected counts"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_plan_status with a single SQL query using a subquery to compute is_blocked per task (EXISTS check for unresolved blockers where blocker status NOT IN done/deleted). Blocked tasks are counted separately from their actual status (open/active). Output format: 'N open, N active, N done, N blocked, N deleted' on a single line. Rejects unknown flags with exit 1. Test file: test/task_plan_status.bats with 12 tests covering empty database, individual status counts, blocked task detection, resolved/deleted blocker handling, mixed statuses, single-line output format, active+blocked counting, and unknown flag rejection."
   },
   {
     "category": "feat",
