@@ -1,42 +1,5 @@
 [
   {
-    "category": "setup",
-    "description": "Create the `task` bash script skeleton with argument parsing and help text",
-    "steps": [
-      "Create `task` bash script at project root with shebang, RALPH_DB_URL check, and subcommand dispatch",
-      "Implement --help and usage text listing all subcommands",
-      "Route to stub functions for each subcommand: plan-sync, plan-export, plan-status, claim, renew, step-done, done, fail, list, show, create, update, delete, deps, block, unblock, agent",
-      "Add error handling: missing subcommand prints help, unknown subcommand exits 1",
-      "Write bats test file `test/task_cli.bats` covering help output, unknown subcommand error, and missing RALPH_DB_URL error"
-    ],
-    "completed": true
-  },
-  {
-    "category": "setup",
-    "description": "Add Docker Compose file for PostgreSQL development database",
-    "steps": [
-      "Create `docker-compose.yml` with postgres:17-alpine service, volume for data persistence, and RALPH_DB_URL env var",
-      "Document RALPH_DB_URL format in a comment: `postgres://ralph:pass@localhost:5432/ralph`",
-      "Add `docker-compose.yml` usage to README.md development section"
-    ],
-    "completed": true
-  },
-  {
-    "category": "feat",
-    "description": "Implement idempotent schema creation in the `task` script (task-data-store spec)",
-    "steps": [
-      "Add `ensure_schema()` function that runs CREATE TABLE IF NOT EXISTS for: tasks, task_steps, task_deps, agents",
-      "Tasks table: id TEXT PK, description TEXT NOT NULL, category TEXT, priority INT DEFAULT 2, status TEXT DEFAULT 'open', spec_ref TEXT, ref TEXT, result JSONB, assignee TEXT, lease_expires_at TIMESTAMPTZ, retry_count INT DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ, deleted_at TIMESTAMPTZ",
-      "Task_steps table: task_id TEXT REFERENCES tasks ON DELETE CASCADE, seq INT, content TEXT, status TEXT DEFAULT 'pending', PK(task_id, seq)",
-      "Task_deps table: task_id TEXT REFERENCES tasks ON DELETE CASCADE, blocked_by TEXT REFERENCES tasks ON DELETE CASCADE, PK(task_id, blocked_by)",
-      "Agents table: id TEXT PK, pid INT, hostname TEXT, started_at TIMESTAMPTZ DEFAULT now(), status TEXT DEFAULT 'active'",
-      "Call ensure_schema() at the top of every task subcommand invocation",
-      "Write bats test verifying schema creation is idempotent (run ensure_schema twice, second run succeeds)"
-    ],
-    "completed": true,
-    "notes": "Schema was already implemented in the task script skeleton. The integration test file test/task_schema.bats was created with 9 tests covering: table creation, idempotency, column verification for all 4 tables, foreign key cascade behavior, and default values. Tests skip gracefully when PostgreSQL is not available. Note about spec inconsistency: the data-store spec mentions only `description` (required) without `title`, but the task-cli spec uses `<title>` as a positional arg. The current implementation has both `title TEXT NOT NULL` and `description TEXT` which matches the CLI spec."
-  },
-  {
     "category": "feat",
     "description": "Implement `task create` command",
     "steps": [
@@ -47,7 +10,8 @@
       "Print the task ID to stdout on success",
       "Write bats tests: create with all flags, create with minimal args, missing title errors"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented with full flag parsing (-p, -c, -d, -s, -r, --ref, --deps), SQL escaping via sed for single quotes, transactional inserts (BEGIN/COMMIT with ON_ERROR_STOP), steps from JSON array, comma-separated deps. Test file: test/task_create.bats with 11 tests. DB connection uses postgres://ralph:ralph@localhost:5432/ralph (not ralph:pass as documented in docker-compose)."
   },
   {
     "category": "feat",
