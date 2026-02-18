@@ -170,7 +170,8 @@
       "With --json: output JSONL with short keys",
       "Write bats tests: export table format, export JSON format"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_plan_export with --json flag. Default: aligned table format (ID, P, S, CAT, TITLE, AGENT) showing all tasks including deleted (full DAG dump). --json: JSONL with short keys (id, t, d, p, s, cat, spec, ref, deps, steps) including subquery joins for deps/steps. Key difference from cmd_list: plan-export shows ALL statuses (no WHERE clause filtering), while list excludes deleted by default. Test file: test/task_plan_export.bats with 12 tests covering empty database, table format, deleted task inclusion, priority ordering, assignee display, JSON output, short keys, steps/deps, deleted in JSON, comparison with list behavior, and unknown flag rejection."
   },
   {
     "category": "feat",
