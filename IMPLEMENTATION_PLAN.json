@@ -62,7 +62,8 @@
       "Exit code 2 if task not found",
       "Write bats tests: delete existing task, delete nonexistent exits 2, deleted task excluded from list"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_delete with soft delete: sets status='deleted', deleted_at=now(), updated_at=now(). Exit code 2 if task not found, exit 1 if missing ID. SQL escaping via sed for single quotes. Prints 'deleted <id>' on success. Test file: test/task_delete.bats with 10 tests covering argument validation, not found, status/timestamp changes, list exclusion, status filter, special characters, record preservation, and show visibility."
   },
   {
     "category": "feat",

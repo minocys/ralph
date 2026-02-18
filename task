@@ -497,7 +497,39 @@ COMMIT;"
     printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1 > /dev/null
     echo "updated $id"
 }
-cmd_delete()       { echo "delete: not yet implemented" >&2; exit 1; }
+cmd_delete() {
+    local id="${1:-}"
+
+    if [[ -z "$id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task delete <id>" >&2
+        exit 1
+    fi
+
+    # sql_esc: double single quotes for SQL string literals
+    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+    local esc_id
+    esc_id=$(sql_esc "$id")
+
+    # Check task exists
+    local current_status
+    current_status=$(psql_cmd -c "SELECT status FROM tasks WHERE id = '${esc_id}';")
+
+    if [[ -z "$current_status" ]]; then
+        echo "Error: task '$id' not found" >&2
+        exit 2
+    fi
+
+    # Soft delete: set status to 'deleted', set deleted_at and updated_at
+    psql_cmd -c "
+        UPDATE tasks
+        SET status = 'deleted', deleted_at = now(), updated_at = now()
+        WHERE id = '${esc_id}';
+    " > /dev/null
+
+    echo "deleted $id"
+}
 cmd_deps()         { echo "deps: not yet implemented" >&2; exit 1; }
 cmd_block()        { echo "block: not yet implemented" >&2; exit 1; }
 cmd_unblock()      { echo "unblock: not yet implemented" >&2; exit 1; }
