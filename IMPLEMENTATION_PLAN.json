@@ -111,7 +111,8 @@
       "UPDATE lease_expires_at to now() + lease duration",
       "Write bats tests: renew extends lease, renew fails for non-assignee"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_renew with positional <id> arg, --lease flag (default 600s), --agent flag (overrides RALPH_AGENT_ID env var). Validates task exists (exit 2 if not found), status is active (exit 1 if not), and caller is current assignee (exit 1 if mismatch). Extends lease_expires_at via UPDATE in transaction, sets updated_at=now(). Prints 'renewed <id>' on success. SQL escaping via sed for single quotes. Test file: test/task_renew.bats with 12 tests covering argument validation, not found, status checks, assignee verification, successful renew with default/custom lease, timestamp update, --agent flag override, claim+renew workflow, and special characters in task ID."
   },
   {
     "category": "feat",

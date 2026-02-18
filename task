@@ -198,7 +198,68 @@ cmd_claim() {
 
     echo "$result"
 }
-cmd_renew()        { echo "renew: not yet implemented" >&2; exit 1; }
+cmd_renew() {
+    local task_id=""
+    local lease=600
+    local agent_id="${RALPH_AGENT_ID:-}"
+
+    # Parse positional arg and flags
+    if [[ $# -gt 0 ]] && [[ "$1" != --* ]]; then
+        task_id="$1"; shift
+    fi
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --lease) lease="$2"; shift 2 ;;
+            --agent) agent_id="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    if [[ -z "$task_id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task renew <id> [--lease N]" >&2
+        exit 1
+    fi
+
+    local esc_id esc_agent
+    esc_id=$(printf '%s' "$task_id" | sed "s/'/''/g")
+    esc_agent=$(printf '%s' "$agent_id" | sed "s/'/''/g")
+
+    # Verify task exists and is active
+    local status
+    status=$(psql_cmd -c "SELECT status FROM tasks WHERE id = '${esc_id}'")
+    if [[ -z "$status" ]]; then
+        echo "Error: task '$task_id' not found" >&2
+        exit 2
+    fi
+    if [[ "$status" != "active" ]]; then
+        echo "Error: task '$task_id' is not active (status: $status)" >&2
+        exit 1
+    fi
+
+    # Verify caller is current assignee
+    local current_assignee
+    current_assignee=$(psql_cmd -c "SELECT assignee FROM tasks WHERE id = '${esc_id}'")
+    if [[ "$current_assignee" != "$esc_agent" ]]; then
+        echo "Error: agent '$agent_id' is not the assignee of task '$task_id'" >&2
+        exit 1
+    fi
+
+    # Extend the lease within a transaction
+    psql_cmd -c "
+        BEGIN;
+        UPDATE tasks
+        SET lease_expires_at = now() + interval '${lease} seconds',
+            updated_at = now()
+        WHERE id = '${esc_id}'
+          AND assignee = '${esc_agent}'
+          AND status = 'active';
+        COMMIT;
+    " >/dev/null
+
+    echo "renewed $task_id"
+}
 cmd_step_done()    { echo "step-done: not yet implemented" >&2; exit 1; }
 cmd_done()         { echo "done: not yet implemented" >&2; exit 1; }
 cmd_fail()         { echo "fail: not yet implemented" >&2; exit 1; }
