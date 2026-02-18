@@ -249,6 +249,7 @@
       "Document RALPH_DB_URL environment variable",
       "Update project structure diagram to include task script and docker-compose.yml"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Updated README.md with: Task Management section documenting all task CLI commands organized by phase (Plan Phase, Build Phase, CRUD, Dependencies, Agents) with usage examples. Added exit codes table. Updated Prerequisites to include Docker and psql. Updated Installation section to mention task symlink. Updated Project Structure to include specs/, all test files, and task_*.bats wildcard. Enhanced Development Database section with schema table names and RALPH_DB_URL requirement. Enhanced Testing section to mention task-specific tests requiring PostgreSQL."
   }
 ]
