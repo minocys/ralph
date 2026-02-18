@@ -37,7 +37,8 @@
       "Exit code 2 if task not found",
       "Write bats tests: show existing task, show with deps, show nonexistent exits 2"
     ],
-    "completed": false
+    "completed": true,
+    "notes": "Implemented cmd_show with full detail output: ID, Title, Status, Priority, Category, Description, Spec, Ref, Assignee, Lease, Retries, Result, Created, Updated, Deleted (null fields omitted). Steps displayed as numbered list with status. Dependencies shown with blocker status. --with-deps flag adds Blocker Results section showing result JSONB from completed blockers. Exit code 2 for not found. SQL escaping for task ID. Test file: test/task_show.bats with 10 tests."
   },
   {
     "category": "feat",

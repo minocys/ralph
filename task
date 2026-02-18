@@ -187,7 +187,110 @@ cmd_list() {
         done <<< "$result"
     fi
 }
-cmd_show()         { echo "show: not yet implemented" >&2; exit 1; }
+cmd_show() {
+    local id="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$id" ]]; then
+        echo "Error: missing task ID" >&2
+        echo "Usage: task show <id> [--with-deps]" >&2
+        exit 1
+    fi
+
+    local with_deps=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --with-deps) with_deps=1; shift ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # Query the task
+    local task_row
+    task_row=$(psql_cmd -c "
+        SELECT id, title, description, category, priority, status, spec_ref, ref,
+               result, assignee, lease_expires_at, retry_count, created_at, updated_at, deleted_at
+        FROM tasks WHERE id = '$(printf '%s' "$id" | sed "s/'/''/g")';
+    ")
+
+    if [[ -z "$task_row" ]]; then
+        echo "Error: task '$id' not found" >&2
+        exit 2
+    fi
+
+    # Parse task fields from pipe-delimited output
+    IFS='|' read -r t_id t_title t_desc t_cat t_pri t_status t_spec t_ref \
+        t_result t_assignee t_lease t_retry t_created t_updated t_deleted <<< "$task_row"
+
+    # Print task detail
+    printf 'ID:          %s\n' "$t_id"
+    printf 'Title:       %s\n' "$t_title"
+    printf 'Status:      %s\n' "$t_status"
+    printf 'Priority:    %s\n' "$t_pri"
+    [[ -n "$t_cat" ]] && printf 'Category:    %s\n' "$t_cat"
+    [[ -n "$t_desc" ]] && printf 'Description: %s\n' "$t_desc"
+    [[ -n "$t_spec" ]] && printf 'Spec:        %s\n' "$t_spec"
+    [[ -n "$t_ref" ]] && printf 'Ref:         %s\n' "$t_ref"
+    [[ -n "$t_assignee" ]] && printf 'Assignee:    %s\n' "$t_assignee"
+    [[ -n "$t_lease" ]] && printf 'Lease:       %s\n' "$t_lease"
+    [[ "$t_retry" != "0" ]] && printf 'Retries:     %s\n' "$t_retry"
+    [[ -n "$t_result" ]] && printf 'Result:      %s\n' "$t_result"
+    printf 'Created:     %s\n' "$t_created"
+    [[ -n "$t_updated" ]] && printf 'Updated:     %s\n' "$t_updated"
+    [[ -n "$t_deleted" ]] && printf 'Deleted:     %s\n' "$t_deleted"
+
+    # Query steps
+    local steps
+    steps=$(psql_cmd -c "
+        SELECT seq, status, content FROM task_steps
+        WHERE task_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+        ORDER BY seq;
+    ")
+
+    if [[ -n "$steps" ]]; then
+        printf '\nSteps:\n'
+        while IFS='|' read -r s_seq s_status s_content; do
+            printf '  %s. [%s] %s\n' "$s_seq" "$s_status" "$s_content"
+        done <<< "$steps"
+    fi
+
+    # Query dependencies
+    local deps
+    deps=$(psql_cmd -c "
+        SELECT td.blocked_by, t.status
+        FROM task_deps td
+        JOIN tasks t ON t.id = td.blocked_by
+        WHERE td.task_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+        ORDER BY td.blocked_by;
+    ")
+
+    if [[ -n "$deps" ]]; then
+        printf '\nDependencies:\n'
+        while IFS='|' read -r d_id d_status; do
+            printf '  %s (%s)\n' "$d_id" "$d_status"
+        done <<< "$deps"
+    fi
+
+    # With --with-deps: show blocker task results
+    if [[ "$with_deps" -eq 1 ]]; then
+        local blocker_results
+        blocker_results=$(psql_cmd -c "
+            SELECT t.id, t.result
+            FROM task_deps td
+            JOIN tasks t ON t.id = td.blocked_by
+            WHERE td.task_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+              AND t.result IS NOT NULL
+            ORDER BY t.id;
+        ")
+
+        if [[ -n "$blocker_results" ]]; then
+            printf '\nBlocker Results:\n'
+            while IFS='|' read -r br_id br_result; do
+                printf '  %s: %s\n' "$br_id" "$br_result"
+            done <<< "$blocker_results"
+        fi
+    fi
+}
 cmd_create() {
     local id="${1:-}"
     shift 2>/dev/null || true
