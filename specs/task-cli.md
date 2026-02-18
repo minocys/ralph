@@ -1,23 +1,36 @@
 # Task CLI
 
-Bash command-line interface for agents and humans to interact with the task backlog. Optimized for minimal token usage in LLM context windows.
+Bash command-line interface for agents and the ralph planner to interact with the task backlog. Phase-specific commands optimized for minimal token usage in LLM context windows.
 
 ## Requirements
 
-- Implement as a standalone bash script (`task`) that operates on `.ralph/tasks.db`
-- Initialize the database and schema automatically on first invocation
-- Provide the following commands:
+- Implement as a standalone bash script (`task`) that operates on PostgreSQL via `psql`
+- Read connection string from `RALPH_DB_URL` environment variable
+- Initialize the database schema automatically on first invocation
+- Provide phase-specific and shared commands:
 
-### Task Commands
+### Plan Phase Commands
 
-- `task list [--json]` — show all non-deleted tasks; default is compact table, `--json` outputs JSONL with short keys
-- `task next [--json]` — show highest-priority unclaimed unblocked task; single line output
-- `task show <id>` — full detail for one task (all fields)
-- `task create <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r REF]` — create a task, print its ID
-- `task claim <id> <agent-id>` — atomically claim a task (must be open and unblocked)
-- `task done <id>` — mark task as done
-- `task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]` — update fields
+- `task plan-sync` — read JSONL from stdin, upsert tasks into the database using the diff algorithm (see Task Scheduling spec), print summary of changes (inserted, updated, deleted)
+- `task plan-export [--json]` — dump the full task DAG; default is compact table, `--json` outputs JSONL
+- `task plan-status` — print summary line: `N open, N active, N done, N blocked, N deleted`
+
+### Build Phase Commands
+
+- `task claim [--lease 600]` — atomically claim the highest-priority unblocked task, return full context as JSON (task fields + steps + blocker results); default lease is 600 seconds
+- `task renew <id> [--lease 600]` — extend the lease on an active task
+- `task step-done <id> <seq>` — mark a step as done
+- `task done <id> --result '<json>'` — mark task as done, store result JSONB (must include `commit` key)
+- `task fail <id> --reason "<text>"` — release task back to `open`, clear assignee, increment `retry_count`
+
+### Shared Commands
+
+- `task list [--status open,active] [--json]` — show tasks filtered by status; default is compact table, `--json` outputs JSONL
+- `task show <id> [--with-deps]` — full detail for one task; `--with-deps` includes blocker task results
+- `task create <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]` — create a task with a planner-assigned ID, print its ID
+- `task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]` — update fields on a non-done task
 - `task delete <id>` — soft delete
+- `task deps <id>` — show dependency tree for a task
 
 ### Dependency Commands
 
@@ -26,35 +39,41 @@ Bash command-line interface for agents and humans to interact with the task back
 
 ### Agent Commands
 
-- `task agent register` — register a new agent (auto-generates ID, records PID), prints agent ID
+- `task agent register` — register a new agent (auto-generates 4-char hex ID, records PID and hostname), prints agent ID
 - `task agent list` — show active agents
 - `task agent deregister <id>` — mark agent as stopped
-- `task agent recover <id>` — release all active tasks held by agent back to open, mark agent stopped
 
-### Output Formats
+### JSONL Format
 
-- **Table format** (default for `task list`) — aligned columns, ~15 tokens per task:
-  ```
-  ID  P S      CAT  TITLE                        AGENT
-  t01 0 active bug  Fix backend elif chain       a7f2
-  t02 1 open   feat Add model selection          -
-  ```
-- **JSONL format** (`--json` flag) — one JSON object per line, short keys for token efficiency:
-  - `id`, `p` (priority), `s` (status), `a` (assignee), `cat` (category), `t` (title)
-  - `task next --json` additionally includes `d` (description), `steps`, `ref`
+All JSONL output uses short keys for token efficiency:
+- `id`, `t` (title), `d` (description), `p` (priority), `s` (status), `cat` (category), `spec` (spec_ref), `ref`, `deps` (array of blocker IDs), `steps` (array of step objects)
+- `task claim` returns a JSON object with all of the above plus `blocker_results` (map of blocker ID to its result JSONB)
+
+### Table Format
+
+Default for `task list` and `task plan-export` — aligned columns, compact:
+```
+ID              P S      CAT  TITLE                              AGENT
+task-cli/01     0 active feat Implement CLI skeleton              a7f2
+task-cli/02     1 open   feat Implement atomic claim              -
+task-store/01   0 done   feat Create PostgreSQL schema            -
+```
+
+### Output Rules
+
 - All commands must print to stdout for piping; errors to stderr
-- Exit code 0 on success, 1 on error, 2 on "not found" (e.g. `task next` when no tasks available)
+- Exit code 0 on success, 1 on error, 2 on "not found" (e.g. `task claim` when no tasks available)
 
 ## Constraints
 
-- Bash only — no Python, Node, or compiled dependencies beyond `sqlite3`
-- All database operations via `sqlite3` CLI with `-cmd` for pragmas
+- Bash only — no Python, Node, or compiled dependencies beyond `psql`
+- All database operations via `psql` with parameterized queries where possible
 - The script must be portable across macOS and Linux (bash 3.2+)
-- `task claim` must fail atomically if the task is not open or has unresolved blockers — no partial state
+- `task claim` must not succeed for two concurrent agents on the same task — PostgreSQL's `SELECT FOR UPDATE SKIP LOCKED` guarantees this
 
 ## Out of Scope
 
 - Interactive/TUI mode
-- Importing from IMPLEMENTATION_PLAN.json (separate migration concern)
-- Filtering by category, assignee, or date ranges (can be added later)
 - Bulk operations (multi-task claim, batch create)
+- Filtering by date ranges
+- Authentication or role-based access to commands
