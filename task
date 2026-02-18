@@ -1,0 +1,189 @@
+#!/bin/bash
+# task — CLI for interacting with the Ralph task backlog via PostgreSQL
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Database connection
+# ---------------------------------------------------------------------------
+db_check() {
+    if [[ -z "${RALPH_DB_URL:-}" ]]; then
+        echo "Error: RALPH_DB_URL environment variable is not set" >&2
+        echo "Example: export RALPH_DB_URL='postgres://ralph:pass@localhost:5432/ralph'" >&2
+        exit 1
+    fi
+}
+
+psql_cmd() {
+    psql "$RALPH_DB_URL" -tAX "$@"
+}
+
+# ---------------------------------------------------------------------------
+# Schema management
+# ---------------------------------------------------------------------------
+ensure_schema() {
+    psql_cmd -c "
+    CREATE TABLE IF NOT EXISTS tasks (
+        id              TEXT PRIMARY KEY,
+        title           TEXT NOT NULL,
+        description     TEXT,
+        category        TEXT,
+        priority        INT DEFAULT 2,
+        status          TEXT DEFAULT 'open',
+        spec_ref        TEXT,
+        ref             TEXT,
+        result          JSONB,
+        assignee        TEXT,
+        lease_expires_at TIMESTAMPTZ,
+        retry_count     INT DEFAULT 0,
+        created_at      TIMESTAMPTZ DEFAULT now(),
+        updated_at      TIMESTAMPTZ,
+        deleted_at      TIMESTAMPTZ
+    );
+
+    CREATE TABLE IF NOT EXISTS task_steps (
+        task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+        seq     INT,
+        content TEXT,
+        status  TEXT DEFAULT 'pending',
+        PRIMARY KEY (task_id, seq)
+    );
+
+    CREATE TABLE IF NOT EXISTS task_deps (
+        task_id    TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+        blocked_by TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+        PRIMARY KEY (task_id, blocked_by)
+    );
+
+    CREATE TABLE IF NOT EXISTS agents (
+        id         TEXT PRIMARY KEY,
+        pid        INT,
+        hostname   TEXT,
+        started_at TIMESTAMPTZ DEFAULT now(),
+        status     TEXT DEFAULT 'active'
+    );
+    " > /dev/null 2>&1
+}
+
+# ---------------------------------------------------------------------------
+# Usage / help
+# ---------------------------------------------------------------------------
+usage() {
+    cat <<'EOF'
+Usage: task <command> [options]
+
+Plan Phase Commands:
+  plan-sync             Read JSONL from stdin, upsert tasks into the database
+  plan-export [--json]  Dump the full task DAG (table or JSONL)
+  plan-status           Print summary: N open, N active, N done, N blocked, N deleted
+
+Build Phase Commands:
+  claim [--lease N]          Atomically claim highest-priority unblocked task
+  renew <id> [--lease N]     Extend lease on an active task
+  step-done <id> <seq>       Mark a step as done
+  done <id> --result '<json>'  Mark task as done, store result
+  fail <id> --reason "<text>"  Release task back to open
+
+Shared Commands:
+  list [--status S] [--json]   List tasks (default: non-deleted)
+  show <id> [--with-deps]      Full detail for one task
+  create <id> <title> [opts]   Create a task
+  update <id> [opts]           Update fields on a non-done task
+  delete <id>                  Soft delete a task
+  deps <id>                    Show dependency tree
+
+Dependency Commands:
+  block <id> --by <blocker-id>    Add a dependency
+  unblock <id> --by <blocker-id>  Remove a dependency
+
+Agent Commands:
+  agent register              Register a new agent
+  agent list                  Show active agents
+  agent deregister <id>       Mark agent as stopped
+
+Environment:
+  RALPH_DB_URL   PostgreSQL connection string (required)
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Subcommand stubs (will be implemented in subsequent tasks)
+# ---------------------------------------------------------------------------
+cmd_plan_sync()    { echo "plan-sync: not yet implemented" >&2; exit 1; }
+cmd_plan_export()  { echo "plan-export: not yet implemented" >&2; exit 1; }
+cmd_plan_status()  { echo "plan-status: not yet implemented" >&2; exit 1; }
+cmd_claim()        { echo "claim: not yet implemented" >&2; exit 1; }
+cmd_renew()        { echo "renew: not yet implemented" >&2; exit 1; }
+cmd_step_done()    { echo "step-done: not yet implemented" >&2; exit 1; }
+cmd_done()         { echo "done: not yet implemented" >&2; exit 1; }
+cmd_fail()         { echo "fail: not yet implemented" >&2; exit 1; }
+cmd_list()         { echo "list: not yet implemented" >&2; exit 1; }
+cmd_show()         { echo "show: not yet implemented" >&2; exit 1; }
+cmd_create()       { echo "create: not yet implemented" >&2; exit 1; }
+cmd_update()       { echo "update: not yet implemented" >&2; exit 1; }
+cmd_delete()       { echo "delete: not yet implemented" >&2; exit 1; }
+cmd_deps()         { echo "deps: not yet implemented" >&2; exit 1; }
+cmd_block()        { echo "block: not yet implemented" >&2; exit 1; }
+cmd_unblock()      { echo "unblock: not yet implemented" >&2; exit 1; }
+
+cmd_agent() {
+    local subcmd="${1:-}"
+    shift 2>/dev/null || true
+    case "$subcmd" in
+        register)   echo "agent register: not yet implemented" >&2; exit 1 ;;
+        list)       echo "agent list: not yet implemented" >&2; exit 1 ;;
+        deregister) echo "agent deregister: not yet implemented" >&2; exit 1 ;;
+        "")
+            echo "Error: missing agent subcommand" >&2
+            echo "Usage: task agent <register|list|deregister>" >&2
+            exit 1
+            ;;
+        *)
+            echo "Error: unknown agent subcommand '$subcmd'" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# Main dispatch
+# ---------------------------------------------------------------------------
+main() {
+    local cmd="${1:-}"
+    shift 2>/dev/null || true
+
+    case "$cmd" in
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        plan-sync)    db_check; ensure_schema; cmd_plan_sync "$@" ;;
+        plan-export)  db_check; ensure_schema; cmd_plan_export "$@" ;;
+        plan-status)  db_check; ensure_schema; cmd_plan_status "$@" ;;
+        claim)        db_check; ensure_schema; cmd_claim "$@" ;;
+        renew)        db_check; ensure_schema; cmd_renew "$@" ;;
+        step-done)    db_check; ensure_schema; cmd_step_done "$@" ;;
+        done)         db_check; ensure_schema; cmd_done "$@" ;;
+        fail)         db_check; ensure_schema; cmd_fail "$@" ;;
+        list)         db_check; ensure_schema; cmd_list "$@" ;;
+        show)         db_check; ensure_schema; cmd_show "$@" ;;
+        create)       db_check; ensure_schema; cmd_create "$@" ;;
+        update)       db_check; ensure_schema; cmd_update "$@" ;;
+        delete)       db_check; ensure_schema; cmd_delete "$@" ;;
+        deps)         db_check; ensure_schema; cmd_deps "$@" ;;
+        block)        db_check; ensure_schema; cmd_block "$@" ;;
+        unblock)      db_check; ensure_schema; cmd_unblock "$@" ;;
+        agent)        db_check; ensure_schema; cmd_agent "$@" ;;
+        "")
+            echo "Error: missing command" >&2
+            echo "" >&2
+            usage >&2
+            exit 1
+            ;;
+        *)
+            echo "Error: unknown command '$cmd'" >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
