@@ -262,6 +262,15 @@ while true; do
         exit 130
     fi
 
+    # Crash-safety fallback: fail active tasks assigned to this agent
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
+        ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active --json 2>/dev/null | jq -r "select(.assignee == \"$AGENT_ID\") | .id" 2>/dev/null) || true
+        while IFS= read -r ACTIVE_ID; do
+            [ -z "$ACTIVE_ID" ] && continue
+            "$TASK_SCRIPT" fail "$ACTIVE_ID" --reason 'session exited without completing task' 2>/dev/null || true
+        done <<< "$ACTIVE_TASKS"
+    fi
+
     if [ "$MODE" = "plan" ]; then
         if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
           | grep -q '<promise>Tastes Like Burning.</promise>'; then
