@@ -18,9 +18,13 @@ create_task_stub() {
     local plan_status_exit="${2:-0}"
     local peek_output="${3:-}"
     local peek_exit="${4:-0}"
+    local list_active_output="${5:-}"
 
     # Write peek output to a data file (avoids quoting issues with JSONL in heredoc)
     printf '%s' "$peek_output" > "$TEST_WORK_DIR/.peek_data"
+
+    # Write list output to a data file
+    printf '%s' "$list_active_output" > "$TEST_WORK_DIR/.list_data"
 
     cat > "$TEST_WORK_DIR/task" <<STUB
 #!/bin/bash
@@ -33,6 +37,7 @@ case "\$1" in
         esac
         ;;
     plan-status)
+        echo "plan-status" >> "${TEST_WORK_DIR}/event_log"
         echo "${plan_status_output}"
         exit ${plan_status_exit}
         ;;
@@ -42,6 +47,19 @@ case "\$1" in
             echo "\$PEEK_DATA"
         fi
         exit ${peek_exit}
+        ;;
+    list)
+        LIST_DATA=\$(cat "${TEST_WORK_DIR}/.list_data")
+        if [ -n "\$LIST_DATA" ]; then
+            echo "\$LIST_DATA"
+        fi
+        exit 0
+        ;;
+    fail)
+        shift
+        echo "\$*" >> "${TEST_WORK_DIR}/fail_calls.log"
+        echo "fail" >> "${TEST_WORK_DIR}/event_log"
+        exit 0
         ;;
     *)
         exit 0
@@ -198,6 +216,52 @@ STUB
     [ -f "$TEST_WORK_DIR/claude_args.log" ]
     run cat "$TEST_WORK_DIR/claude_args.log"
     assert_output --partial '/ralph-build {"id":"t1","s":"open"}'
+}
+
+# ---------------------------------------------------------------------------
+# Build-mode crash-safety fallback (fail active tasks after claude exits)
+# ---------------------------------------------------------------------------
+
+@test "build mode fails active task after claude exits" {
+    create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
+        '{"id":"t1","t":"Task one","s":"active","assignee":"t001"}'
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+
+    # Verify fail was called with the task ID and reason
+    [ -f "$TEST_WORK_DIR/fail_calls.log" ]
+    run cat "$TEST_WORK_DIR/fail_calls.log"
+    assert_output --partial "t1"
+    assert_output --partial "session exited without completing task"
+}
+
+@test "build mode crash-safety is no-op when no active tasks" {
+    create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
+        ""
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+
+    # Verify fail was NOT called
+    [ ! -f "$TEST_WORK_DIR/fail_calls.log" ]
+}
+
+@test "build mode crash-safety runs before plan-status check" {
+    create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
+        '{"id":"t1","t":"Task one","s":"active","assignee":"t001"}'
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+
+    # Verify ordered execution: fail before plan-status
+    [ -f "$TEST_WORK_DIR/event_log" ]
+    run cat "$TEST_WORK_DIR/event_log"
+    assert_line --index 0 "fail"
+    assert_line --index 1 "plan-status"
 }
 
 # ---------------------------------------------------------------------------
