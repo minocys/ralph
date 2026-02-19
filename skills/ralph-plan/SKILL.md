@@ -8,7 +8,7 @@ description: Implementation planner that studies and breaks down specs into task
 0b. Run `task plan-export --json` to review the current task state.
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
-1. Study @IMPLEMENTATION_PLAN.json (if present; it may be incorrect) and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`. 
+1. Run `task plan-export --json` to get the current task DAG and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
 2. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.json, a list sorted in priority of items yet to be implemented. **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
 3. Study @IMPLEMENTATION_PLAN.json to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
 4. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
