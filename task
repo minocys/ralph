@@ -80,7 +80,7 @@ Plan Phase Commands:
 
 Build Phase Commands:
   peek [-n 5]                Top N claimable + all active tasks (JSONL)
-  claim [--lease N]          Atomically claim highest-priority unblocked task
+  claim [<id>] [--lease N]   Claim task (targeted by id, or highest-priority)
   renew <id> [--lease N]     Extend lease on an active task
   step-done <id> <seq>       Mark a step as done
   done <id> --result '<json>'  Mark task as done, store result
@@ -480,6 +480,12 @@ cmd_peek() {
 cmd_claim() {
     local lease=600
     local agent_id="${RALPH_AGENT_ID:-}"
+    local target_id=""
+
+    # Parse optional positional arg (target task ID) before flags
+    if [[ $# -gt 0 ]] && [[ "$1" != --* ]]; then
+        target_id="$1"; shift
+    fi
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -489,13 +495,6 @@ cmd_claim() {
         esac
     done
 
-    # Build the claim query as a single atomic transaction
-    # 1. Find highest-priority eligible task (open, or active with expired lease)
-    # 2. All blockers must be done or deleted
-    # 3. Use FOR UPDATE SKIP LOCKED to prevent concurrent claims
-    # 4. Update the task: set active, assignee, lease, retry_count if reclaiming
-    # 5. Return full task JSON with blocker_results
-
     # sql_esc: double single quotes for SQL string literals
     sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
@@ -503,62 +502,127 @@ cmd_claim() {
     esc_agent=$(sql_esc "$agent_id")
 
     local result
-    result=$(psql_cmd -c "
-        WITH eligible AS (
-            SELECT t.id
-            FROM tasks t
-            WHERE (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
-              AND NOT EXISTS (
-                  SELECT 1 FROM task_deps td
-                  JOIN tasks blocker ON blocker.id = td.blocked_by
-                  WHERE td.task_id = t.id
-                    AND blocker.status NOT IN ('done', 'deleted')
-              )
-            ORDER BY t.priority ASC, t.created_at ASC
-            LIMIT 1
-            FOR UPDATE OF t SKIP LOCKED
-        ),
-        claimed AS (
-            UPDATE tasks
-            SET status = 'active',
-                assignee = '${esc_agent}',
-                lease_expires_at = now() + interval '${lease} seconds',
-                retry_count = CASE
-                    WHEN tasks.status = 'active' THEN tasks.retry_count + 1
-                    ELSE tasks.retry_count
-                END,
-                updated_at = now()
-            FROM eligible
-            WHERE tasks.id = eligible.id
-            RETURNING tasks.*
-        )
-        SELECT json_build_object(
-            'id', c.id,
-            't', c.title,
-            'd', c.description,
-            'p', c.priority,
-            's', c.status,
-            'cat', c.category,
-            'spec', c.spec_ref,
-            'ref', c.ref,
-            'assignee', c.assignee,
-            'lease_expires_at', c.lease_expires_at,
-            'retry_count', c.retry_count,
-            'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
-            'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
-            'blocker_results', COALESCE((
-                SELECT json_object_agg(bt.id, bt.result)
-                FROM task_deps td
-                JOIN tasks bt ON bt.id = td.blocked_by
-                WHERE td.task_id = c.id AND bt.result IS NOT NULL
-            ), '{}'::json)
-        )
-        FROM claimed c;
-    ")
 
-    if [[ -z "$result" ]]; then
-        echo "No eligible tasks" >&2
-        exit 2
+    if [[ -n "$target_id" ]]; then
+        # Targeted claim: claim a specific task by ID
+        local esc_target
+        esc_target=$(sql_esc "$target_id")
+
+        result=$(psql_cmd -c "
+            WITH eligible AS (
+                SELECT t.id
+                FROM tasks t
+                WHERE t.id = '${esc_target}'
+                  AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM task_deps td
+                      JOIN tasks blocker ON blocker.id = td.blocked_by
+                      WHERE td.task_id = t.id
+                        AND blocker.status NOT IN ('done', 'deleted')
+                  )
+                FOR UPDATE OF t SKIP LOCKED
+            ),
+            claimed AS (
+                UPDATE tasks
+                SET status = 'active',
+                    assignee = '${esc_agent}',
+                    lease_expires_at = now() + interval '${lease} seconds',
+                    retry_count = CASE
+                        WHEN tasks.status = 'active' THEN tasks.retry_count + 1
+                        ELSE tasks.retry_count
+                    END,
+                    updated_at = now()
+                FROM eligible
+                WHERE tasks.id = eligible.id
+                RETURNING tasks.*
+            )
+            SELECT json_build_object(
+                'id', c.id,
+                't', c.title,
+                'd', c.description,
+                'p', c.priority,
+                's', c.status,
+                'cat', c.category,
+                'spec', c.spec_ref,
+                'ref', c.ref,
+                'assignee', c.assignee,
+                'lease_expires_at', c.lease_expires_at,
+                'retry_count', c.retry_count,
+                'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
+                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
+                'blocker_results', COALESCE((
+                    SELECT json_object_agg(bt.id, bt.result)
+                    FROM task_deps td
+                    JOIN tasks bt ON bt.id = td.blocked_by
+                    WHERE td.task_id = c.id AND bt.result IS NOT NULL
+                ), '{}'::json)
+            )
+            FROM claimed c;
+        ")
+
+        if [[ -z "$result" ]]; then
+            echo "Task not eligible" >&2
+            exit 2
+        fi
+    else
+        # Untargeted claim: claim highest-priority eligible task
+        result=$(psql_cmd -c "
+            WITH eligible AS (
+                SELECT t.id
+                FROM tasks t
+                WHERE (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM task_deps td
+                      JOIN tasks blocker ON blocker.id = td.blocked_by
+                      WHERE td.task_id = t.id
+                        AND blocker.status NOT IN ('done', 'deleted')
+                  )
+                ORDER BY t.priority ASC, t.created_at ASC
+                LIMIT 1
+                FOR UPDATE OF t SKIP LOCKED
+            ),
+            claimed AS (
+                UPDATE tasks
+                SET status = 'active',
+                    assignee = '${esc_agent}',
+                    lease_expires_at = now() + interval '${lease} seconds',
+                    retry_count = CASE
+                        WHEN tasks.status = 'active' THEN tasks.retry_count + 1
+                        ELSE tasks.retry_count
+                    END,
+                    updated_at = now()
+                FROM eligible
+                WHERE tasks.id = eligible.id
+                RETURNING tasks.*
+            )
+            SELECT json_build_object(
+                'id', c.id,
+                't', c.title,
+                'd', c.description,
+                'p', c.priority,
+                's', c.status,
+                'cat', c.category,
+                'spec', c.spec_ref,
+                'ref', c.ref,
+                'assignee', c.assignee,
+                'lease_expires_at', c.lease_expires_at,
+                'retry_count', c.retry_count,
+                'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
+                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
+                'blocker_results', COALESCE((
+                    SELECT json_object_agg(bt.id, bt.result)
+                    FROM task_deps td
+                    JOIN tasks bt ON bt.id = td.blocked_by
+                    WHERE td.task_id = c.id AND bt.result IS NOT NULL
+                ), '{}'::json)
+            )
+            FROM claimed c;
+        ")
+
+        if [[ -z "$result" ]]; then
+            echo "No eligible tasks" >&2
+            exit 2
+        fi
     fi
 
     echo "$result"
