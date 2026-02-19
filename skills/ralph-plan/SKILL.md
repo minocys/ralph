@@ -23,33 +23,6 @@ description: Implementation planner that studies and breaks down specs into task
 
 Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at specs/FILENAME.md. If you create a new element then document the plan to implement it in @IMPLEMENTATION_PLAN.json using a subagent.
 
-### EXAMPLE IMPLEMENTATION_PLAN.json
-````
-[
-  {
-    "category": "setup",
-    "description": "Initialize project structure and dependencies",
-    "steps": [
-      "Create project directory structure",
-      "Initialize package.json or requirements",
-      "Install required dependencies",
-      "Verify files load correctly"
-    ],
-    "completed": false
-  },
-  {
-    "category": "feature",
-    "description": "Implement main navigation component",
-    "steps": [
-      "Create Navigation component",
-      "Add responsive styling",
-      "Implement mobile menu toggle"
-    ],
-    "completed": false
-  }
-]
-````
-
 ## Context
 
 | Term             | Definition                                                    |
