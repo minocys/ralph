@@ -116,11 +116,6 @@ if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     exit 1
 fi
 
-if [ "$MODE" != "plan" ] && [ ! -f "./IMPLEMENTATION_PLAN.json" ]; then
-    echo "Error: IMPLEMENTATION_PLAN.json not found. Run './ralph --plan' or /ralph-plan first."
-    exit 1
-fi
-
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)

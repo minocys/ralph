@@ -38,10 +38,9 @@ STUB
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
-    # Minimal specs and plan so preflight passes
+    # Minimal specs so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
-    echo '[]' > "$TEST_WORK_DIR/IMPLEMENTATION_PLAN.json"
 
     cd "$TEST_WORK_DIR"
 }
