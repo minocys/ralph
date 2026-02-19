@@ -11,11 +11,16 @@ load test_helper
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Create a task stub at $TEST_WORK_DIR/task with configurable plan-status behavior.
-# Usage: create_task_stub <plan_status_output> [plan_status_exit_code]
+# Create a task stub at $TEST_WORK_DIR/task with configurable behavior.
+# Usage: create_task_stub <plan_status_output> [plan_status_exit_code] [peek_output] [peek_exit_code]
 create_task_stub() {
     local plan_status_output="${1:-}"
     local plan_status_exit="${2:-0}"
+    local peek_output="${3:-}"
+    local peek_exit="${4:-0}"
+
+    # Write peek output to a data file (avoids quoting issues with JSONL in heredoc)
+    printf '%s' "$peek_output" > "$TEST_WORK_DIR/.peek_data"
 
     cat > "$TEST_WORK_DIR/task" <<STUB
 #!/bin/bash
@@ -30,6 +35,13 @@ case "\$1" in
     plan-status)
         echo "${plan_status_output}"
         exit ${plan_status_exit}
+        ;;
+    peek)
+        PEEK_DATA=\$(cat "${TEST_WORK_DIR}/.peek_data")
+        if [ -n "\$PEEK_DATA" ]; then
+            echo "\$PEEK_DATA"
+        fi
+        exit ${peek_exit}
         ;;
     *)
         exit 0
@@ -104,6 +116,86 @@ teardown() {
     run "$TEST_WORK_DIR/ralph.sh" -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
+}
+
+# ---------------------------------------------------------------------------
+# Build-mode pre-invocation peek
+# ---------------------------------------------------------------------------
+
+@test "build mode passes peek JSONL to claude via prompt" {
+    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Test task","s":"open","p":0}'
+
+    # Override claude stub to capture arguments
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "$*" > "$TEST_WORK_DIR/claude_args.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+
+    # Verify claude received the peek JSONL in its prompt argument
+    [ -f "$TEST_WORK_DIR/claude_args.log" ]
+    run cat "$TEST_WORK_DIR/claude_args.log"
+    assert_output --partial '{"id":"t1"'
+}
+
+@test "build mode exits loop when peek returns empty output" {
+    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 "" 0
+
+    # Override claude stub to leave a marker file if called
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+touch "$TEST_WORK_DIR/claude_was_called"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 5
+    assert_success
+    assert_output --partial "No tasks available"
+    refute_output --partial "Reached max iterations"
+
+    # Verify claude was not called
+    [ ! -f "$TEST_WORK_DIR/claude_was_called" ]
+}
+
+@test "build mode continues loop when peek fails with non-zero exit" {
+    create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 "" 1
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    assert_success
+    assert_output --partial "Reached max iterations: 2"
+}
+
+@test "build mode prompt format is /ralph-build followed by JSONL" {
+    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","s":"open"}'
+
+    # Override claude stub to capture each argument on its own line
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$@" > "$TEST_WORK_DIR/claude_args.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+
+    # The -p value should be "/ralph-build {JSONL}" as a single argument
+    [ -f "$TEST_WORK_DIR/claude_args.log" ]
+    run cat "$TEST_WORK_DIR/claude_args.log"
+    assert_output --partial '/ralph-build {"id":"t1","s":"open"}'
 }
 
 # ---------------------------------------------------------------------------
