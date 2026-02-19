@@ -26,8 +26,9 @@ Claude Code hooks that ensure active tasks are properly released when agent sess
 ### Interaction with ralph.sh
 
 - ralph.sh's existing `cleanup()` EXIT trap handles agent deregistration (`task agent deregister`)
-- The hooks handle task failure — these are complementary: hooks run inside the claude session, cleanup runs after
-- Order: SessionEnd hook fails the task, then ralph.sh's EXIT trap deregisters the agent
+- ralph.sh also has a crash-safety fallback that fails tasks still `active` after Claude exits (see build-loop-control spec)
+- Defense-in-depth: hooks are the primary mechanism (fire inside the session), ralph.sh's fallback is secondary (fires after the session exits)
+- Order: SessionEnd hook fails the task → ralph.sh crash-safety check (no-op if hook succeeded) → ralph.sh EXIT trap deregisters the agent
 
 ## Constraints
 

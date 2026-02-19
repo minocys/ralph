@@ -4,14 +4,27 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 ## Requirements
 
+### Peek (Build Phase)
+
+- `task peek [-n N]` returns a read-only snapshot of the task landscape for agent decision-making
+- Claimable tasks: the top N tasks matching claim eligibility criteria (see below), sorted by priority ASC then `created_at` ASC
+- Active tasks: all tasks with `status = 'active'` regardless of N limit, including their `assignee` field
+- Output is JSONL using the standard short-key format, with claimable and active tasks distinguished by the `s` (status) field — `open` for claimable, `active` for in-progress
+- Peek is non-locking — it does not acquire `FOR UPDATE` locks, so the snapshot may be stale by the time the agent acts on it
+- If no claimable or active tasks exist, output is empty and exit code is 0
+
 ### Claiming (Build Phase)
 
-- `task claim` must return the highest-priority task that is:
-  - Status is `open`, OR status is `active` with `lease_expires_at` in the past (expired lease)
+- A task is eligible for claiming if it:
+  - Has status `open`, OR has status `active` with `lease_expires_at` in the past (expired lease)
   - Has no unresolved blockers (all tasks in its `blocked_by` set are `done` or `deleted`)
-  - Not currently leased by another agent (enforced by `SELECT FOR UPDATE SKIP LOCKED`)
+  - Is not currently leased by another agent (enforced by `SELECT FOR UPDATE SKIP LOCKED`)
 - Priority ordering: lower number = higher priority (0 before 1 before 2)
 - Tiebreaker: `created_at` ascending (oldest first)
+
+#### Untargeted Claim
+
+- `task claim` (no ID argument) selects the highest-priority eligible task automatically
 - The claim operation must be a single atomic transaction that:
   1. Selects the next eligible task with `FOR UPDATE SKIP LOCKED`
   2. Sets status to `active`, assignee to the agent ID, `lease_expires_at` to `now() + lease duration`
@@ -20,6 +33,17 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
   5. Returns the full task row
   6. Fetches blocker results (result JSONB from all resolved blockers) within the same transaction
   - If no eligible task exists, returns exit code 2
+
+#### Targeted Claim
+
+- `task claim <id>` claims a specific task chosen by the agent after reviewing the peek snapshot
+- The claim must verify eligibility before proceeding — the task must meet the same criteria as untargeted claim (open + unblocked, or active with expired lease)
+- If the specified task is not eligible (already claimed by another agent, blocked, done, or deleted), return exit code 2
+- The claim operation uses the same atomic transaction pattern as untargeted claim, but targets the specified task ID instead of selecting by priority
+- Targeted claiming enables LLM-driven task selection: the agent reviews the peek landscape, reasons about what complements parallel work, and claims the best task
+
+### Lease Renewal
+
 - `task renew <id>` must extend `lease_expires_at` to `now() + lease duration` within a transaction that verifies the caller is the current assignee
 
 ### Lease-Based Recovery

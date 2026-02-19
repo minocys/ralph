@@ -10,9 +10,9 @@
 | [task-data-store.md](task-data-store.md) | PostgreSQL-backed persistent storage for multi-agent task orchestration |
 | [task-cli.md](task-cli.md) | Phase-specific bash CLI for planner and builders to interact with the task backlog |
 | [agent-lifecycle.md](agent-lifecycle.md) | Agent registration and identification for ephemeral Docker containers |
-| [task-scheduling.md](task-scheduling.md) | Lease-based claiming, DAG scheduling, and idempotent plan synchronization |
+| [task-scheduling.md](task-scheduling.md) | Task peek, untargeted and targeted claiming, lease-based recovery, DAG scheduling, and idempotent plan synchronization |
 | [plan-skill-integration.md](plan-skill-integration.md) | Migrate ralph-plan from IMPLEMENTATION_PLAN.json to the task CLI |
-| [build-skill-integration.md](build-skill-integration.md) | Migrate ralph-build to atomic task claim/done/fail operations |
-| [build-loop-control.md](build-loop-control.md) | Replace text-based completion signal with task status checks in ralph.sh |
+| [build-skill-integration.md](build-skill-integration.md) | ralph-build receives task landscape, selects the best task via LLM reasoning, and implements via targeted claiming |
+| [build-loop-control.md](build-loop-control.md) | Pre-invocation task peek, context passing to the build skill, post-iteration status checks, and crash-safety fallback in ralph.sh |
 | [session-safety-hooks.md](session-safety-hooks.md) | PreCompact and SessionEnd hooks to release active tasks on unexpected exits |
 | [graceful-interrupt.md](graceful-interrupt.md) | Two-stage Ctrl+C: graceful cleanup then force-kill |

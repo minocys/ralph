@@ -17,7 +17,8 @@ Bash command-line interface for agents and the ralph planner to interact with th
 
 ### Build Phase Commands
 
-- `task claim [--lease 600]` — atomically claim the highest-priority unblocked task, return full context as JSON (task fields + steps + blocker results); default lease is 600 seconds
+- `task peek [-n 5]` — return the top N claimable tasks (open + unblocked, or active with expired lease) sorted by priority/created_at, plus all currently active tasks with assignees; output is JSONL matching the standard short-key format; if no claimable or active tasks exist, output is empty and exit code is 0
+- `task claim [<id>] [--lease 600]` — when called without `<id>`, atomically claim the highest-priority unblocked task (existing behavior); when called with `<id>`, claim that specific task after verifying it is eligible (open + unblocked, or active with expired lease); return full context as JSON (task fields + steps + blocker results); default lease is 600 seconds; exit code 2 if no eligible task or if the specified task is not eligible
 - `task renew <id> [--lease 600]` — extend the lease on an active task
 - `task step-done <id> <seq>` — mark a step as done
 - `task done <id> --result '<json>'` — mark task as done, store result JSONB (must include `commit` key)
