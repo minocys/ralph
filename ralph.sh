@@ -242,11 +242,23 @@ while true; do
         exit 130
     fi
 
-    if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
-      | grep -q '<promise>Tastes Like Burning.</promise>'; then
-        echo "Ralph completed successfully. Exiting loop."
-        echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
-        exit 0
+    if [ "$MODE" = "plan" ]; then
+        if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
+          | grep -q '<promise>Tastes Like Burning.</promise>'; then
+            echo "Ralph completed successfully. Exiting loop."
+            echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
+            exit 0
+        fi
+    elif [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+        PLAN_STATUS=$("$TASK_SCRIPT" plan-status 2>/dev/null) || true
+        if [ -n "$PLAN_STATUS" ]; then
+            OPEN_COUNT=$(echo "$PLAN_STATUS" | grep -oE '^[0-9]+' | head -1)
+            ACTIVE_COUNT=$(echo "$PLAN_STATUS" | grep -oE '[0-9]+ active' | grep -oE '^[0-9]+')
+            if [ "${OPEN_COUNT:-1}" -eq 0 ] 2>/dev/null && [ "${ACTIVE_COUNT:-1}" -eq 0 ] 2>/dev/null; then
+                echo "All tasks complete. Exiting loop."
+                exit 0
+            fi
+        fi
     fi
 
     ITERATION=$((ITERATION + 1))
