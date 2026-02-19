@@ -15,3 +15,4 @@
 | [build-skill-integration.md](build-skill-integration.md) | Migrate ralph-build to atomic task claim/done/fail operations |
 | [build-loop-control.md](build-loop-control.md) | Replace text-based completion signal with task status checks in ralph.sh |
 | [session-safety-hooks.md](session-safety-hooks.md) | PreCompact and SessionEnd hooks to release active tasks on unexpected exits |
+| [graceful-interrupt.md](graceful-interrupt.md) | Two-stage Ctrl+C: graceful cleanup then force-kill |

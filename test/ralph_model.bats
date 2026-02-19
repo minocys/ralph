@@ -8,6 +8,7 @@ load test_helper
 # With no args: anthropic backend (no bedrock flag)
 # With "bedrock": sets CLAUDE_CODE_USE_BEDROCK to "1"
 mock_settings_json() {
+    unset CLAUDE_CODE_USE_BEDROCK
     local fake_home="$TEST_WORK_DIR/fakehome"
     mkdir -p "$fake_home/.claude"
     if [ "${1:-}" = "bedrock" ]; then
@@ -230,4 +231,34 @@ EOF
     run "$SCRIPT_DIR/ralph.sh" -n 1
     assert_success
     assert_output --partial "Backend: anthropic"
+}
+
+@test "settings.local.json exists without bedrock flag should fall through to settings.json" {
+    # Set up fake home without bedrock config
+    local fake_home="$TEST_WORK_DIR/fakehome"
+    mkdir -p "$fake_home/.claude"
+    cat > "$fake_home/.claude/settings.json" <<'EOF'
+{"env":{}}
+EOF
+    export HOME="$fake_home"
+
+    # Create ./.claude/settings.local.json with empty env (no bedrock flag)
+    mkdir -p "$TEST_WORK_DIR/.claude"
+    cat > "$TEST_WORK_DIR/.claude/settings.local.json" <<'EOF'
+{"env":{}}
+EOF
+
+    # Create ./.claude/settings.json with bedrock flag set to "1"
+    cat > "$TEST_WORK_DIR/.claude/settings.json" <<'EOF'
+{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}
+EOF
+
+    # Ensure no environment variable is set
+    unset CLAUDE_CODE_USE_BEDROCK
+
+    # Run ralph.sh - should fall through from settings.local.json to settings.json
+    # because settings.local.json exists but doesn't have the bedrock flag
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "Backend: bedrock"
 }
