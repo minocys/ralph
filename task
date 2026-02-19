@@ -770,6 +770,7 @@ cmd_list() {
                 'cat', t.category,
                 'spec', t.spec_ref,
                 'ref', t.ref,
+                'assignee', t.assignee,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
                 'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = t.id), '[]'::json)
             )
