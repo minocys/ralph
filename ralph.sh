@@ -217,8 +217,28 @@ while true; do
         break
     fi
 
+    # Pre-invocation task peek: get claimable + active tasks snapshot
+    PEEK_JSONL=""
+    PEEK_OK=false
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+        if PEEK_JSONL=$("$TASK_SCRIPT" peek -n 5 2>/dev/null); then
+            PEEK_OK=true
+        fi
+    fi
+
+    # In build mode, exit if peek succeeded but returned empty (no tasks)
+    # If peek failed (non-zero exit), treat as transient and continue
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && $PEEK_OK && [ -z "$PEEK_JSONL" ]; then
+        echo "No tasks available. Exiting loop."
+        break
+    fi
+
     # Run Ralph iteration: save raw JSON to tmpfile, display readable text
-    CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
+    if [ -n "$PEEK_JSONL" ]; then
+        CLAUDE_ARGS=(-p "$COMMAND $PEEK_JSONL" --output-format=stream-json --verbose)
+    else
+        CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
+    fi
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
     [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 

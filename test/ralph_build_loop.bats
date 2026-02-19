@@ -94,16 +94,18 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "build mode exits when task plan-status reports 0 open 0 active" {
+    # With peek: no claimable/active tasks → peek returns empty → exits early
     create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted"
 
     run "$TEST_WORK_DIR/ralph.sh" -n 5
     assert_success
-    assert_output --partial "All tasks complete"
+    assert_output --partial "No tasks available"
     refute_output --partial "Reached max iterations"
 }
 
 @test "build mode continues when tasks remain" {
-    create_task_stub "2 open, 1 active, 3 done, 0 blocked, 0 deleted"
+    create_task_stub "2 open, 1 active, 3 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Task one","s":"open","p":0}'
 
     run "$TEST_WORK_DIR/ralph.sh" -n 2
     assert_success
@@ -111,7 +113,7 @@ teardown() {
 }
 
 @test "build mode continues when task plan-status fails" {
-    create_task_stub "" 1
+    create_task_stub "" 1 '{"id":"t1","t":"Task one","s":"open","p":0}'
 
     run "$TEST_WORK_DIR/ralph.sh" -n 2
     assert_success
