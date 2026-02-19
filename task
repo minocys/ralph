@@ -108,7 +108,7 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Subcommand stubs (will be implemented in subsequent tasks)
+# Subcommand implementations
 # ---------------------------------------------------------------------------
 cmd_plan_sync() {
     # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
