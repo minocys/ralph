@@ -11,14 +11,29 @@ jobs:
     name: BATS tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ralph
+          POSTGRES_PASSWORD: ralph
+          POSTGRES_DB: ralph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
+      - name: Install jq and PostgreSQL client
+        run: sudo apt-get install -y jq postgresql-client
 
       - name: Setup BATS
         uses: mig4/setup-bats@v1
@@ -26,4 +41,6 @@ jobs:
           bats-version: 1.11.1
 
       - name: Run tests
+        env:
+          RALPH_DB_URL: postgres://ralph:ralph@localhost:5432/ralph
         run: bats --tap test/
