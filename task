@@ -36,6 +36,7 @@ ensure_schema() {
         assignee        TEXT,
         lease_expires_at TIMESTAMPTZ,
         retry_count     INT DEFAULT 0,
+        fail_reason     TEXT,
         created_at      TIMESTAMPTZ DEFAULT now(),
         updated_at      TIMESTAMPTZ,
         deleted_at      TIMESTAMPTZ
@@ -705,13 +706,22 @@ cmd_fail() {
         exit 1
     fi
 
-    # Release task back to open: clear assignee, clear lease, increment retry_count
+    local esc_reason
+    esc_reason=$(sql_esc "$reason")
+
+    # Release task back to open: clear assignee, clear lease, increment retry_count, store reason
+    local fail_reason_sql="NULL"
+    if [[ -n "$reason" ]]; then
+        fail_reason_sql="'${esc_reason}'"
+    fi
+
     psql_cmd -c "
         UPDATE tasks
         SET status = 'open',
             assignee = NULL,
             lease_expires_at = NULL,
             retry_count = retry_count + 1,
+            fail_reason = ${fail_reason_sql},
             updated_at = now()
         WHERE id = '${esc_id}';
     " > /dev/null
@@ -810,7 +820,7 @@ cmd_show() {
     local task_row
     task_row=$(psql_cmd -c "
         SELECT id, title, description, category, priority, status, spec_ref, ref,
-               result, assignee, lease_expires_at, retry_count, created_at, updated_at, deleted_at
+               result, assignee, lease_expires_at, retry_count, fail_reason, created_at, updated_at, deleted_at
         FROM tasks WHERE id = '$(printf '%s' "$id" | sed "s/'/''/g")';
     ")
 
@@ -821,7 +831,7 @@ cmd_show() {
 
     # Parse task fields from pipe-delimited output
     IFS='|' read -r t_id t_title t_desc t_cat t_pri t_status t_spec t_ref \
-        t_result t_assignee t_lease t_retry t_created t_updated t_deleted <<< "$task_row"
+        t_result t_assignee t_lease t_retry t_fail_reason t_created t_updated t_deleted <<< "$task_row"
 
     # Print task detail
     printf 'ID:          %s\n' "$t_id"
@@ -835,6 +845,7 @@ cmd_show() {
     [[ -n "$t_assignee" ]] && printf 'Assignee:    %s\n' "$t_assignee"
     [[ -n "$t_lease" ]] && printf 'Lease:       %s\n' "$t_lease"
     [[ "$t_retry" != "0" ]] && printf 'Retries:     %s\n' "$t_retry"
+    [[ -n "$t_fail_reason" ]] && printf 'Fail reason: %s\n' "$t_fail_reason"
     [[ -n "$t_result" ]] && printf 'Result:      %s\n' "$t_result"
     printf 'Created:     %s\n' "$t_created"
     [[ -n "$t_updated" ]] && printf 'Updated:     %s\n' "$t_updated"

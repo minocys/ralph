@@ -155,7 +155,7 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# --reason flag (accepted but not persisted per schema)
+# --reason flag
 # ---------------------------------------------------------------------------
 @test "task fail with --reason succeeds" {
     "$SCRIPT_DIR/task" create "tf-10" "Active task"
@@ -164,6 +164,28 @@ teardown() {
     run "$SCRIPT_DIR/task" fail "tf-10" --reason "out of memory"
     assert_success
     assert_output "failed tf-10"
+}
+
+@test "task fail with --reason persists reason in database" {
+    "$SCRIPT_DIR/task" create "tf-10a" "Active task"
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='tf-10a';" >/dev/null
+
+    "$SCRIPT_DIR/task" fail "tf-10a" --reason "out of memory"
+
+    local fail_reason
+    fail_reason=$(psql "$RALPH_DB_URL" -tAX -c "SELECT fail_reason FROM tasks WHERE id='tf-10a';")
+    [ "$fail_reason" = "out of memory" ]
+}
+
+@test "task fail without --reason stores NULL fail_reason" {
+    "$SCRIPT_DIR/task" create "tf-10b" "Active task"
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='tf-10b';" >/dev/null
+
+    "$SCRIPT_DIR/task" fail "tf-10b"
+
+    local fail_reason
+    fail_reason=$(psql "$RALPH_DB_URL" -tAX -c "SELECT fail_reason FROM tasks WHERE id='tf-10b';")
+    [ -z "$fail_reason" ]
 }
 
 # ---------------------------------------------------------------------------

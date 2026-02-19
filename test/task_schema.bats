@@ -108,6 +108,7 @@ teardown() {
     assert_output --partial "assignee"
     assert_output --partial "lease_expires_at"
     assert_output --partial "retry_count"
+    assert_output --partial "fail_reason"
     assert_output --partial "created_at"
     assert_output --partial "updated_at"
     assert_output --partial "deleted_at"
