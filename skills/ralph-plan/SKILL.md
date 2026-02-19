@@ -5,7 +5,7 @@ description: Implementation planner that studies and breaks down specs into task
 
 # TASK
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
-0b. Study @IMPLEMENTATION_PLAN.json (if present) to understand the plan so far.
+0b. Run `task plan-export --json` to review the current task state.
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Study @IMPLEMENTATION_PLAN.json (if present; it may be incorrect) and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`. 
