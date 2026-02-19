@@ -128,6 +128,8 @@ AGENT_ID=""
 
 # Register agent in build mode if task script is available
 TASK_SCRIPT="$SCRIPT_DIR/task"
+export RALPH_TASK_SCRIPT="$TASK_SCRIPT"
+
 if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
     AGENT_ID=$("$TASK_SCRIPT" agent register 2>/dev/null) || true
     if [ -n "$AGENT_ID" ]; then
