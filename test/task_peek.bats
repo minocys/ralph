@@ -135,3 +135,130 @@ teardown() {
     echo "$output" | head -1 | jq -e 'has("cat")'
     echo "$output" | head -1 | jq -e 'has("deps")'
 }
+
+# ---------------------------------------------------------------------------
+# N limit
+# ---------------------------------------------------------------------------
+@test "task peek -n 2 limits claimable tasks to 2" {
+    for i in 1 2 3 4 5; do
+        "$SCRIPT_DIR/task" create "t-$i" "Task $i" -p 1
+    done
+
+    run "$SCRIPT_DIR/task" peek -n 2
+    assert_success
+
+    # Count lines with s='open' — should be exactly 2
+    local open_count
+    open_count=$(echo "$output" | jq -r 'select(.s == "open")' | jq -s 'length')
+    [[ "$open_count" -eq 2 ]]
+}
+
+@test "task peek default N is 5" {
+    for i in 1 2 3 4 5 6 7 8; do
+        "$SCRIPT_DIR/task" create "t-$i" "Task $i" -p 1
+    done
+
+    run "$SCRIPT_DIR/task" peek
+    assert_success
+
+    # Count claimable lines — should be exactly 5
+    local open_count
+    open_count=$(echo "$output" | jq -r 'select(.s == "open")' | jq -s 'length')
+    [[ "$open_count" -eq 5 ]]
+}
+
+@test "task peek active tasks are not limited by N" {
+    # Create 4 tasks: 3 will be claimed (active), 1 remains open
+    "$SCRIPT_DIR/task" create "t-open" "Open task" -p 0
+    "$SCRIPT_DIR/task" create "t-act1" "Active 1" -p 1
+    "$SCRIPT_DIR/task" create "t-act2" "Active 2" -p 2
+    "$SCRIPT_DIR/task" create "t-act3" "Active 3" -p 3
+
+    # Claim 3 tasks to make them active
+    "$SCRIPT_DIR/task" claim --agent "agnt" >/dev/null
+    "$SCRIPT_DIR/task" claim --agent "agnt" >/dev/null
+    "$SCRIPT_DIR/task" claim --agent "agnt" >/dev/null
+
+    # Peek with -n 1: should get 1 claimable + all 3 active
+    run "$SCRIPT_DIR/task" peek -n 1
+    assert_success
+
+    local open_count
+    open_count=$(echo "$output" | jq -r 'select(.s == "open")' | jq -s 'length')
+    [[ "$open_count" -eq 1 ]]
+
+    local active_count
+    active_count=$(echo "$output" | jq -r 'select(.s == "active")' | jq -s 'length')
+    [[ "$active_count" -eq 3 ]]
+
+    # Total lines should be 4
+    local total_lines
+    total_lines=$(echo "$output" | wc -l | tr -d ' ')
+    [[ "$total_lines" -eq 4 ]]
+}
+
+# ---------------------------------------------------------------------------
+# Blocked tasks
+# ---------------------------------------------------------------------------
+@test "task peek excludes blocked tasks from claimable" {
+    "$SCRIPT_DIR/task" create "t-blocker" "Blocker" -p 0
+    "$SCRIPT_DIR/task" create "t-blocked" "Blocked" -p 0
+    "$SCRIPT_DIR/task" block "t-blocked" --by "t-blocker"
+
+    run "$SCRIPT_DIR/task" peek
+    assert_success
+
+    # Only t-blocker should appear as claimable
+    local claimable_ids
+    claimable_ids=$(echo "$output" | jq -r 'select(.s == "open") | .id')
+    [[ "$claimable_ids" == "t-blocker" ]]
+
+    # t-blocked should NOT appear
+    echo "$output" | jq -r '.id' | while IFS= read -r id; do
+        [[ "$id" != "t-blocked" ]]
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Expired lease eligibility
+# ---------------------------------------------------------------------------
+@test "task peek includes active-with-expired-lease as claimable (s=open)" {
+    "$SCRIPT_DIR/task" create "t-expired" "Expired lease" -p 0
+
+    # Claim with a 1-second lease
+    "$SCRIPT_DIR/task" claim --agent "agnt" --lease 1 >/dev/null
+
+    # Wait for lease to expire
+    sleep 2
+
+    run "$SCRIPT_DIR/task" peek
+    assert_success
+
+    # Should appear as claimable with s='open'
+    echo "$output" | jq -e 'select(.id == "t-expired") | .s == "open"'
+}
+
+# ---------------------------------------------------------------------------
+# Non-locking (no FOR UPDATE)
+# ---------------------------------------------------------------------------
+@test "task peek does not modify task state (non-locking read)" {
+    "$SCRIPT_DIR/task" create "t-nl1" "Non-lock 1" -p 0
+    "$SCRIPT_DIR/task" create "t-nl2" "Non-lock 2" -p 1
+
+    # Run peek
+    run "$SCRIPT_DIR/task" peek
+    assert_success
+
+    # Verify tasks are still status=open in DB
+    local db_status
+    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='t-nl1'")
+    [[ "$db_status" == "open" ]]
+
+    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='t-nl2'")
+    [[ "$db_status" == "open" ]]
+
+    # Verify assignee is still NULL
+    local db_assignee
+    db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE id='t-nl1'")
+    [[ -z "$db_assignee" ]]
+}
