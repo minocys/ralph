@@ -9,7 +9,8 @@ PostgreSQL-backed persistent storage for multi-agent task orchestration across e
 - Create schema automatically on first invocation if tables do not exist
 - Task table schema:
   - `id` — text primary key, planner-assigned stable ID in `{spec-slug}/{seq}` format (e.g. `task-cli/01`, `task-store/03`)
-  - `description` — text, required
+  - `title` — text, required
+  - `description` — text, optional
   - `category` — text: `bug`, `feat`, `test`, `refactor`, `doc`
   - `priority` — integer, default 2 (0=critical, 1=high, 2=medium, 3=low)
   - `status` — text: `open`, `active`, `done`, `deleted`
@@ -19,6 +20,7 @@ PostgreSQL-backed persistent storage for multi-agent task orchestration across e
   - `assignee` — text, references agent ID (nullable)
   - `lease_expires_at` — timestamptz, set on claim, used for automatic recovery of abandoned tasks
   - `retry_count` — integer, default 0, incremented when reclaiming from an expired lease
+  - `fail_reason` — text, optional, stores the reason a task was failed
   - `created_at` — timestamptz, default `now()`
   - `updated_at` — timestamptz, updated on every write
   - `deleted_at` — timestamptz, set on soft delete

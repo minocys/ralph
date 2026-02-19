@@ -27,7 +27,7 @@ Bash command-line interface for agents and the ralph planner to interact with th
 
 - `task list [--status open,active] [--json]` — show tasks filtered by status; default is compact table, `--json` outputs JSONL
 - `task show <id> [--with-deps]` — full detail for one task; `--with-deps` includes blocker task results
-- `task create <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]` — create a task with a planner-assigned ID, print its ID
+- `task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]` — create a task with a given ID and title, print its ID
 - `task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]` — update fields on a non-done task
 - `task delete <id>` — soft delete
 - `task deps <id>` — show dependency tree for a task

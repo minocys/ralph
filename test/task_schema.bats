@@ -51,9 +51,8 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "ensure_schema creates all four tables" {
     # Run any command that triggers ensure_schema — list will call it
-    # even though list is a stub, schema gets created before the stub runs
+    # list triggers ensure_schema on startup
     run "$SCRIPT_DIR/task" list
-    # list is a stub that exits 1, but schema should be created
 
     # Verify tables exist
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -71,11 +70,9 @@ teardown() {
 @test "ensure_schema is idempotent (second run succeeds)" {
     # First run — creates tables
     run "$SCRIPT_DIR/task" list
-    # Ignore exit code (stub exits 1)
 
     # Second run — should not fail
     run "$SCRIPT_DIR/task" list
-    # Ignore exit code (stub exits 1)
 
     # Tables should still exist and be intact
     run psql "$RALPH_DB_URL" -tAX -c "
