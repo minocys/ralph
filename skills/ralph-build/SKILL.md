@@ -4,11 +4,10 @@ description: Ralph build loop
 ---
 
 # TASK
-0a. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
-0b. Run `task plan-status` to see the current state of the task backlog.
+0. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
 
-1. Run `task claim` to atomically claim the highest-priority unblocked task. Parse the JSON output to get task fields, steps, and `blocker_results`. **IMPORTANT**: ONLY CLAIM ONE TASK. DO NOT START A NEW TASK AFTER THE CLAIMED TASK IS COMPLETED.
-2. If `task claim` exits with code 2 (no eligible tasks), stop gracefully — do not continue.
+1. Parse the peek JSONL snapshot appended to this prompt. Tasks with `s`="open" are claimable (sorted by priority). Tasks with `s`="active" show what other agents are working on. Use this landscape to select the best task to claim.
+2. Select which task to claim using LLM reasoning — consider what other agents are working on (active tasks) to avoid redundant work areas. Claim the selected task via `task claim <id>`. If exit code 2, select the next best task from the snapshot and retry. If no claimable tasks remain, stop gracefully.
 3. If `blocker_results` contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
 4. Search the codebase before implementing — confirm before assuming missing.
 5. Implement the change.
@@ -19,6 +18,7 @@ description: Ralph build loop
 
 ## Rules
 
+- Parse the peek snapshot provided in the prompt to understand the task landscape before claiming.
 - Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
 - Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
 - You may add extra logging if required to debug issues.
