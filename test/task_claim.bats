@@ -277,3 +277,108 @@ teardown() {
     assert_failure
     assert_output --partial "Error: unknown flag"
 }
+
+# ---------------------------------------------------------------------------
+# Targeted claim: task claim <id>
+# ---------------------------------------------------------------------------
+@test "task claim <id> claims specific eligible task regardless of priority" {
+    "$SCRIPT_DIR/task" create "t-a" "Lower priority" -p 2
+    "$SCRIPT_DIR/task" create "t-b" "Higher priority" -p 0
+
+    # Targeted claim should get t-a even though t-b has higher priority
+    run "$SCRIPT_DIR/task" claim t-a
+    assert_success
+    echo "$output" | jq -e '.id == "t-a"'
+}
+
+@test "task claim <id> sets status to active with assignee and lease" {
+    "$SCRIPT_DIR/task" create "t-1" "Targeted task" -p 1
+
+    run "$SCRIPT_DIR/task" claim t-1 --agent a1b2
+    assert_success
+    echo "$output" | jq -e '.s == "active"'
+    echo "$output" | jq -e '.assignee == "a1b2"'
+    echo "$output" | jq -e '.lease_expires_at != null'
+}
+
+@test "task claim <id> returns exit code 2 for already-active task with valid lease" {
+    "$SCRIPT_DIR/task" create "t-active-tgt" "Active target" -p 0
+
+    # Claim it first (untargeted)
+    run "$SCRIPT_DIR/task" claim
+    assert_success
+    echo "$output" | jq -e '.id == "t-active-tgt"'
+
+    # Targeted claim of same task by different agent should fail
+    run "$SCRIPT_DIR/task" claim t-active-tgt --agent other-agent
+    assert_failure 2
+}
+
+@test "task claim <id> returns exit code 2 for blocked task" {
+    "$SCRIPT_DIR/task" create "t-blocker-tgt" "Blocker" -p 0
+    "$SCRIPT_DIR/task" create "t-blocked-tgt" "Blocked" -p 0
+    "$SCRIPT_DIR/task" block "t-blocked-tgt" --by "t-blocker-tgt"
+
+    run "$SCRIPT_DIR/task" claim t-blocked-tgt
+    assert_failure 2
+}
+
+@test "task claim <id> returns exit code 2 for done task" {
+    "$SCRIPT_DIR/task" create "t-done-tgt" "Done task" -p 0
+    # Claim and complete
+    "$SCRIPT_DIR/task" claim >/dev/null
+    "$SCRIPT_DIR/task" done t-done-tgt
+
+    run "$SCRIPT_DIR/task" claim t-done-tgt
+    assert_failure 2
+}
+
+@test "task claim <id> returns exit code 2 for deleted task" {
+    "$SCRIPT_DIR/task" create "t-del-tgt" "Deleted task" -p 0
+    "$SCRIPT_DIR/task" delete "t-del-tgt"
+
+    run "$SCRIPT_DIR/task" claim t-del-tgt
+    assert_failure 2
+}
+
+@test "task claim <id> succeeds for active task with expired lease" {
+    "$SCRIPT_DIR/task" create "t-exp-tgt" "Expiring task" -p 0
+
+    # Claim with 1-second lease
+    run "$SCRIPT_DIR/task" claim t-exp-tgt --lease 1
+    assert_success
+    echo "$output" | jq -e '.retry_count == 0'
+
+    # Wait for lease to expire
+    sleep 2
+
+    # Targeted re-claim should succeed and increment retry_count
+    run "$SCRIPT_DIR/task" claim t-exp-tgt --agent reclaimer
+    assert_success
+    echo "$output" | jq -e '.id == "t-exp-tgt"'
+    echo "$output" | jq -e '.retry_count == 1'
+    echo "$output" | jq -e '.assignee == "reclaimer"'
+}
+
+@test "task claim <id> returns blocker_results and steps like untargeted claim" {
+    "$SCRIPT_DIR/task" create "t-dep-tgt-a" "Dep A" -p 0
+    "$SCRIPT_DIR/task" create "t-dep-tgt-b" "Dep B" -p 0 -s '[{"content":"step one"},{"content":"step two"}]'
+    "$SCRIPT_DIR/task" block "t-dep-tgt-b" --by "t-dep-tgt-a"
+
+    # Claim and complete dep-a with a result
+    "$SCRIPT_DIR/task" claim >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE id='t-dep-tgt-a';" >/dev/null
+
+    # Targeted claim of dep-b
+    run "$SCRIPT_DIR/task" claim t-dep-tgt-b
+    assert_success
+    echo "$output" | jq -e '.id == "t-dep-tgt-b"'
+    echo "$output" | jq -e '.blocker_results["t-dep-tgt-a"].commit == "def456"'
+    echo "$output" | jq -e '.steps | length == 2'
+    echo "$output" | jq -e '.steps[0].content == "step one"'
+}
+
+@test "task claim <id> returns exit code 2 for nonexistent task" {
+    run "$SCRIPT_DIR/task" claim nonexistent-id
+    assert_failure 2
+}
