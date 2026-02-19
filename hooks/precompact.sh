@@ -6,7 +6,7 @@ set -euo pipefail
 
 # If task script or agent ID aren't available, output minimal JSON and exit
 if [[ -z "${RALPH_TASK_SCRIPT:-}" ]] || [[ -z "${RALPH_AGENT_ID:-}" ]]; then
-    echo '{"continue":false}'
+    echo '{"continue":true}'
     exit 0
 fi
 
@@ -21,11 +21,10 @@ else
 fi
 
 if [[ -n "$task_id" ]]; then
-    echo "Warning: agent $RALPH_AGENT_ID hitting context limit, failing task $task_id" >&2
-    "$RALPH_TASK_SCRIPT" fail "$task_id" --reason "context limit reached" 2>/dev/null || true
+    "$RALPH_TASK_SCRIPT" fail "$task_id" --reason "context limit reached" >/dev/null 2>&1 || true
     echo '{"continue":false,"stopReason":"Context Limit Reached"}'
 else
-    echo '{"continue":false}'
+    echo '{"continue":true}'
 fi
 
 exit 0

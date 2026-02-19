@@ -55,6 +55,7 @@ teardown() {
     run "$SCRIPT_DIR/hooks/precompact.sh"
     assert_success
 
+    echo "$output"
     # stdout must be valid JSON with continue:false and stopReason
     echo "$output" | jq -e '.continue == false'
     echo "$output" | jq -e '.stopReason == "Context Limit Reached"'
@@ -85,7 +86,7 @@ teardown() {
     assert_success
 
     # Must still output continue:false JSON (always stops on precompact)
-    echo "$output" | jq -e '.continue == false'
+    echo "$output" | jq -e '.continue == true'
 }
 
 # ---------------------------------------------------------------------------
@@ -98,5 +99,5 @@ teardown() {
     assert_success
 
     # Must still output continue:false JSON and exit 0
-    echo "$output" | jq -e '.continue == false'
+    echo "$output" | jq -e '.continue == true'
 }
