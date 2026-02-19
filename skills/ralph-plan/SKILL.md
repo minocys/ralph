@@ -9,7 +9,12 @@ description: Implementation planner that studies and breaks down specs into task
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Run `task plan-export --json` to get the current task DAG and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
-2. Use an Opus subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.json, a list sorted in priority of items yet to be implemented. **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
+2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
+   - Task IDs must use `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` matches the spec filename without `.md`
+   - Every task must set `spec_ref` to the source spec filename (e.g., `task-cli.md`)
+   - Priority must be an integer: 0=critical, 1=high, 2=medium, 3=low
+   - Dependencies between tasks must be expressed via the `deps` field when task B requires task A's output
+   - See `specs/task-cli.md` § JSONL Format for field names and structure
 3. Study @IMPLEMENTATION_PLAN.json to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
 4. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
 5. When complete, reply with: <promise>Tastes Like Burning.</promise>
