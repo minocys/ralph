@@ -79,6 +79,7 @@ Plan Phase Commands:
   plan-status           Print summary: N open, N active, N done, N blocked, N deleted
 
 Build Phase Commands:
+  peek [-n 5]                Top N claimable + all active tasks (JSONL)
   claim [--lease N]          Atomically claim highest-priority unblocked task
   renew <id> [--lease N]     Extend lease on an active task
   step-done <id> <seq>       Mark a step as done
@@ -411,6 +412,70 @@ cmd_plan_status() {
     IFS='|' read -r open active done blocked deleted <<< "$result"
 
     echo "${open} open, ${active} active, ${done} done, ${blocked} blocked, ${deleted} deleted"
+}
+cmd_peek() {
+    local limit=5
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -n) limit="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # Query 1: Claimable tasks — open + unblocked, or active with expired lease
+    # Non-locking (no FOR UPDATE), labeled as s='open'
+    local claimable
+    claimable=$(psql_cmd -c "
+        SELECT json_build_object(
+            'id', t.id,
+            't', t.title,
+            'd', t.description,
+            'p', t.priority,
+            's', 'open',
+            'cat', t.category,
+            'spec', t.spec_ref,
+            'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json)
+        )
+        FROM tasks t
+        WHERE (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
+          AND NOT EXISTS (
+              SELECT 1 FROM task_deps td
+              JOIN tasks blocker ON blocker.id = td.blocked_by
+              WHERE td.task_id = t.id
+                AND blocker.status NOT IN ('done', 'deleted')
+          )
+        ORDER BY t.priority ASC, t.created_at ASC
+        LIMIT ${limit};
+    ")
+
+    # Query 2: Active tasks with valid leases — no N limit, labeled as s='active'
+    local active
+    active=$(psql_cmd -c "
+        SELECT json_build_object(
+            'id', t.id,
+            't', t.title,
+            'd', t.description,
+            'p', t.priority,
+            's', 'active',
+            'cat', t.category,
+            'spec', t.spec_ref,
+            'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
+            'assignee', t.assignee
+        )
+        FROM tasks t
+        WHERE t.status = 'active'
+          AND t.lease_expires_at >= now()
+        ORDER BY t.priority ASC, t.created_at ASC;
+    ")
+
+    # Output claimable then active as JSONL; if both empty, output nothing
+    if [[ -n "$claimable" ]]; then
+        printf '%s\n' "$claimable"
+    fi
+    if [[ -n "$active" ]]; then
+        printf '%s\n' "$active"
+    fi
 }
 cmd_claim() {
     local lease=600
@@ -1413,6 +1478,7 @@ main() {
         plan-sync)    db_check; ensure_schema; cmd_plan_sync "$@" ;;
         plan-export)  db_check; ensure_schema; cmd_plan_export "$@" ;;
         plan-status)  db_check; ensure_schema; cmd_plan_status "$@" ;;
+        peek)         db_check; ensure_schema; cmd_peek "$@" ;;
         claim)        db_check; ensure_schema; cmd_claim "$@" ;;
         renew)        db_check; ensure_schema; cmd_renew "$@" ;;
         step-done)    db_check; ensure_schema; cmd_step_done "$@" ;;
