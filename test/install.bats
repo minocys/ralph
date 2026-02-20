@@ -124,6 +124,25 @@ teardown() {
     jq -e '.hooks.PreCompact' "$HOME/.claude/settings.json"
 }
 
+@test "install.sh preserves existing hooks under other event keys" {
+    mkdir -p "$HOME/.claude"
+    cat > "$HOME/.claude/settings.json" <<'SEED'
+{"hooks":{"Stop":[{"matcher":"*","hooks":[{"type":"command","command":"echo stop"}]}]}}
+SEED
+
+    run "$SCRIPT_DIR/install.sh"
+    assert_success
+
+    # User's Stop hook must survive
+    local stop_cmd
+    stop_cmd=$(jq -r '.hooks.Stop[0].hooks[0].command' "$HOME/.claude/settings.json")
+    [ "$stop_cmd" = "echo stop" ]
+
+    # Ralph hooks must also be present
+    jq -e '.hooks.PreCompact' "$HOME/.claude/settings.json"
+    jq -e '.hooks.SessionEnd' "$HOME/.claude/settings.json"
+}
+
 @test "install.sh is idempotent for hooks configuration" {
     run "$SCRIPT_DIR/install.sh"
     assert_success
