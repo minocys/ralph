@@ -106,3 +106,80 @@ STUB
     refute_output --partial "docker CLI not found"
     refute_output --partial "docker compose V2 plugin not found"
 }
+
+# --- is_container_running tests ---
+
+# Helper: extract and evaluate is_container_running() from ralph.sh
+_load_is_container_running() {
+    eval "$(sed -n '/^is_container_running()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+}
+
+@test "is_container_running returns 0 when container is running" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    echo "true"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    _load_is_container_running
+    run is_container_running
+    assert_success
+}
+
+@test "is_container_running returns 1 when container exists but is stopped" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    echo "false"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    _load_is_container_running
+    run is_container_running
+    assert_failure
+}
+
+@test "is_container_running returns 1 when container does not exist" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ]; then
+    echo "Error: No such object: ralph-task-db" >&2
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    _load_is_container_running
+    run is_container_running
+    assert_failure
+}
+
+@test "is_container_running passes ralph-task-db as container name to docker inspect" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ]; then
+    # Log all args so we can verify the container name
+    echo "DOCKER_ARGS: $*" >&2
+    # Check the last argument is ralph-task-db
+    if [ "${@: -1}" = "ralph-task-db" ]; then
+        echo "true"
+        exit 0
+    fi
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    _load_is_container_running
+    run is_container_running
+    assert_success
+}

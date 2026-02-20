@@ -136,6 +136,10 @@ check_docker_installed() {
     fi
 }
 
+is_container_running() {
+    docker inspect --format '{{.State.Running}}' ralph-task-db 2>/dev/null | grep -q 'true'
+}
+
 if [ "${RALPH_SKIP_DOCKER:-}" != "1" ]; then
     check_docker_installed
 fi
