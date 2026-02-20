@@ -209,46 +209,12 @@ if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
     fi
 fi
 
-cleanup() {
-    # Deregister agent if one was registered
-    if [ -n "$AGENT_ID" ] && [ -x "$TASK_SCRIPT" ]; then
-        "$TASK_SCRIPT" agent deregister "$AGENT_ID" 2>/dev/null || true
-    fi
-    rm -f "$TMPFILE"
-}
+# Source signal handling module
+# shellcheck source=lib/signals.sh
+. "$SCRIPT_DIR/lib/signals.sh"
 
-trap cleanup EXIT
-
-# --- Graceful interrupt handling ---
-# Two-stage Ctrl+C: first INT lets claude clean up, second INT force-kills.
-# SIGTERM always force-kills immediately.
-INTERRUPTED=0
-PIPELINE_PID=""
-
-handle_int() {
-    INTERRUPTED=$((INTERRUPTED + 1))
-    if [ "$INTERRUPTED" -ge 2 ]; then
-        # Second Ctrl+C: force-kill pipeline and exit
-        trap - INT TERM
-        [ -n "$PIPELINE_PID" ] && kill -9 -- -$PIPELINE_PID 2>/dev/null
-        exit 130
-    fi
-    # First Ctrl+C: print waiting message, let claude finish
-    echo ""
-    echo "Waiting for claude to finish cleanup... Press Ctrl+C again to force quit."
-}
-
-handle_term() {
-    # SIGTERM: force-kill pipeline immediately, no grace period
-    trap - INT TERM
-    if [ -n "$PIPELINE_PID" ]; then
-        kill -9 -- -$PIPELINE_PID 2>/dev/null
-    fi
-    exit 130
-}
-
-trap handle_int INT
-trap handle_term TERM
+setup_cleanup_trap
+setup_signal_handlers
 
 # jq filter: extract human-readable text from stream-json events
 JQ_FILTER='
