@@ -44,6 +44,9 @@ STUB
     # Ensure no bedrock env var leaks into tests
     unset CLAUDE_CODE_USE_BEDROCK
 
+    # Skip Docker checks in signal tests (no database needed)
+    export RALPH_SKIP_DOCKER=1
+
     # Unset RALPH_DB_URL so task-peek doesn't cause early loop exit
     # (signal tests don't need DB connectivity)
     unset RALPH_DB_URL

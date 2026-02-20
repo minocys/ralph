@@ -182,8 +182,6 @@ ensure_postgres() {
     wait_for_healthy
 }
 
-ensure_postgres
-
 ensure_env_file
 # Source .env for POSTGRES_* and RALPH_DB_URL; preserve existing RALPH_DB_URL (backwards compat)
 if [ -f "$SCRIPT_DIR/.env" ]; then
@@ -192,6 +190,8 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     . "$SCRIPT_DIR/.env"
     if [ -n "$_saved_db_url" ]; then RALPH_DB_URL="$_saved_db_url"; fi
 fi
+
+ensure_postgres
 
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
