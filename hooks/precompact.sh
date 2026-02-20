@@ -21,6 +21,7 @@ else
 fi
 
 if [[ -n "$task_id" ]]; then
+    echo "Warning: agent $RALPH_AGENT_ID context limit reached, failing task $task_id" >&2
     "$RALPH_TASK_SCRIPT" fail "$task_id" --reason "context limit reached" >/dev/null 2>&1 || true
     echo '{"continue":false,"stopReason":"Context Limit Reached"}'
 else

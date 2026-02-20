@@ -63,5 +63,14 @@ if [ ! -e "$TASK_LINK" ]; then
     echo "  Linked script: task -> $TASK_LINK"
 fi
 
+# Add hooks to ~/.claude/settings.json
+SETTINGS_FILE="$HOME/.claude/settings.json"
+mkdir -p "$HOME/.claude"
+if [ ! -f "$SETTINGS_FILE" ]; then
+    echo '{}' > "$SETTINGS_FILE"
+fi
+jq --arg repo "$REPO_DIR" '.hooks = {"PreCompact":[{"type":"command","command":("bash " + $repo + "/hooks/precompact.sh")}],"SessionEnd":[{"type":"command","command":("bash " + $repo + "/hooks/session_end.sh")}]}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+echo "  Configured hooks in $SETTINGS_FILE"
+
 echo ""
 echo "Done. Make sure $BIN_DIR is in your PATH."

@@ -52,7 +52,7 @@ teardown() {
     psql "$RALPH_DB_URL" -tAX -c \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-01';" >/dev/null
 
-    run "$SCRIPT_DIR/hooks/precompact.sh"
+    run bash -c '"$SCRIPT_DIR/hooks/precompact.sh" 2>/dev/null'
     assert_success
 
     echo "$output"
