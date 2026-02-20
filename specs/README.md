@@ -11,8 +11,9 @@
 | [task-cli.md](task-cli.md) | Phase-specific bash CLI for planner and builders to interact with the task backlog |
 | [agent-lifecycle.md](agent-lifecycle.md) | Agent registration and identification for ephemeral Docker containers |
 | [task-scheduling.md](task-scheduling.md) | Task peek, untargeted and targeted claiming, lease-based recovery, DAG scheduling, and idempotent plan synchronization |
-| [plan-skill-integration.md](plan-skill-integration.md) | Migrate ralph-plan from IMPLEMENTATION_PLAN.json to the task CLI |
+| [plan-skill-integration.md](plan-skill-integration.md) | Outer loop pre-fetches task DAG and passes it to the plan skill as an argument |
 | [build-skill-integration.md](build-skill-integration.md) | ralph-build receives task landscape, selects the best task via LLM reasoning, and implements via targeted claiming |
 | [build-loop-control.md](build-loop-control.md) | Pre-invocation task peek, context passing to the build skill, post-iteration status checks, and crash-safety fallback in ralph.sh |
 | [session-safety-hooks.md](session-safety-hooks.md) | PreCompact and SessionEnd hooks to release active tasks on unexpected exits |
+| [plan-sync-validation.md](plan-sync-validation.md) | Validate JSONL input in plan-sync before processing, fail fast on malformed data |
 | [graceful-interrupt.md](graceful-interrupt.md) | Two-stage Ctrl+C: graceful cleanup then force-kill |

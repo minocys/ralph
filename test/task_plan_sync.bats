@@ -348,3 +348,109 @@ teardown() {
     run "$SCRIPT_DIR/task" show ps-mix-04
     assert_output --partial "Brand new task"
 }
+
+# --- Input validation (plan-sync-validation.md) ---
+
+@test "plan-sync rejects invalid JSON line" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- "not json at all"
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep "invalid JSON" "$TEST_WORK_DIR/stderr"
+    refute_output --partial "inserted:"
+}
+
+@test "plan-sync rejects JSON missing id field" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"t":"No id"}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"id"' "$TEST_WORK_DIR/stderr"
+    grep "missing or empty" "$TEST_WORK_DIR/stderr"
+    refute_output --partial "inserted:"
+}
+
+@test "plan-sync rejects JSON with empty id field" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"id":"","t":"Empty id"}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"id"' "$TEST_WORK_DIR/stderr"
+    grep "missing or empty" "$TEST_WORK_DIR/stderr"
+}
+
+@test "plan-sync rejects JSON missing t (title) field" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"id":"val-01"}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"t"' "$TEST_WORK_DIR/stderr"
+    grep "missing or empty" "$TEST_WORK_DIR/stderr"
+    refute_output --partial "inserted:"
+}
+
+@test "plan-sync rejects JSON with empty t (title) field" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"id":"val-01","t":""}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"t"' "$TEST_WORK_DIR/stderr"
+    grep "missing or empty" "$TEST_WORK_DIR/stderr"
+}
+
+@test "plan-sync rejects negative priority" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"id":"val-01","t":"Good title","p":-1}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"p"' "$TEST_WORK_DIR/stderr"
+    grep "non-negative integer" "$TEST_WORK_DIR/stderr"
+    grep -- "-1" "$TEST_WORK_DIR/stderr"
+}
+
+@test "plan-sync rejects non-integer priority" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"id":"val-01","t":"Good title","p":"high"}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"p"' "$TEST_WORK_DIR/stderr"
+    grep "non-negative integer" "$TEST_WORK_DIR/stderr"
+    grep "high" "$TEST_WORK_DIR/stderr"
+}
+
+@test "plan-sync rejects float priority" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- '{"id":"val-01","t":"Good title","p":1.5}'
+    [ "$status" -eq 1 ]
+    grep "line 1" "$TEST_WORK_DIR/stderr"
+    grep '"p"' "$TEST_WORK_DIR/stderr"
+    grep "non-negative integer" "$TEST_WORK_DIR/stderr"
+}
+
+@test "plan-sync error identifies correct line number for second line" {
+    local line1='{"id":"val-01","t":"Good"}'
+    local line2='{"id":"","t":"Bad"}'
+    local input="${line1}
+${line2}"
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- "$input"
+    [ "$status" -eq 1 ]
+    grep "line 2" "$TEST_WORK_DIR/stderr"
+}
+
+@test "plan-sync validation failure causes no partial writes" {
+    local line1='{"id":"val-no-write-01","t":"Good task","spec":"my-spec"}'
+    local line2='{"id":"","t":"Bad"}'
+    local input="${line1}
+${line2}"
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync 2>"$TEST_WORK_DIR/stderr"' -- "$input"
+    [ "$status" -eq 1 ]
+
+    run bash -c '"$SCRIPT_DIR/task" show val-no-write-01 2>&1'
+    [ "$status" -eq 2 ]
+    echo "$output" | grep -i "not found"
+}
+
+@test "plan-sync skips empty lines during validation" {
+    local input=$'\n{"id":"val-skip-01","t":"Good task","spec":"my-spec"}\n\n'
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync' -- "$input"
+    assert_success
+    assert_output "inserted: 1, updated: 0, deleted: 0, skipped (done): 0"
+}
+
+@test "plan-sync accepts valid input with optional p absent" {
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync' -- '{"id":"val-opt-01","t":"No priority","spec":"my-spec"}'
+    assert_success
+    assert_output "inserted: 1, updated: 0, deleted: 0, skipped (done): 0"
+}
