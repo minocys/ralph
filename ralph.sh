@@ -169,9 +169,20 @@ ensure_env_file() {
     echo "Warning: .env.example not found in $SCRIPT_DIR — set RALPH_DB_URL manually or run: cp .env.example .env"
 }
 
-if [ "${RALPH_SKIP_DOCKER:-}" != "1" ]; then
+ensure_postgres() {
+    if [ "${RALPH_SKIP_DOCKER:-}" = "1" ]; then
+        return 0
+    fi
     check_docker_installed
-fi
+    if is_container_running; then
+        wait_for_healthy
+        return 0
+    fi
+    docker compose --project-directory "$SCRIPT_DIR" up -d
+    wait_for_healthy
+}
+
+ensure_postgres
 
 ensure_env_file
 # Source .env as fallback — don't override existing RALPH_DB_URL (backwards compat)

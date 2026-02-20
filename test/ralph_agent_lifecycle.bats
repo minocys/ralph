@@ -41,6 +41,9 @@ STUB
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
+    # Skip Docker checks — these tests use an already-running database
+    export RALPH_SKIP_DOCKER=1
+
     # Minimal specs so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"

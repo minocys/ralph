@@ -312,3 +312,137 @@ STUB
     run wait_for_healthy
     assert_success
 }
+
+# --- ensure_postgres tests ---
+
+# Helper: load all docker functions from ralph.sh so ensure_postgres can call them
+_load_docker_functions() {
+    eval "$(sed -n '/^check_docker_installed()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+    eval "$(sed -n '/^is_container_running()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+    eval "$(sed -n '/^wait_for_healthy()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+    eval "$(sed -n '/^ensure_postgres()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+}
+
+# Helper: create a docker stub that handles compose version, inspect, compose up, health
+_create_full_docker_stub() {
+    local container_running="${1:-false}"
+    cat > "$STUB_DIR/docker" <<STUB
+#!/bin/bash
+if [ "\$1" = "compose" ] && [ "\$2" = "version" ]; then
+    echo "Docker Compose version v2.24.0"
+    exit 0
+fi
+# Match "compose ... up" regardless of flags before "up" (e.g. --project-directory)
+if [ "\$1" = "compose" ]; then
+    for arg in "\$@"; do
+        if [ "\$arg" = "up" ]; then
+            echo "COMPOSE_ARGS: \$*" >> "$TEST_WORK_DIR/docker_calls.log"
+            exit 0
+        fi
+    done
+fi
+if [ "\$1" = "inspect" ] && [ "\$2" = "--format" ]; then
+    if [ "\$3" = "{{.State.Running}}" ]; then
+        echo "$container_running"
+        exit 0
+    fi
+    if [ "\$3" = "{{.State.Health.Status}}" ]; then
+        echo "healthy"
+        exit 0
+    fi
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    cat > "$STUB_DIR/pg_isready" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+    chmod +x "$STUB_DIR/pg_isready"
+}
+
+@test "ensure_postgres skips startup when container is already running" {
+    _create_full_docker_stub "true"
+    _load_docker_functions
+    export SCRIPT_DIR="$TEST_WORK_DIR"
+    export DOCKER_HEALTH_TIMEOUT=3
+
+    run ensure_postgres
+    assert_success
+    # docker compose up should NOT have been called
+    [ ! -f "$TEST_WORK_DIR/docker_calls.log" ] || ! grep -q "COMPOSE_UP_CALLED" "$TEST_WORK_DIR/docker_calls.log"
+}
+
+@test "ensure_postgres runs docker compose up when container is not running" {
+    _create_full_docker_stub "false"
+    _load_docker_functions
+    export SCRIPT_DIR="$TEST_WORK_DIR"
+    export DOCKER_HEALTH_TIMEOUT=3
+
+    run ensure_postgres
+    assert_success
+    # docker compose up should have been called (log file created by stub)
+    assert [ -f "$TEST_WORK_DIR/docker_calls.log" ]
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "up -d"
+}
+
+@test "ensure_postgres passes --project-directory to docker compose up" {
+    _create_full_docker_stub "false"
+    _load_docker_functions
+    export SCRIPT_DIR="$TEST_WORK_DIR"
+    export DOCKER_HEALTH_TIMEOUT=3
+
+    run ensure_postgres
+    assert_success
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "--project-directory"
+}
+
+@test "ensure_postgres returns early when RALPH_SKIP_DOCKER=1" {
+    # No docker stub at all — would fail if docker functions were called
+    rm -f "$STUB_DIR/docker"
+    local new_path="$STUB_DIR"
+    IFS=: read -ra dirs <<< "$PATH"
+    for d in "${dirs[@]}"; do
+        [ -x "$d/docker" ] && continue
+        new_path="$new_path:$d"
+    done
+    export PATH="$new_path"
+    export RALPH_SKIP_DOCKER=1
+
+    _load_docker_functions
+    run ensure_postgres
+    assert_success
+    refute_output --partial "docker"
+}
+
+@test "ensure_postgres calls wait_for_healthy after compose up" {
+    # Container not running, but healthy after startup
+    _create_full_docker_stub "false"
+    _load_docker_functions
+    export SCRIPT_DIR="$TEST_WORK_DIR"
+    export DOCKER_HEALTH_TIMEOUT=3
+
+    run ensure_postgres
+    assert_success
+}
+
+@test "ensure_postgres calls check_docker_installed before anything else" {
+    # Make docker unavailable — ensure_postgres should fail with docker check error
+    rm -f "$STUB_DIR/docker"
+    local new_path="$STUB_DIR"
+    IFS=: read -ra dirs <<< "$PATH"
+    for d in "${dirs[@]}"; do
+        [ -x "$d/docker" ] && continue
+        new_path="$new_path:$d"
+    done
+    export PATH="$new_path"
+    export RALPH_SKIP_DOCKER=0
+
+    _load_docker_functions
+    run ensure_postgres
+    assert_failure
+    assert_output --partial "docker CLI not found"
+}

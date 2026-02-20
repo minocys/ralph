@@ -78,6 +78,9 @@ STUB
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
+    # Skip Docker checks — these tests don't need a running container
+    export RALPH_SKIP_DOCKER=1
+
     cd "$TEST_WORK_DIR"
 }
 
