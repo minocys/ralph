@@ -44,6 +44,10 @@ STUB
     # Ensure no bedrock env var leaks into tests
     unset CLAUDE_CODE_USE_BEDROCK
 
+    # Unset RALPH_DB_URL so task-peek doesn't cause early loop exit
+    # (signal tests don't need DB connectivity)
+    unset RALPH_DB_URL
+
     # Save dirs for teardown
     export TEST_WORK_DIR
     export STUB_DIR
