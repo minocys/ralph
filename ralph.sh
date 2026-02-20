@@ -158,8 +158,11 @@ if [ "${RALPH_SKIP_DOCKER:-}" != "1" ]; then
 fi
 
 ensure_env_file
-# shellcheck disable=SC1091
-[ -f "$SCRIPT_DIR/.env" ] && . "$SCRIPT_DIR/.env"
+# Source .env as fallback — don't override existing RALPH_DB_URL (backwards compat)
+if [ -z "${RALPH_DB_URL:-}" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+    # shellcheck disable=SC1091
+    . "$SCRIPT_DIR/.env"
+fi
 
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
