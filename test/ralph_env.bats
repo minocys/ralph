@@ -3,11 +3,11 @@
 
 load test_helper
 
-# Helper: extract and evaluate ensure_env_file() from the real ralph.sh
-# Uses PROJECT_DIR (unmodified SCRIPT_DIR from test_helper) to find ralph.sh,
+# Helper: extract and evaluate ensure_env_file() from lib/docker.sh
+# Uses PROJECT_DIR (unmodified SCRIPT_DIR from test_helper) to find lib/docker.sh,
 # then each test sets SCRIPT_DIR to a temp dir for the function to operate on.
 _load_ensure_env_file() {
-    eval "$(sed -n '/^ensure_env_file()/,/^}/p' "$PROJECT_DIR/ralph.sh")"
+    eval "$(sed -n '/^ensure_env_file()/,/^}/p' "$PROJECT_DIR/lib/docker.sh")"
 }
 
 setup() {

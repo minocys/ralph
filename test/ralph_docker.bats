@@ -109,9 +109,9 @@ STUB
 
 # --- is_container_running tests ---
 
-# Helper: extract and evaluate is_container_running() from ralph.sh
+# Helper: load is_container_running() from lib/docker.sh
 _load_is_container_running() {
-    eval "$(sed -n '/^is_container_running()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+    eval "$(sed -n '/^is_container_running()/,/^}/p' "$SCRIPT_DIR/lib/docker.sh")"
 }
 
 @test "is_container_running returns 0 when container is running" {
@@ -186,9 +186,9 @@ STUB
 
 # --- wait_for_healthy tests ---
 
-# Helper: extract and evaluate wait_for_healthy() from ralph.sh
+# Helper: load wait_for_healthy() from lib/docker.sh
 _load_wait_for_healthy() {
-    eval "$(sed -n '/^wait_for_healthy()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+    eval "$(sed -n '/^wait_for_healthy()/,/^}/p' "$SCRIPT_DIR/lib/docker.sh")"
 }
 
 @test "wait_for_healthy returns 0 when docker healthy and pg_isready both pass" {
@@ -315,12 +315,9 @@ STUB
 
 # --- ensure_postgres tests ---
 
-# Helper: load all docker functions from ralph.sh so ensure_postgres can call them
+# Helper: load all docker functions from lib/docker.sh
 _load_docker_functions() {
-    eval "$(sed -n '/^check_docker_installed()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
-    eval "$(sed -n '/^is_container_running()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
-    eval "$(sed -n '/^wait_for_healthy()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
-    eval "$(sed -n '/^ensure_postgres()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+    . "$SCRIPT_DIR/lib/docker.sh"
 }
 
 # Helper: create a docker stub that handles compose version, inspect, compose up, health
