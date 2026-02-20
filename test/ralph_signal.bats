@@ -131,6 +131,20 @@ send_sigterm() {
     kill -TERM -- "-$RALPH_PGID" 2>/dev/null || true
 }
 
+# wait_for_pipeline: poll OUTPUT_FILE until the claude stub's output appears,
+# proving the background pipeline (claude | tee | jq) is running and signal
+# handlers are installed. Replaces the fixed `sleep 2` that caused
+# intermittent failures on loaded macOS systems.
+wait_for_pipeline() {
+    local timeout="${1:-10}"
+    local i=0
+    while ! grep -q "working" "$OUTPUT_FILE" 2>/dev/null && [ "$i" -lt "$((timeout * 10))" ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+    grep -q "working" "$OUTPUT_FILE" 2>/dev/null
+}
+
 # wait_for_ralph: wait for ralph to exit, returns its exit code
 wait_for_ralph() {
     local timeout="${1:-10}"
@@ -160,8 +174,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Send SIGINT (simulating Ctrl+C) to the process group
     send_sigint
@@ -195,8 +209,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Send a single SIGINT (simulating Ctrl+C) to the process group
     send_sigint
@@ -229,8 +243,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # First SIGINT: ralph should print waiting message but NOT exit
     # (because the claude stub ignores INT and stays alive)
@@ -279,8 +293,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and create the temp file
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Verify at least one temp file was recorded by the mktemp stub
     [ -s "$TMPFILE_TRACKER" ]
@@ -320,8 +334,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Send SIGTERM (no grace period expected)
     send_sigterm
