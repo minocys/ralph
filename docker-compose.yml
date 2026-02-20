@@ -1,0 +1,28 @@
+# PostgreSQL for ralph task management
+# Usage:
+#   docker compose up -d        # start database
+#   docker compose down          # stop database (data persists)
+#   docker compose down -v       # stop and delete data
+#
+# Connection URL (set in your shell profile or .env):
+#   export RALPH_DB_URL="postgres://ralph:ralph@localhost:5432/ralph"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "5499:5432"
+    environment:
+      POSTGRES_USER: ralph
+      POSTGRES_PASSWORD: ralph
+      POSTGRES_DB: ralph
+    volumes:
+      - ralph_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ralph"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  ralph_pgdata:

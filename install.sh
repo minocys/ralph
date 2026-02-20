@@ -49,5 +49,28 @@ if [ ! -e "$RALPH_LINK" ]; then
     echo "  Linked script: ralph.sh -> $RALPH_LINK"
 fi
 
+# Symlink task into ~/.local/bin
+TASK_LINK="$BIN_DIR/task"
+if [ -L "$TASK_LINK" ]; then
+    echo "  Updating symlink: $TASK_LINK"
+    rm "$TASK_LINK"
+elif [ -e "$TASK_LINK" ]; then
+    echo "  Warning: $TASK_LINK already exists and is not a symlink, skipping"
+fi
+
+if [ ! -e "$TASK_LINK" ]; then
+    ln -s "$REPO_DIR/task" "$TASK_LINK"
+    echo "  Linked script: task -> $TASK_LINK"
+fi
+
+# Add hooks to ~/.claude/settings.json
+SETTINGS_FILE="$HOME/.claude/settings.json"
+mkdir -p "$HOME/.claude"
+if [ ! -f "$SETTINGS_FILE" ]; then
+    echo '{}' > "$SETTINGS_FILE"
+fi
+jq --arg repo "$REPO_DIR" '.hooks = {"PreCompact":[{"matcher":"*","hooks":[{"type":"command","command":("bash " + $repo + "/hooks/precompact.sh")}]}],"SessionEnd":[{"matcher":"*","hooks":[{"type":"command","command":("bash " + $repo + "/hooks/session_end.sh")}]}]}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+echo "  Configured hooks in $SETTINGS_FILE"
+
 echo ""
 echo "Done. Make sure $BIN_DIR is in your PATH."

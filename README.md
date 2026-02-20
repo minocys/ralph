@@ -40,6 +40,8 @@ Discuss JTBD → ralph-spec → ralph plan → ralph
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [jq](https://jqlang.github.io/jq/)
+- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL task database)
+- [psql](https://www.postgresql.org/docs/current/app-psql.html) (PostgreSQL client)
 
 ## Installation
 
@@ -48,7 +50,7 @@ git clone <repo-url> && cd ralph
 ./install.sh
 ```
 
-This symlinks the skills into `~/.claude/skills/` and `ralph` into `~/.local/bin/`. Make sure `~/.local/bin` is in your `PATH`.
+This symlinks the skills into `~/.claude/skills/` and both `ralph` and `task` into `~/.local/bin/`. Make sure `~/.local/bin` is in your `PATH`.
 
 ## Usage
 
@@ -117,23 +119,160 @@ If your repo has an `AGENTS.md`, Ralph will pick it up automatically during the 
 
 See [agents.md](https://agents.md) for the format and examples.
 
+## Task Management
+
+The `task` CLI is a PostgreSQL-backed command-line tool for managing work items across the plan and build phases. It enables multi-agent coordination with atomic operations, lease-based claiming, and DAG-aware dependency scheduling.
+
+### Plan Phase Commands
+
+Commands used during planning to synchronize specs with the task backlog:
+
+```sh
+# Sync tasks from JSONL input (idempotent — safe to re-run)
+cat tasks.jsonl | task plan-sync
+
+# Export full task DAG as a table
+task plan-export
+
+# Export as JSONL (token-efficient short keys)
+task plan-export --json
+
+# Show status summary (open, active, done, blocked, deleted)
+task plan-status
+```
+
+### Build Phase Commands
+
+Commands used by agents during the build loop to claim and complete work:
+
+```sh
+# Claim the highest-priority eligible task (atomic, lease-based)
+task claim --agent <agent-id>
+task claim --agent <agent-id> --lease 900    # custom lease (default 600s)
+
+# Extend an active task's lease
+task renew <id> --agent <agent-id>
+
+# Mark a step within a task as done
+task step-done <id> <seq>
+
+# Complete a task (optionally with a result JSON)
+task done <id>
+task done <id> --result '{"commit":"abc123"}'
+
+# Release a task back to open (increments retry count)
+task fail <id>
+task fail <id> --reason "build error"
+```
+
+### CRUD Commands
+
+```sh
+# Create a task
+task create <id> <title> -p <priority> -c <category> -d <description>
+
+# List tasks (excludes deleted by default)
+task list
+task list --status open,active
+task list --json
+
+# Show full task detail
+task show <id>
+task show <id> --with-deps      # include blocker results
+
+# Update a task (done tasks are immutable)
+task update <id> --title "New title" --priority 1
+
+# Soft-delete a task
+task delete <id>
+```
+
+### Dependency Commands
+
+```sh
+# Add a dependency (task is blocked until blocker is done)
+task block <id> --by <blocker-id>
+
+# Remove a dependency
+task unblock <id> --by <blocker-id>
+
+# Show recursive dependency tree
+task deps <id>
+```
+
+### Agent Commands
+
+Agents register before entering the build loop and deregister on exit:
+
+```sh
+# Register a new agent (returns 4-char hex ID)
+task agent register
+
+# List all agents
+task agent list
+
+# Deregister an agent (sets status to stopped)
+task agent deregister <id>
+```
+
+Ralph's build loop handles agent registration automatically — it calls `task agent register` on startup and `task agent deregister` on exit via a trap handler. The agent ID is exported as `RALPH_AGENT_ID` for use when claiming tasks.
+
+### Exit Codes
+
+| Code | Meaning |
+| ---- | ------- |
+| `0`  | Success |
+| `1`  | Error (invalid args, immutable task, wrong assignee) |
+| `2`  | Not found (task, agent, step, or dependency doesn't exist) |
+
 ## Project Structure
 
 ```
 ralph.sh              # Main loop runner
 models.json           # Model alias → ID mapping
-install.sh            # Installer (symlinks skills + CLI)
+install.sh            # Installer (symlinks skills + CLI + task)
+task                  # Task management CLI (PostgreSQL-backed)
+docker-compose.yml    # PostgreSQL dev database
+specs/                # Specification files (one per topic of concern)
 skills/
   ralph-spec/         # JTBD → spec files
   ralph-plan/         # Specs → implementation plan
   ralph-build/        # Plan → working code
 test/
+  test_helper.bash    # Shared test setup
+  libs/               # BATS helper libraries (git submodules)
   ralph_args.bats     # Argument parsing tests
   ralph_preflight.bats # Preflight check tests
   ralph_model.bats    # Model/backend resolution tests
-  test_helper.bash    # Shared test setup
-  libs/               # BATS helper libraries (git submodules)
+  ralph_agent_lifecycle.bats # Agent register/deregister in build loop
+  install.bats        # Installer tests
+  task_*.bats         # Task CLI tests (create, list, show, update, delete,
+                      #   block, deps, claim, renew, step_done, done, fail,
+                      #   plan_sync, plan_export, plan_status, agent_*)
 ```
+
+## Development Database
+
+The `task` CLI requires PostgreSQL. A Docker Compose file is provided for local development with PostgreSQL 17:
+
+```sh
+# Start PostgreSQL
+docker compose up -d
+
+# Set the connection URL (required for task CLI)
+export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+
+# Verify the connection
+task plan-status
+
+# Stop (data persists across restarts)
+docker compose down
+
+# Stop and wipe data
+docker compose down -v
+```
+
+The `RALPH_DB_URL` environment variable must be set for all `task` commands. The database schema (tables: `tasks`, `task_steps`, `task_deps`, `agents`) is created automatically on first invocation.
 
 ## Testing
 
@@ -165,7 +304,13 @@ bats test/ralph_args.bats
 bats --tap test/
 ```
 
-The test suite covers argument parsing, preflight checks, and model/backend resolution logic. All tests run in isolation using temporary directories and stub the `claude` CLI to avoid external dependencies.
+```sh
+# Run task-specific tests (requires running PostgreSQL)
+bats test/task_create.bats
+bats test/task_claim.bats
+```
+
+The test suite covers argument parsing, preflight checks, model/backend resolution, and the full task CLI (CRUD, dependencies, claiming, plan sync, agents). Shell tests run in isolation using temporary directories and stub the `claude` CLI. Task tests require a running PostgreSQL instance via `RALPH_DB_URL`.
 
 ## Acknowledgements
 

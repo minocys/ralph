@@ -18,9 +18,6 @@ setup() {
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
 
-    # Dummy IMPLEMENTATION_PLAN.json so build-mode preflight passes
-    echo '[]' > "$TEST_WORK_DIR/IMPLEMENTATION_PLAN.json"
-
     # Create a fake claude stub that prints its arguments and exits 0
     STUB_DIR="$(mktemp -d)"
     cat > "$STUB_DIR/claude" <<'STUB'

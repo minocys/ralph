@@ -116,15 +116,31 @@ if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     exit 1
 fi
 
-if [ "$MODE" != "plan" ] && [ ! -f "./IMPLEMENTATION_PLAN.json" ]; then
-    echo "Error: IMPLEMENTATION_PLAN.json not found. Run './ralph --plan' or /ralph-plan first."
-    exit 1
-fi
-
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT
+AGENT_ID=""
+
+# Register agent in build mode if task script is available
+TASK_SCRIPT="$SCRIPT_DIR/task"
+export RALPH_TASK_SCRIPT="$TASK_SCRIPT"
+
+if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+    AGENT_ID=$("$TASK_SCRIPT" agent register 2>/dev/null) || true
+    if [ -n "$AGENT_ID" ]; then
+        export RALPH_AGENT_ID="$AGENT_ID"
+    fi
+fi
+
+cleanup() {
+    # Deregister agent if one was registered
+    if [ -n "$AGENT_ID" ] && [ -x "$TASK_SCRIPT" ]; then
+        "$TASK_SCRIPT" agent deregister "$AGENT_ID" 2>/dev/null || true
+    fi
+    rm -f "$TMPFILE"
+}
+
+trap cleanup EXIT
 
 # --- Graceful interrupt handling ---
 # Two-stage Ctrl+C: first INT lets claude clean up, second INT force-kills.
@@ -190,6 +206,7 @@ echo "Prompt: $COMMAND"
 echo "Branch: $CURRENT_BRANCH"
 echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
 echo "Backend: $ACTIVE_BACKEND"
+[ -n "$AGENT_ID" ] && echo "Agent:  $AGENT_ID"
 [ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
 [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -200,8 +217,36 @@ while true; do
         break
     fi
 
+    # Pre-invocation task peek: get claimable + active tasks snapshot
+    PEEK_JSONL=""
+    PEEK_OK=false
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+        if PEEK_JSONL=$("$TASK_SCRIPT" peek -n 5 2>/dev/null); then
+            PEEK_OK=true
+        fi
+    fi
+
+    # Plan-mode pre-fetch: get current task DAG for planner
+    PLAN_EXPORT_JSONL=""
+    if [ "$MODE" = "plan" ] && [ -x "$TASK_SCRIPT" ]; then
+        PLAN_EXPORT_JSONL=$("$TASK_SCRIPT" plan-export --json 2>/dev/null) || true
+    fi
+
+    # In build mode, exit if peek succeeded but returned empty (no tasks)
+    # If peek failed (non-zero exit), treat as transient and continue
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && $PEEK_OK && [ -z "$PEEK_JSONL" ]; then
+        echo "No tasks available. Exiting loop."
+        break
+    fi
+
     # Run Ralph iteration: save raw JSON to tmpfile, display readable text
-    CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
+    if [ -n "$PEEK_JSONL" ]; then
+        CLAUDE_ARGS=(-p "$COMMAND $PEEK_JSONL" --output-format=stream-json --verbose)
+    elif [ "$MODE" = "plan" ] && [ -n "$PLAN_EXPORT_JSONL" ]; then
+        CLAUDE_ARGS=(-p "$COMMAND $PLAN_EXPORT_JSONL" --output-format=stream-json --verbose)
+    else
+        CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
+    fi
     $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
     [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
@@ -225,11 +270,32 @@ while true; do
         exit 130
     fi
 
-    if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
-      | grep -q '<promise>Tastes Like Burning.</promise>'; then
-        echo "Ralph completed successfully. Exiting loop."
-        echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
-        exit 0
+    # Crash-safety fallback: fail active tasks assigned to this agent
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
+        ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active --json 2>/dev/null | jq -r "select(.assignee == \"$AGENT_ID\") | .id" 2>/dev/null) || true
+        while IFS= read -r ACTIVE_ID; do
+            [ -z "$ACTIVE_ID" ] && continue
+            "$TASK_SCRIPT" fail "$ACTIVE_ID" --reason 'session exited without completing task' 2>/dev/null || true
+        done <<< "$ACTIVE_TASKS"
+    fi
+
+    if [ "$MODE" = "plan" ]; then
+        if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
+          | grep -q '<promise>Tastes Like Burning.</promise>'; then
+            echo "Ralph completed successfully. Exiting loop."
+            echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
+            exit 0
+        fi
+    elif [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+        PLAN_STATUS=$("$TASK_SCRIPT" plan-status 2>/dev/null) || true
+        if [ -n "$PLAN_STATUS" ]; then
+            OPEN_COUNT=$(echo "$PLAN_STATUS" | grep -oE '^[0-9]+' | head -1)
+            ACTIVE_COUNT=$(echo "$PLAN_STATUS" | grep -oE '[0-9]+ active' | grep -oE '^[0-9]+')
+            if [ "${OPEN_COUNT:-1}" -eq 0 ] 2>/dev/null && [ "${ACTIVE_COUNT:-1}" -eq 0 ] 2>/dev/null; then
+                echo "All tasks complete. Exiting loop."
+                exit 0
+            fi
+        fi
     fi
 
     ITERATION=$((ITERATION + 1))
