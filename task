@@ -208,6 +208,17 @@ cmd_plan_sync() {
         fi
     done
 
+    # Batch-fetch existing task statuses — single query replaces N+1 individual lookups
+    local batch_statuses=""
+    if [[ ${#all_ids[@]} -gt 0 ]]; then
+        local in_clause=""
+        for _bid in "${all_ids[@]}"; do
+            [[ -n "$in_clause" ]] && in_clause+=","
+            in_clause+="'$(sql_esc "$_bid")'"
+        done
+        batch_statuses=$(psql_cmd -c "SELECT id, status FROM tasks WHERE id IN (${in_clause});")
+    fi
+
     local inserted=0 updated=0 deleted=0 skipped=0
 
     # Build the entire sync as a single SQL transaction
@@ -234,9 +245,11 @@ cmd_plan_sync() {
         esc_spec=$(sql_esc "$spec_ref")
         esc_ref=$(sql_esc "$ref")
 
-        # Check if task exists in DB and get its status
-        local existing_status
-        existing_status=$(psql_cmd -c "SELECT status FROM tasks WHERE id = '${esc_id}';")
+        # Lookup status from batch-fetched results
+        local existing_status=""
+        if [[ -n "$batch_statuses" ]]; then
+            existing_status=$(printf '%s\n' "$batch_statuses" | awk -F'|' -v id="$tid" '$1 == id { print $2; exit }')
+        fi
 
         if [[ -n "$existing_status" ]]; then
             # Task exists in DB
