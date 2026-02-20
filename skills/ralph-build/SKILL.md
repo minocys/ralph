@@ -1,13 +1,14 @@
 ---
 name: ralph-build
 description: Ralph build loop
+argument-hint: [highest-priority-tasks]
 ---
 
 # TASK
 0. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
 
-1. Parse the peek JSONL snapshot appended to this prompt. Tasks with `s`="open" are claimable (sorted by priority). Tasks with `s`="active" show what other agents are working on. Use this landscape to select the best task to claim.
-2. Select which task to claim using LLM reasoning — consider what other agents are working on (active tasks) to avoid redundant work areas. Claim the selected task via `task claim <id>`. If exit code 2, select the next best task from the snapshot and retry. If no claimable tasks remain, stop gracefully.
+1. Study the highest priority tasks. `s`="open" are claimable (sorted by priority). Tasks with `s`="active" show what other agents are working on. Select the most important task to claim.
+2. Claim the selected task via `task claim <id>`. If no claimable tasks remain, stop gracefully.
 3. If `blocker_results` contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
 4. Search the codebase before implementing — confirm before assuming missing.
 5. Implement the change.
