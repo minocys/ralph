@@ -36,6 +36,9 @@ STUB
     export TEST_WORK_DIR
     export STUB_DIR
 
+    # Skip Docker checks in tests that don't need a running database
+    export RALPH_SKIP_DOCKER=1
+
     # Change to the temp working directory
     cd "$TEST_WORK_DIR"
 }

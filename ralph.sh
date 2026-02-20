@@ -124,6 +124,22 @@ if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
     exit 1
 fi
 
+# Docker prerequisite checks
+check_docker_installed() {
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "Error: docker CLI not found. Install Docker: https://docs.docker.com/get-docker/"
+        exit 1
+    fi
+    if ! docker compose version >/dev/null 2>&1; then
+        echo "Error: docker compose V2 plugin not found. Install the Compose plugin: https://docs.docker.com/compose/install/"
+        exit 1
+    fi
+}
+
+if [ "${RALPH_SKIP_DOCKER:-}" != "1" ]; then
+    check_docker_installed
+fi
+
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
 TMPFILE=$(mktemp)
