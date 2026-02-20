@@ -11,17 +11,18 @@ services:
   ralph-task-db:
     image: postgres:17-alpine
     container_name: ralph-task-db
+    env_file: .env
     ports:
       - "${POSTGRES_PORT:-5499}:5432"
     environment:
-      POSTGRES_USER: ralph
-      POSTGRES_PASSWORD: ralph
-      POSTGRES_DB: ralph
+      POSTGRES_USER: ${POSTGRES_USER:-ralph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ralph}
+      POSTGRES_DB: ${POSTGRES_DB:-ralph}
     volumes:
       - ralph-task-data:/var/lib/postgresql/data
       - ./db/init/:/docker-entrypoint-initdb.d/:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ralph"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ralph}"]
       interval: 5s
       timeout: 3s
       retries: 5
