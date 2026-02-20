@@ -143,6 +143,43 @@ SEED
     jq -e '.hooks.SessionEnd' "$HOME/.claude/settings.json"
 }
 
+@test "install.sh preserves pre-existing UserPromptSubmit hook across reinstall" {
+    mkdir -p "$HOME/.claude"
+    cat > "$HOME/.claude/settings.json" <<'SEED'
+{"hooks":{"UserPromptSubmit":[{"matcher":"*","hooks":[{"type":"command","command":"echo user-prompt-hook"}]}]}}
+SEED
+
+    # First install
+    run "$SCRIPT_DIR/install.sh"
+    assert_success
+
+    # UserPromptSubmit must survive first install
+    local user_cmd
+    user_cmd=$(jq -r '.hooks.UserPromptSubmit[0].hooks[0].command' "$HOME/.claude/settings.json")
+    [ "$user_cmd" = "echo user-prompt-hook" ]
+
+    # Ralph hooks must be present
+    jq -e '.hooks.PreCompact' "$HOME/.claude/settings.json"
+    jq -e '.hooks.SessionEnd' "$HOME/.claude/settings.json"
+
+    # Reinstall
+    run "$SCRIPT_DIR/install.sh"
+    assert_success
+
+    # UserPromptSubmit must still survive after reinstall
+    user_cmd=$(jq -r '.hooks.UserPromptSubmit[0].hooks[0].command' "$HOME/.claude/settings.json")
+    [ "$user_cmd" = "echo user-prompt-hook" ]
+
+    # Ralph hooks still present and not duplicated
+    local precompact_count
+    precompact_count=$(jq '.hooks.PreCompact | length' "$HOME/.claude/settings.json")
+    [ "$precompact_count" = "1" ]
+
+    local session_end_count
+    session_end_count=$(jq '.hooks.SessionEnd | length' "$HOME/.claude/settings.json")
+    [ "$session_end_count" = "1" ]
+}
+
 @test "install.sh is idempotent for hooks configuration" {
     run "$SCRIPT_DIR/install.sh"
     assert_success
