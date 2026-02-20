@@ -99,12 +99,12 @@ teardown() {
 
     # Verify PreCompact hook
     local precompact_cmd
-    precompact_cmd=$(jq -r '.hooks.PreCompact[0].command' "$HOME/.claude/settings.json")
+    precompact_cmd=$(jq -r '.hooks.PreCompact[0].hooks[0].command' "$HOME/.claude/settings.json")
     [[ "$precompact_cmd" == *"hooks/precompact.sh"* ]]
 
     # Verify SessionEnd hook
     local session_end_cmd
-    session_end_cmd=$(jq -r '.hooks.SessionEnd[0].command' "$HOME/.claude/settings.json")
+    session_end_cmd=$(jq -r '.hooks.SessionEnd[0].hooks[0].command' "$HOME/.claude/settings.json")
     [[ "$session_end_cmd" == *"hooks/session_end.sh"* ]]
 }
 
