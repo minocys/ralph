@@ -140,9 +140,26 @@ is_container_running() {
     docker inspect --format '{{.State.Running}}' ralph-task-db 2>/dev/null | grep -q 'true'
 }
 
+# Ensure .env file exists for database configuration
+ensure_env_file() {
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        return 0
+    fi
+    if [ -f "$SCRIPT_DIR/.env.example" ]; then
+        cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+        echo "Created .env from .env.example — edit as needed."
+        return 0
+    fi
+    echo "Warning: .env.example not found in $SCRIPT_DIR — set RALPH_DB_URL manually or run: cp .env.example .env"
+}
+
 if [ "${RALPH_SKIP_DOCKER:-}" != "1" ]; then
     check_docker_installed
 fi
+
+ensure_env_file
+# shellcheck disable=SC1091
+[ -f "$SCRIPT_DIR/.env" ] && . "$SCRIPT_DIR/.env"
 
 ITERATION=0
 CURRENT_BRANCH=$(git branch --show-current)
