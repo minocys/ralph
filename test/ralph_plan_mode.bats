@@ -57,9 +57,10 @@ setup() {
     STUB_DIR="$(mktemp -d)"
     export TEST_WORK_DIR STUB_DIR
 
-    # Copy ralph.sh into the test work directory
+    # Copy ralph.sh and lib/ into the test work directory
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
+    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
 
     # Minimal specs/ directory so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
