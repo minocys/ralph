@@ -35,6 +35,9 @@ psql_cmd() {
     psql "$RALPH_DB_URL" -tAX "$@"
 }
 
+# sql_esc: double single quotes for SQL string literals
+sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+
 # ---------------------------------------------------------------------------
 # Schema management
 # ---------------------------------------------------------------------------
@@ -133,8 +136,6 @@ cmd_plan_sync() {
     # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
     # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":[{"content":"..."}]}
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     # Read all stdin lines into an array
     local lines=()
@@ -552,8 +553,6 @@ cmd_claim() {
         esac
     done
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_agent
     esc_agent=$(sql_esc "$agent_id")
@@ -709,8 +708,8 @@ cmd_renew() {
     fi
 
     local esc_id esc_agent
-    esc_id=$(printf '%s' "$task_id" | sed "s/'/''/g")
-    esc_agent=$(printf '%s' "$agent_id" | sed "s/'/''/g")
+    esc_id=$(sql_esc "$task_id")
+    esc_agent=$(sql_esc "$agent_id")
 
     # Single atomic UPDATE — eliminates TOCTOU race between check and update
     local updated
@@ -760,8 +759,6 @@ cmd_step_done() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$task_id")
@@ -810,8 +807,6 @@ cmd_done() {
         esac
     done
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$task_id")
@@ -869,8 +864,6 @@ cmd_fail() {
         esac
     done
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$task_id")
@@ -1005,7 +998,7 @@ cmd_show() {
     task_row=$(psql_cmd -c "
         SELECT id, title, description, category, priority, status, spec_ref, ref,
                result, assignee, lease_expires_at, retry_count, fail_reason, created_at, updated_at, deleted_at
-        FROM tasks WHERE id = '$(printf '%s' "$id" | sed "s/'/''/g")';
+        FROM tasks WHERE id = '$(sql_esc "$id")';
     ")
 
     if [[ -z "$task_row" ]]; then
@@ -1039,7 +1032,7 @@ cmd_show() {
     local steps
     steps=$(psql_cmd -c "
         SELECT seq, status, content FROM task_steps
-        WHERE task_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+        WHERE task_id = '$(sql_esc "$id")'
         ORDER BY seq;
     ")
 
@@ -1056,7 +1049,7 @@ cmd_show() {
         SELECT td.blocked_by, t.status
         FROM task_deps td
         JOIN tasks t ON t.id = td.blocked_by
-        WHERE td.task_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+        WHERE td.task_id = '$(sql_esc "$id")'
         ORDER BY td.blocked_by;
     ")
 
@@ -1074,7 +1067,7 @@ cmd_show() {
             SELECT t.id, t.result
             FROM task_deps td
             JOIN tasks t ON t.id = td.blocked_by
-            WHERE td.task_id = '$(printf '%s' "$id" | sed "s/'/''/g")'
+            WHERE td.task_id = '$(sql_esc "$id")'
               AND t.result IS NOT NULL
             ORDER BY t.id;
         ")
@@ -1126,8 +1119,6 @@ cmd_create() {
         esac
     done
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id esc_title esc_desc esc_category esc_spec_ref esc_ref
     esc_id=$(sql_esc "$id")
@@ -1226,8 +1217,6 @@ cmd_update() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$id")
@@ -1302,8 +1291,6 @@ cmd_delete() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$id")
@@ -1335,8 +1322,6 @@ cmd_deps() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$id")
@@ -1405,8 +1390,6 @@ cmd_block() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id esc_blocker
     esc_id=$(sql_esc "$id")
@@ -1460,8 +1443,6 @@ cmd_unblock() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id esc_blocker
     esc_id=$(sql_esc "$id")
@@ -1485,8 +1466,6 @@ cmd_unblock() {
 
 cmd_agent_register() {
     ensure_schema
-
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local agent_id attempt max_attempts=10
     local pid="$$"
@@ -1542,8 +1521,6 @@ cmd_agent_deregister() {
         exit 1
     fi
 
-    # sql_esc: double single quotes for SQL string literals
-    sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
     local esc_id
     esc_id=$(sql_esc "$id")
