@@ -7,8 +7,26 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 db_check() {
     if [[ -z "${RALPH_DB_URL:-}" ]]; then
-        echo "Error: RALPH_DB_URL environment variable is not set" >&2
-        echo "Example: export RALPH_DB_URL='postgres://ralph:pass@localhost:5432/ralph'" >&2
+        # Resolve script directory following symlinks (handles ~/.local/bin/task symlink)
+        local _source="${BASH_SOURCE[0]}"
+        while [ -L "$_source" ]; do
+            local _dir
+            _dir="$(cd -P "$(dirname "$_source")" && pwd)"
+            _source="$(readlink "$_source")"
+            [[ "$_source" != /* ]] && _source="$_dir/$_source"
+        done
+        local _script_dir
+        _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
+
+        # Source .env as fallback if available
+        if [[ -f "$_script_dir/.env" ]]; then
+            # shellcheck disable=SC1091
+            . "$_script_dir/.env"
+        fi
+    fi
+    if [[ -z "${RALPH_DB_URL:-}" ]]; then
+        echo "Error: RALPH_DB_URL is not set." >&2
+        echo "Fix: cp .env.example .env   (in the ralph repo root)" >&2
         exit 1
     fi
 }

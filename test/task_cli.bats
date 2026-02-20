@@ -65,35 +65,43 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
-# Missing RALPH_DB_URL
+# Missing RALPH_DB_URL (copy task to temp dir without .env so fallback doesn't activate)
 # ---------------------------------------------------------------------------
 @test "task create without RALPH_DB_URL exits 1 with error" {
+    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
-    run "$SCRIPT_DIR/task" create
+    run "$TEST_WORK_DIR/task" create
     assert_failure
     assert_output --partial "RALPH_DB_URL"
 }
 
 @test "task list without RALPH_DB_URL exits 1 with error" {
+    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
-    run "$SCRIPT_DIR/task" list
+    run "$TEST_WORK_DIR/task" list
     assert_failure
     assert_output --partial "RALPH_DB_URL"
 }
 
 @test "task claim without RALPH_DB_URL exits 1 with error" {
+    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
-    run "$SCRIPT_DIR/task" claim
+    run "$TEST_WORK_DIR/task" claim
     assert_failure
     assert_output --partial "RALPH_DB_URL"
 }
 
 # ---------------------------------------------------------------------------
-# Agent subcommand routing
+# Agent subcommand routing (copy task to temp dir without .env)
 # ---------------------------------------------------------------------------
 @test "task agent without RALPH_DB_URL exits 1" {
+    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
-    run "$SCRIPT_DIR/task" agent
+    run "$TEST_WORK_DIR/task" agent
     assert_failure
     assert_output --partial "RALPH_DB_URL"
 }
