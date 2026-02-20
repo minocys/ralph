@@ -15,7 +15,15 @@
 #   ./ralph -m opus-4.5             # Build with opus-4.5 model
 
 # Resolve script directory for locating models.json and other assets
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Portable symlink resolution (macOS readlink lacks -f)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+export SCRIPT_DIR
 
 # Defaults
 MODE="build"
