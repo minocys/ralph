@@ -1,12 +1,13 @@
 ---
 name: ralph-plan
 description: Implementation planner that studies and breaks down specs into tasks for implementation.
-argument-hint: [current-task-dag]
+argument-hint: [current-plan-dag]
 ---
 
 # TASK
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
-0b. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
+0b. Study the current plan DAG (if present) to understand the plan so far: $ARGUMENTS[0]
+0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
 2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.

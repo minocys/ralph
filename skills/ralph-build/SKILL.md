@@ -1,36 +1,34 @@
 ---
 name: ralph-build
 description: Ralph build loop
-argument-hint: [highest-priority-tasks]
+argument-hint: [highest priority tasks]
 ---
 
 # TASK
-0. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
+0a. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
+0b. Study the highest priority tasks: $ARGUMENTS. `s`="open" are claimable (sorted by priority). Tasks with `s`="active" show what other agents are working on.
 
-1. Study the highest priority tasks. `s`="open" are claimable (sorted by priority). Tasks with `s`="active" show what other agents are working on. Select the most important task to claim.
-2. Claim the selected task via `task claim <id>`. If no claimable tasks remain, stop gracefully.
-3. If `blocker_results` contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
-4. Search the codebase before implementing — confirm before assuming missing.
-5. Implement the change.
-6. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
-7. Mark completed steps with `task step-done <id> <seq>` as implementation progresses.
-8. `git add -A` then `git commit` with a message describing the changes.
-9. Run `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 8. **IMPORTANT**: DO NOT START A NEW TASK.
+1. Your task is to implement functionality per the specifications using parallel subagnets. Follow the task list and choose the most important task to address. Claim the selected task via `task claim <id>`. If no claimable tasks remain, stop gracefully.
+3. Search the codebase before implementing — confirm before assuming missing.
+4. Implement the change.
+5. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
+6. Mark completed steps with `task step-done <id> <seq>` as implementation progresses.
+7. `git add -A` then `git commit` with a message describing the changes.
+8. Run `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 8.)
+9. **IMPORTANT**: DO NOT START A NEW TASK.
 
 ## Rules
 
-- Parse the peek snapshot provided in the prompt to understand the task landscape before claiming.
-- Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
-- Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
-- You may add extra logging if required to debug issues.
+- Use Opus subagents when complex reasoning is needed (debugging, architectural decisions).
+- Parallelize reads and searches aggressively with Sonnet subagents (up to 500 parallel).
+- Only use a single Sonnet subagent for build/tests.
+- When you discover issues, immediately create a task with a subagent (`task create <id> <title>`). When resolved, update the item as done. 
 - When authoring documentation, capture the why — tests and implementation importance.
-- Use `task step-done` to track progress within the current task.
+- Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
+- If `blocker_results` contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
+- Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
+- You may add extra logging if required to debug issues.
 - When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.
 - Keep @AGENTS.md operational only — status updates belong in task steps and results.
 - If you find inconsistencies in the specs/* then use an Opus subagent to update the specs.
-- For any bugs you notice, resolve them or run `task create <id> <title>` to log discovered bugs or new work even if unrelated to the current task.
 - On failure, run `task fail <id> --reason "<text>"` to release the task for retry.
-- Do not check overall task completion — ralph.sh owns loop control.
-- Parallelize reads and searches aggressively with Sonnet subagents (up to 500 parallel).
-- Use a single Sonnet subagent for build and test.
-- Use Opus subagents for complex reasoning such as debugging and architectural decisions.
