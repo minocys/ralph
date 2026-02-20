@@ -185,10 +185,12 @@ ensure_postgres() {
 ensure_postgres
 
 ensure_env_file
-# Source .env as fallback — don't override existing RALPH_DB_URL (backwards compat)
-if [ -z "${RALPH_DB_URL:-}" ] && [ -f "$SCRIPT_DIR/.env" ]; then
+# Source .env for POSTGRES_* and RALPH_DB_URL; preserve existing RALPH_DB_URL (backwards compat)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    _saved_db_url="${RALPH_DB_URL:-}"
     # shellcheck disable=SC1091
     . "$SCRIPT_DIR/.env"
+    if [ -n "$_saved_db_url" ]; then RALPH_DB_URL="$_saved_db_url"; fi
 fi
 
 ITERATION=0

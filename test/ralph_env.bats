@@ -90,3 +90,52 @@ teardown() {
     run ensure_env_file
     assert_success
 }
+
+# --- .env sourcing tests ---
+
+# Helper: run the sourcing block extracted from ralph.sh
+_source_env() {
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        _saved_db_url="${RALPH_DB_URL:-}"
+        . "$SCRIPT_DIR/.env"
+        if [ -n "$_saved_db_url" ]; then RALPH_DB_URL="$_saved_db_url"; fi
+    fi
+}
+
+@test "sourcing .env sets RALPH_DB_URL when not already set" {
+    printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
+    unset RALPH_DB_URL
+    SCRIPT_DIR="$TEST_WORK_DIR"
+    _source_env
+    [ "$RALPH_DB_URL" = "postgres://ralph:ralph@localhost:5499/ralph" ]
+}
+
+@test "sourcing .env sets POSTGRES_* vars" {
+    printf 'POSTGRES_USER=ralph\nPOSTGRES_PASSWORD=ralph\nPOSTGRES_DB=ralph\nPOSTGRES_PORT=5499\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
+    unset RALPH_DB_URL POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB POSTGRES_PORT
+    SCRIPT_DIR="$TEST_WORK_DIR"
+    _source_env
+    [ "$POSTGRES_USER" = "ralph" ]
+    [ "$POSTGRES_PASSWORD" = "ralph" ]
+    [ "$POSTGRES_DB" = "ralph" ]
+    [ "$POSTGRES_PORT" = "5499" ]
+}
+
+@test "sourcing .env preserves existing RALPH_DB_URL" {
+    printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
+    RALPH_DB_URL="postgres://custom:custom@remotehost:5432/mydb"
+    SCRIPT_DIR="$TEST_WORK_DIR"
+    _source_env
+    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5432/mydb" ]
+}
+
+@test "sourcing .env loads POSTGRES_* even when RALPH_DB_URL is pre-set" {
+    printf 'POSTGRES_USER=ralph\nPOSTGRES_PORT=5499\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
+    RALPH_DB_URL="postgres://custom:custom@remotehost:5432/mydb"
+    unset POSTGRES_USER POSTGRES_PORT
+    SCRIPT_DIR="$TEST_WORK_DIR"
+    _source_env
+    [ "$POSTGRES_USER" = "ralph" ]
+    [ "$POSTGRES_PORT" = "5499" ]
+    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5432/mydb" ]
+}
