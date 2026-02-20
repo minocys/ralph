@@ -77,6 +77,43 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# PreCompact hook: stderr warning and retry_count
+# ---------------------------------------------------------------------------
+@test "precompact hook logs stderr warning when failing active task" {
+    "$SCRIPT_DIR/task" create "pc-03" "Task for warning test"
+    psql "$RALPH_DB_URL" -tAX -c \
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-03';" >/dev/null
+
+    run bash -c '"$SCRIPT_DIR/hooks/precompact.sh" 2>"$TEST_WORK_DIR/stderr.txt"'
+    assert_success
+
+    local stderr_content
+    stderr_content=$(cat "$TEST_WORK_DIR/stderr.txt")
+    [[ "$stderr_content" == *"Warning"* ]]
+    [[ "$stderr_content" == *"$RALPH_AGENT_ID"* ]]
+    [[ "$stderr_content" == *"pc-03"* ]]
+}
+
+@test "precompact hook increments retry_count" {
+    "$SCRIPT_DIR/task" create "pc-04" "Task to check retry_count"
+    psql "$RALPH_DB_URL" -tAX -c \
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-04';" >/dev/null
+
+    # Verify retry_count starts at 0
+    local before
+    before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE id='pc-04';")
+    [ "$before" = "0" ]
+
+    run "$SCRIPT_DIR/hooks/precompact.sh"
+    assert_success
+
+    # retry_count must be incremented
+    local after
+    after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE id='pc-04';")
+    [ "$after" = "1" ]
+}
+
+# ---------------------------------------------------------------------------
 # PreCompact hook: no active task for this agent
 # ---------------------------------------------------------------------------
 @test "precompact hook is a no-op when no active task exists" {
