@@ -2,14 +2,36 @@
 # lib/loop.sh — main iteration loop for ralph.sh
 #
 # Provides:
-#   run_loop() — execute the main ralph build/plan iteration loop
+#   setup_session() — initialize session state (iteration counter, branch, tmpfile, agent)
+#   run_loop()      — execute the main ralph build/plan iteration loop
 #
+# Globals set by setup_session:
+#   ITERATION, CURRENT_BRANCH, TMPFILE, TASK_SCRIPT, AGENT_ID
 # Globals used (must be set before calling run_loop):
 #   MODE, COMMAND, MAX_ITERATIONS, ITERATION, DANGER, RESOLVED_MODEL,
 #   TASK_SCRIPT, AGENT_ID, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID
 #
 # Note: INTERRUPTED and PIPELINE_PID are modified by signal handlers in
 # lib/signals.sh and must remain global (not declared local here).
+
+# setup_session: initialize session state for the main loop
+setup_session() {
+    ITERATION=0
+    CURRENT_BRANCH=$(git branch --show-current)
+    TMPFILE=$(mktemp)
+    AGENT_ID=""
+
+    TASK_SCRIPT="$SCRIPT_DIR/task"
+    export RALPH_TASK_SCRIPT="$TASK_SCRIPT"
+
+    # Register agent in build mode if task script is available
+    if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
+        AGENT_ID=$("$TASK_SCRIPT" agent register 2>/dev/null) || true
+        if [ -n "$AGENT_ID" ]; then
+            export RALPH_AGENT_ID="$AGENT_ID"
+        fi
+    fi
+}
 
 # run_loop: execute the main ralph build/plan iteration loop
 run_loop() {

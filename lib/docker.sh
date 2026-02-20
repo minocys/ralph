@@ -6,6 +6,7 @@
 #   is_container_running()    — check if ralph-task-db container is running
 #   wait_for_healthy()        — poll until container healthy + pg_isready
 #   ensure_env_file()         — create .env from .env.example if missing
+#   load_env()                — ensure .env exists and source it
 #   ensure_postgres()         — orchestrate full Docker lifecycle
 #
 # Globals used:
@@ -59,6 +60,17 @@ ensure_env_file() {
         return 0
     fi
     echo "Warning: .env.example not found in $SCRIPT_DIR — set RALPH_DB_URL manually or run: cp .env.example .env"
+}
+
+# load_env: ensure .env exists and source it, preserving existing RALPH_DB_URL
+load_env() {
+    ensure_env_file
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        local _saved_db_url="${RALPH_DB_URL:-}"
+        # shellcheck disable=SC1091
+        . "$SCRIPT_DIR/.env"
+        if [ -n "$_saved_db_url" ]; then RALPH_DB_URL="$_saved_db_url"; fi
+    fi
 }
 
 # ensure_postgres: orchestrate Docker container startup and health check

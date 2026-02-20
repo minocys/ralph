@@ -14,6 +14,9 @@
 #   RESOLVED_MODEL
 # Globals used:
 #   SCRIPT_DIR (must be set before calling resolve_model)
+#
+# preflight():
+#   Verifies that required files/directories exist before entering the main loop.
 
 # parse_args: parse CLI flags and set global mode/option variables
 # Usage: parse_args "$@"
@@ -102,6 +105,14 @@ detect_backend() {
                 ACTIVE_BACKEND="bedrock"
             fi
         fi
+    fi
+}
+
+# preflight: verify required directories and files exist
+preflight() {
+    if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
+        echo "Error: No specs found. Run /ralph-spec first to generate specs in ./specs/"
+        exit 1
     fi
 }
 
