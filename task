@@ -125,6 +125,45 @@ cmd_plan_sync() {
         lines+=("$line")
     done
 
+    # --- Pre-validation pass (plan-sync-validation.md) ---
+    local lineno=0
+    for line in ${lines[@]+"${lines[@]}"}; do
+        lineno=$((lineno + 1))
+        [[ -z "$line" ]] && continue
+
+        # JSON parse check
+        if ! printf '%s' "$line" | jq '.' >/dev/null 2>&1; then
+            echo "Error: line $lineno: invalid JSON: ${line:0:80}" >&2
+            return 1
+        fi
+
+        # Validate id field
+        local v_id
+        v_id=$(printf '%s' "$line" | jq -r '.id // empty')
+        if [[ -z "$v_id" ]]; then
+            echo "Error: line $lineno: field \"id\" is missing or empty" >&2
+            return 1
+        fi
+
+        # Validate t (title) field
+        local v_t
+        v_t=$(printf '%s' "$line" | jq -r '.t // empty')
+        if [[ -z "$v_t" ]]; then
+            echo "Error: line $lineno: field \"t\" is missing or empty" >&2
+            return 1
+        fi
+
+        # Validate p (priority) if present
+        if printf '%s' "$line" | jq -e 'has("p")' >/dev/null 2>&1; then
+            local v_p
+            v_p=$(printf '%s' "$line" | jq '.p')
+            if ! [[ "$v_p" =~ ^[0-9]+$ ]]; then
+                echo "Error: line $lineno: field \"p\" must be a non-negative integer, got: $v_p" >&2
+                return 1
+            fi
+        fi
+    done
+
     if [[ ${#lines[@]} -eq 0 ]]; then
         echo "inserted: 0, updated: 0, deleted: 0, skipped (done): 0"
         return 0
