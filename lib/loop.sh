@@ -87,7 +87,6 @@ run_loop() {
             wait "$PIPELINE_PID" 2>/dev/null || true
         done
         wait "$PIPELINE_PID" 2>/dev/null
-        PIPELINE_STATUS=$?
         PIPELINE_PID=""
 
         # If interrupted, exit 130 — do not continue to next iteration
