@@ -11,11 +11,12 @@ argument-hint: [current-plan-dag]
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
 2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
-   - Task IDs must use `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` matches the spec filename without `.md`
-   - Every task must set `spec_ref` to the source spec filename (e.g., `task-cli.md`)
-   - Priority must be an integer: 0=critical, 1=high, 2=medium, 3=low
-   - Dependencies between tasks must be expressed via the `deps` field when task B requires task A's output
-   - See `specs/task-cli.md` § JSONL Format for field names and structure
+    - All JSONL output uses short keys for token efficiency:
+        - `id`, `t` (title), `d` (description), `p` (priority), `s` (status), `cat` (category), `spec` (spec_ref), `ref`, `deps` (array of blocker IDs), `steps` (array of step objects)
+    - id: Task IDs must use `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` matches the spec filename without `.md`
+    - spec: Every task must set `spec_ref` to the source spec filename (e.g., `task-cli.md`)
+    - p: Priority must be an integer: 0=critical, 1=high, 2=medium, 3=low
+    - deps: Dependencies between tasks must be expressed via the `deps` field when task B requires task A's output
 3. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
 4. When complete, reply with: <promise>Tastes Like Burning.</promise>
 
