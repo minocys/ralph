@@ -140,6 +140,22 @@ is_container_running() {
     docker inspect --format '{{.State.Running}}' ralph-task-db 2>/dev/null | grep -q 'true'
 }
 
+wait_for_healthy() {
+    local timeout="${DOCKER_HEALTH_TIMEOUT:-30}"
+    local elapsed=0
+    while [ "$elapsed" -lt "$timeout" ]; do
+        local health_status
+        health_status=$(docker inspect --format '{{.State.Health.Status}}' ralph-task-db 2>/dev/null) || true
+        if [ "$health_status" = "healthy" ] && pg_isready -h localhost -p "${POSTGRES_PORT:-5499}" -q 2>/dev/null; then
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    echo "Error: ralph-task-db failed to become healthy within ${timeout}s"
+    exit 1
+}
+
 # Ensure .env file exists for database configuration
 ensure_env_file() {
     if [ -f "$SCRIPT_DIR/.env" ]; then

@@ -183,3 +183,132 @@ STUB
     run is_container_running
     assert_success
 }
+
+# --- wait_for_healthy tests ---
+
+# Helper: extract and evaluate wait_for_healthy() from ralph.sh
+_load_wait_for_healthy() {
+    eval "$(sed -n '/^wait_for_healthy()/,/^}/p' "$SCRIPT_DIR/ralph.sh")"
+}
+
+@test "wait_for_healthy returns 0 when docker healthy and pg_isready both pass" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    echo "healthy"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    cat > "$STUB_DIR/pg_isready" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+    chmod +x "$STUB_DIR/pg_isready"
+
+    _load_wait_for_healthy
+    export DOCKER_HEALTH_TIMEOUT=5
+    run wait_for_healthy
+    assert_success
+}
+
+@test "wait_for_healthy exits 1 on timeout when docker reports unhealthy" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    echo "starting"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    cat > "$STUB_DIR/pg_isready" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+    chmod +x "$STUB_DIR/pg_isready"
+
+    _load_wait_for_healthy
+    export DOCKER_HEALTH_TIMEOUT=2
+    run wait_for_healthy
+    assert_failure
+    assert_output --partial "failed to become healthy within 2s"
+}
+
+@test "wait_for_healthy exits 1 on timeout when pg_isready fails" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    echo "healthy"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    cat > "$STUB_DIR/pg_isready" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+    chmod +x "$STUB_DIR/pg_isready"
+
+    _load_wait_for_healthy
+    export DOCKER_HEALTH_TIMEOUT=2
+    run wait_for_healthy
+    assert_failure
+    assert_output --partial "failed to become healthy within 2s"
+}
+
+@test "wait_for_healthy uses DOCKER_HEALTH_TIMEOUT from environment" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    echo "starting"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    cat > "$STUB_DIR/pg_isready" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+    chmod +x "$STUB_DIR/pg_isready"
+
+    _load_wait_for_healthy
+    export DOCKER_HEALTH_TIMEOUT=3
+    run wait_for_healthy
+    assert_failure
+    assert_output --partial "within 3s"
+}
+
+@test "wait_for_healthy checks docker health status format for ralph-task-db" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
+    # Verify format string and container name
+    if [ "$3" = "{{.State.Health.Status}}" ] && [ "$4" = "ralph-task-db" ]; then
+        echo "healthy"
+        exit 0
+    fi
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    cat > "$STUB_DIR/pg_isready" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+    chmod +x "$STUB_DIR/pg_isready"
+
+    _load_wait_for_healthy
+    export DOCKER_HEALTH_TIMEOUT=5
+    run wait_for_healthy
+    assert_success
+}
