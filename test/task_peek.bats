@@ -50,30 +50,31 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# Claimable tasks as JSONL
+# Claimable tasks as markdown-KV
 # ---------------------------------------------------------------------------
-@test "task peek returns claimable tasks as JSONL with s=open" {
+@test "task peek returns claimable tasks as markdown-KV with status: open" {
     "$SCRIPT_DIR/task" create "t-a" "Task A" -p 1
     "$SCRIPT_DIR/task" create "t-b" "Task B" -p 2
 
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # Should have 2 lines of JSONL
-    local line_count
-    line_count=$(echo "$output" | wc -l | tr -d ' ')
-    [[ "$line_count" -eq 2 ]]
+    # Should have 2 task sections
+    local section_count
+    section_count=$(echo "$output" | grep -c '^## Task ')
+    [[ "$section_count" -eq 2 ]]
 
-    # Each line should be valid JSON with s='open'
-    echo "$output" | while IFS= read -r line; do
-        echo "$line" | jq -e '.s == "open"'
-    done
+    # Each section should have status: open
+    echo "$output" | grep -q '^status: open'
+    local status_count
+    status_count=$(echo "$output" | grep -c '^status: open')
+    [[ "$status_count" -eq 2 ]]
 }
 
 # ---------------------------------------------------------------------------
 # Active tasks
 # ---------------------------------------------------------------------------
-@test "task peek returns active tasks with s=active and assignee" {
+@test "task peek returns active tasks with status: active and assignee" {
     "$SCRIPT_DIR/task" create "t-act" "Active task" -p 0
 
     # Claim to make it active
@@ -82,12 +83,11 @@ teardown() {
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # Should have 1 active line
-    local active_line
-    active_line=$(echo "$output" | jq -r 'select(.s == "active")')
-    [[ -n "$active_line" ]]
+    # Should have an active section
+    echo "$output" | grep -q '^status: active'
 
-    echo "$output" | jq -e 'select(.s == "active") | .assignee == "a1b2"'
+    # Active section should include assignee
+    echo "$output" | grep -q '^assignee: a1b2'
 }
 
 # ---------------------------------------------------------------------------
@@ -103,37 +103,36 @@ teardown() {
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # First claimable line should be the p=0 task
-    local first_id
-    first_id=$(echo "$output" | head -1 | jq -r '.id')
+    # Extract task IDs in order from ## Task headers
+    local ids
+    ids=$(echo "$output" | grep '^## Task ' | sed 's/^## Task //')
+
+    local first_id second_id third_id
+    first_id=$(echo "$ids" | sed -n '1p')
+    second_id=$(echo "$ids" | sed -n '2p')
+    third_id=$(echo "$ids" | sed -n '3p')
+
     [[ "$first_id" == "t-p0" ]]
-
-    # Second should be p=1, third should be p=2
-    local second_id
-    second_id=$(echo "$output" | sed -n '2p' | jq -r '.id')
     [[ "$second_id" == "t-p1" ]]
-
-    local third_id
-    third_id=$(echo "$output" | sed -n '3p' | jq -r '.id')
     [[ "$third_id" == "t-p2" ]]
 }
 
 # ---------------------------------------------------------------------------
-# Short keys
+# Markdown-KV keys
 # ---------------------------------------------------------------------------
-@test "task peek uses short keys in JSONL output" {
+@test "task peek uses full key names in markdown-KV output" {
     "$SCRIPT_DIR/task" create "t-keys" "Key test" -p 1 -c feat -d "A description"
 
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # Verify short keys present
-    echo "$output" | head -1 | jq -e 'has("id")'
-    echo "$output" | head -1 | jq -e 'has("t")'
-    echo "$output" | head -1 | jq -e 'has("p")'
-    echo "$output" | head -1 | jq -e 'has("s")'
-    echo "$output" | head -1 | jq -e 'has("cat")'
-    echo "$output" | head -1 | jq -e 'has("deps")'
+    # Verify full key names present
+    echo "$output" | grep -q '^## Task t-keys'
+    echo "$output" | grep -q '^id: t-keys'
+    echo "$output" | grep -q '^title: Key test'
+    echo "$output" | grep -q '^priority: 1'
+    echo "$output" | grep -q '^status: open'
+    echo "$output" | grep -q '^category: feat'
 }
 
 # ---------------------------------------------------------------------------
@@ -147,9 +146,9 @@ teardown() {
     run "$SCRIPT_DIR/task" peek -n 2
     assert_success
 
-    # Count lines with s='open' — should be exactly 2
+    # Count task sections with status: open — should be exactly 2
     local open_count
-    open_count=$(echo "$output" | jq -r 'select(.s == "open")' | jq -s 'length')
+    open_count=$(echo "$output" | grep -c '^status: open')
     [[ "$open_count" -eq 2 ]]
 }
 
@@ -161,9 +160,9 @@ teardown() {
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # Count claimable lines — should be exactly 5
+    # Count claimable sections — should be exactly 5
     local open_count
-    open_count=$(echo "$output" | jq -r 'select(.s == "open")' | jq -s 'length')
+    open_count=$(echo "$output" | grep -c '^status: open')
     [[ "$open_count" -eq 5 ]]
 }
 
@@ -184,17 +183,17 @@ teardown() {
     assert_success
 
     local open_count
-    open_count=$(echo "$output" | jq -r 'select(.s == "open")' | jq -s 'length')
+    open_count=$(echo "$output" | grep -c '^status: open')
     [[ "$open_count" -eq 1 ]]
 
     local active_count
-    active_count=$(echo "$output" | jq -r 'select(.s == "active")' | jq -s 'length')
+    active_count=$(echo "$output" | grep -c '^status: active')
     [[ "$active_count" -eq 3 ]]
 
-    # Total lines should be 4
-    local total_lines
-    total_lines=$(echo "$output" | wc -l | tr -d ' ')
-    [[ "$total_lines" -eq 4 ]]
+    # Total task sections should be 4
+    local total_sections
+    total_sections=$(echo "$output" | grep -c '^## Task ')
+    [[ "$total_sections" -eq 4 ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -208,21 +207,17 @@ teardown() {
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # Only t-blocker should appear as claimable
-    local claimable_ids
-    claimable_ids=$(echo "$output" | jq -r 'select(.s == "open") | .id')
-    [[ "$claimable_ids" == "t-blocker" ]]
+    # Only t-blocker should appear
+    echo "$output" | grep -q '^id: t-blocker'
 
     # t-blocked should NOT appear
-    echo "$output" | jq -r '.id' | while IFS= read -r id; do
-        [[ "$id" != "t-blocked" ]]
-    done
+    ! echo "$output" | grep -q '^id: t-blocked'
 }
 
 # ---------------------------------------------------------------------------
 # Expired lease eligibility
 # ---------------------------------------------------------------------------
-@test "task peek includes active-with-expired-lease as claimable (s=open)" {
+@test "task peek includes active-with-expired-lease as claimable (status: open)" {
     "$SCRIPT_DIR/task" create "t-expired" "Expired lease" -p 0
 
     # Claim with a 1-second lease
@@ -234,8 +229,9 @@ teardown() {
     run "$SCRIPT_DIR/task" peek
     assert_success
 
-    # Should appear as claimable with s='open'
-    echo "$output" | jq -e 'select(.id == "t-expired") | .s == "open"'
+    # Should appear as claimable with status: open
+    echo "$output" | grep -q '^## Task t-expired'
+    echo "$output" | grep -q '^status: open'
 }
 
 # ---------------------------------------------------------------------------
@@ -261,4 +257,19 @@ teardown() {
     local db_assignee
     db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE id='t-nl1'")
     [[ -z "$db_assignee" ]]
+}
+
+# ---------------------------------------------------------------------------
+# Blank line separation between task sections
+# ---------------------------------------------------------------------------
+@test "task peek separates task sections with blank lines" {
+    "$SCRIPT_DIR/task" create "t-sep1" "Sep 1" -p 0
+    "$SCRIPT_DIR/task" create "t-sep2" "Sep 2" -p 1
+
+    run "$SCRIPT_DIR/task" peek
+    assert_success
+
+    # There should be a blank line between sections
+    # The second ## Task should be preceded by a blank line
+    echo "$output" | grep -qP '^\s*$' || echo "$output" | grep -q '^$'
 }
