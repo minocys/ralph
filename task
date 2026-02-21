@@ -1098,10 +1098,28 @@ cmd_create() {
     esc_spec_ref=$(sql_esc "$spec_ref")
     esc_ref=$(sql_esc "$ref")
 
+    # Build steps ARRAY literal from JSON string array: ["step1","step2"]
+    local steps_val="NULL"
+    if [[ -n "$steps_json" ]]; then
+        local step_count
+        step_count=$(printf '%s' "$steps_json" | jq 'length')
+        if [[ "$step_count" -gt 0 ]]; then
+            steps_val="ARRAY["
+            for ((i=0; i<step_count; i++)); do
+                local step_content esc_step
+                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i]")
+                esc_step=$(sql_esc "$step_content")
+                [[ $i -gt 0 ]] && steps_val+=","
+                steps_val+="'${esc_step}'"
+            done
+            steps_val+="]::TEXT[]"
+        fi
+    fi
+
     # Build INSERT for tasks
     local sql
     sql="BEGIN;
-INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, updated_at)
+INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, steps, updated_at)
 VALUES ('${esc_id}', '${esc_title}'"
     if [[ -n "$description" ]]; then
         sql+=", '${esc_desc}'"
@@ -1124,20 +1142,8 @@ VALUES ('${esc_id}', '${esc_title}'"
     else
         sql+=", NULL"
     fi
+    sql+=", ${steps_val}"
     sql+=", now());"
-
-    # Insert steps from JSON array: [{"content":"step text"}, ...]
-    if [[ -n "$steps_json" ]]; then
-        local step_count
-        step_count=$(printf '%s' "$steps_json" | jq 'length')
-        for ((i=0; i<step_count; i++)); do
-            local step_content esc_step
-            step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-            esc_step=$(sql_esc "$step_content")
-            sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-        done
-    fi
 
     # Insert dependencies
     if [[ -n "$deps" ]]; then
