@@ -29,9 +29,6 @@ STUB
     export TEST_WORK_DIR
     export STUB_DIR
 
-    # Docker checks ENABLED for these tests (override test_helper default)
-    export RALPH_SKIP_DOCKER=0
-
     # Change to the temp working directory
     cd "$TEST_WORK_DIR"
 }
@@ -70,23 +67,6 @@ STUB
     assert_failure
     assert_output --partial "docker compose V2 plugin not found"
     assert_output --partial "https://docs.docker.com/compose/install/"
-}
-
-@test "RALPH_SKIP_DOCKER=1 skips docker checks" {
-    # Remove any docker stub/binary so command -v docker would fail
-    rm -f "$STUB_DIR/docker"
-    local new_path="$STUB_DIR"
-    IFS=: read -ra dirs <<< "$PATH"
-    for d in "${dirs[@]}"; do
-        [ -x "$d/docker" ] && continue
-        new_path="$new_path:$d"
-    done
-    export PATH="$new_path"
-    export RALPH_SKIP_DOCKER=1
-    run "$SCRIPT_DIR/ralph.sh" -n 1
-    # Should NOT fail with docker error — it passes preflight and proceeds
-    refute_output --partial "docker CLI not found"
-    refute_output --partial "docker compose V2 plugin not found"
 }
 
 @test "docker CLI and compose V2 present passes check" {
@@ -397,24 +377,6 @@ STUB
     assert_output --partial "--project-directory"
 }
 
-@test "ensure_postgres returns early when RALPH_SKIP_DOCKER=1" {
-    # No docker stub at all — would fail if docker functions were called
-    rm -f "$STUB_DIR/docker"
-    local new_path="$STUB_DIR"
-    IFS=: read -ra dirs <<< "$PATH"
-    for d in "${dirs[@]}"; do
-        [ -x "$d/docker" ] && continue
-        new_path="$new_path:$d"
-    done
-    export PATH="$new_path"
-    export RALPH_SKIP_DOCKER=1
-
-    _load_docker_functions
-    run ensure_postgres
-    assert_success
-    refute_output --partial "docker"
-}
-
 @test "ensure_postgres calls wait_for_healthy after compose up" {
     # Container not running, but healthy after startup
     _create_full_docker_stub "false"
@@ -436,7 +398,6 @@ STUB
         new_path="$new_path:$d"
     done
     export PATH="$new_path"
-    export RALPH_SKIP_DOCKER=0
 
     _load_docker_functions
     run ensure_postgres

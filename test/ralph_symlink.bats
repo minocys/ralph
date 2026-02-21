@@ -42,6 +42,13 @@ load test_helper
 }
 
 @test "SCRIPT_DIR is exported for child processes" {
+    # Use isolated test schema so task-peek returns data (prevents early loop exit)
+    local test_schema="test_symlink_$(date +%s)_$$"
+    local orig_url="$RALPH_DB_URL"
+    psql "$orig_url" -tAX -c "CREATE SCHEMA $test_schema" >/dev/null 2>&1
+    export RALPH_DB_URL="${orig_url}?options=-csearch_path%3D${test_schema}"
+    "$SCRIPT_DIR/task" create dummy-001 "Dummy task" >/dev/null 2>&1
+
     # Replace the claude stub with one that writes SCRIPT_DIR to a file
     local marker="$TEST_WORK_DIR/script_dir_marker"
     cat > "$STUB_DIR/claude" <<STUB
@@ -56,4 +63,8 @@ STUB
     assert_file_exists "$marker"
     run cat "$marker"
     assert_output "$SCRIPT_DIR"
+
+    # Cleanup test schema
+    psql "$orig_url" -tAX -c "DROP SCHEMA $test_schema CASCADE" >/dev/null 2>&1
+    export RALPH_DB_URL="$orig_url"
 }

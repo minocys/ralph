@@ -23,9 +23,44 @@ setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
 
+    # Copy ralph.sh and lib/ into the test work directory so SCRIPT_DIR
+    # resolves to TEST_WORK_DIR (avoids using the real task script/DB)
+    cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
+    chmod +x "$TEST_WORK_DIR/ralph.sh"
+    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+
     # Minimal specs/ directory with a dummy spec so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
+
+    # Task stub so the build loop doesn't exit early on empty peek
+    cat > "$TEST_WORK_DIR/task" <<'TASKSTUB'
+#!/bin/bash
+case "$1" in
+    agent)
+        case "$2" in
+            register) echo "t001"; exit 0 ;;
+            deregister) exit 0 ;;
+            *) exit 0 ;;
+        esac
+        ;;
+    peek)
+        echo '{"id":"dummy-001","t":"Dummy task","s":"open","p":2}'
+        exit 0
+        ;;
+    plan-status)
+        echo "1 open, 0 active, 0 done, 0 blocked, 0 deleted"
+        exit 0
+        ;;
+    list|fail)
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+TASKSTUB
+    chmod +x "$TEST_WORK_DIR/task"
 
     # Stub directory for claude and other commands
     STUB_DIR="$(mktemp -d)"
@@ -37,19 +72,33 @@ echo "main"
 STUB
     chmod +x "$STUB_DIR/git"
 
+    # Docker/pg_isready stubs so ensure_postgres passes quickly
+    cat > "$STUB_DIR/docker" <<'DOCKERSTUB'
+#!/bin/bash
+case "$1" in
+    compose)
+        if [ "$2" = "version" ]; then echo "Docker Compose version v2.24.0"; fi
+        exit 0 ;;
+    inspect)
+        if [ "$3" = "{{.State.Running}}" ]; then echo "true"
+        elif [ "$3" = "{{.State.Health.Status}}" ]; then echo "healthy"; fi
+        exit 0 ;;
+esac
+exit 0
+DOCKERSTUB
+    chmod +x "$STUB_DIR/docker"
+    cat > "$STUB_DIR/pg_isready" <<'PGSTUB'
+#!/bin/bash
+exit 0
+PGSTUB
+    chmod +x "$STUB_DIR/pg_isready"
+
     # Prepend stub directory so stubs are found instead of real commands
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
     # Ensure no bedrock env var leaks into tests
     unset CLAUDE_CODE_USE_BEDROCK
-
-    # Skip Docker checks in signal tests (no database needed)
-    export RALPH_SKIP_DOCKER=1
-
-    # Unset RALPH_DB_URL so task-peek doesn't cause early loop exit
-    # (signal tests don't need DB connectivity)
-    unset RALPH_DB_URL
 
     # Save dirs for teardown
     export TEST_WORK_DIR
@@ -113,7 +162,7 @@ launch_ralph_in_session() {
         $SIG{INT} = "DEFAULT";
         $SIG{TERM} = "DEFAULT";
         exec @ARGV or die "exec: $!";
-    ' -- "$SCRIPT_DIR/ralph.sh" "${ralph_args[@]}" > "$OUTPUT_FILE" 2>&1 &
+    ' -- "$TEST_WORK_DIR/ralph.sh" "${ralph_args[@]}" > "$OUTPUT_FILE" 2>&1 &
     RALPH_PID=$!
 
     # The perl setsid makes the child its own session leader,

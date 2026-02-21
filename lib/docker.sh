@@ -12,7 +12,6 @@
 # Globals used:
 #   SCRIPT_DIR (must be set before sourcing)
 #   DOCKER_HEALTH_TIMEOUT (optional, default 30s)
-#   RALPH_SKIP_DOCKER (optional, set to "1" to skip all Docker operations)
 #   POSTGRES_PORT (optional, default 5499)
 
 # check_docker_installed: verify docker CLI and compose V2 are available
@@ -75,9 +74,6 @@ load_env() {
 
 # ensure_postgres: orchestrate Docker container startup and health check
 ensure_postgres() {
-    if [ "${RALPH_SKIP_DOCKER:-}" = "1" ]; then
-        return 0
-    fi
     check_docker_installed
     if is_container_running; then
         wait_for_healthy

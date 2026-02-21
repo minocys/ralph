@@ -41,8 +41,26 @@ STUB
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
-    # Skip Docker checks — these tests use an already-running database
-    export RALPH_SKIP_DOCKER=1
+    # Docker/pg_isready stubs — DB is already running, skip real Docker checks
+    cat > "$STUB_DIR/docker" <<'DOCKERSTUB'
+#!/bin/bash
+case "$1" in
+    compose)
+        if [ "$2" = "version" ]; then echo "Docker Compose version v2.24.0"; fi
+        exit 0 ;;
+    inspect)
+        if [ "$3" = "{{.State.Running}}" ]; then echo "true"
+        elif [ "$3" = "{{.State.Health.Status}}" ]; then echo "healthy"; fi
+        exit 0 ;;
+esac
+exit 0
+DOCKERSTUB
+    chmod +x "$STUB_DIR/docker"
+    cat > "$STUB_DIR/pg_isready" <<'PGSTUB'
+#!/bin/bash
+exit 0
+PGSTUB
+    chmod +x "$STUB_DIR/pg_isready"
 
     # Minimal specs so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
