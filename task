@@ -39,6 +39,30 @@ psql_cmd() {
 sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
 # ---------------------------------------------------------------------------
+# Rendering helpers
+# ---------------------------------------------------------------------------
+
+# render_task_md: Render a JSON task object as markdown-KV format.
+# Accepts short keys (t, p, s, cat, spec) or long keys (title, priority, status, category).
+# Omits null/empty fields. Renders deps as comma-separated, steps as bullet list.
+# Usage: render_task_md '{"id":"x","t":"Title","p":0,"s":"open",...}'
+render_task_md() {
+    printf '%s' "$1" | jq -r '
+        "## Task \(.id)",
+        "id: \(.id)",
+        ((.t // .title // null) | if . != null and . != "" then "title: \(.)" else empty end),
+        ((.p // .priority // null) | if . != null then "priority: \(.)" else empty end),
+        ((.s // .status // null) | if . != null and . != "" then "status: \(.)" else empty end),
+        ((.cat // .category // null) | if . != null and . != "" then "category: \(.)" else empty end),
+        (.spec | if . != null and . != "" then "spec: \(.)" else empty end),
+        (.ref | if . != null and . != "" then "ref: \(.)" else empty end),
+        (.assignee | if . != null and . != "" then "assignee: \(.)" else empty end),
+        ((.deps // []) | if length > 0 then "deps: \(join(", "))" else empty end),
+        ((.steps // []) | if length > 0 then "steps:", (.[] | "- \(.)") else empty end)
+    '
+}
+
+# ---------------------------------------------------------------------------
 # Schema management
 # ---------------------------------------------------------------------------
 ensure_schema() {
@@ -1568,6 +1592,7 @@ main() {
         block)        db_check; ensure_schema; cmd_block "$@" ;;
         unblock)      db_check; ensure_schema; cmd_unblock "$@" ;;
         agent)        db_check; ensure_schema; cmd_agent "$@" ;;
+        _render-md)   render_task_md "$1" ;;
         "")
             echo "Error: missing command" >&2
             echo "" >&2
