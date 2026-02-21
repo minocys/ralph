@@ -531,6 +531,7 @@ cmd_peek() {
             's', 'open',
             'cat', t.category,
             'spec', t.spec_ref,
+            'steps', COALESCE(to_json(t.steps), '[]'::json),
             'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json)
         )
         FROM tasks t
@@ -556,6 +557,7 @@ cmd_peek() {
             's', 'active',
             'cat', t.category,
             'spec', t.spec_ref,
+            'steps', COALESCE(to_json(t.steps), '[]'::json),
             'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
             'assignee', t.assignee
         )
@@ -565,12 +567,29 @@ cmd_peek() {
         ORDER BY t.priority ASC, t.created_at ASC;
     ")
 
-    # Output claimable then active as JSONL; if both empty, output nothing
+    # Output claimable then active as markdown-KV; if both empty, output nothing
+    local first=true
     if [[ -n "$claimable" ]]; then
-        printf '%s\n' "$claimable"
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$claimable"
     fi
     if [[ -n "$active" ]]; then
-        printf '%s\n' "$active"
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$active"
     fi
 }
 cmd_claim() {
