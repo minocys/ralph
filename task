@@ -949,8 +949,9 @@ cmd_list() {
     fi
 
     if [[ "$json_output" -eq 1 ]]; then
-        # JSONL output with short keys
-        psql_cmd -c "
+        # Markdown-KV output via render_task_md
+        local jsonl
+        jsonl=$(psql_cmd -c "
             SELECT json_build_object(
                 'id', t.id,
                 't', t.title,
@@ -967,7 +968,23 @@ cmd_list() {
             FROM tasks t
             ${where_clause}
             ORDER BY t.priority ASC, t.created_at ASC;
-        "
+        ")
+
+        if [[ -z "$jsonl" ]]; then
+            return 0
+        fi
+
+        local first=true
+        local line
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$jsonl"
     else
         # Table output: ID, P, S, CAT, TITLE, AGENT
         local result

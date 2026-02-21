@@ -137,30 +137,29 @@ teardown() {
 # ---------------------------------------------------------------------------
 # --json output
 # ---------------------------------------------------------------------------
-@test "task list --json outputs valid JSONL" {
+@test "task list --json outputs markdown-KV format" {
     "$SCRIPT_DIR/task" create "json-01" "JSON task" -p 1 -c "feat" -d "A description" > /dev/null
 
     run "$SCRIPT_DIR/task" list --json
     assert_success
-    # Each non-empty line should be valid JSON
-    local line
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        echo "$line" | jq . > /dev/null 2>&1 || fail "Invalid JSON: $line"
-    done <<< "$output"
+    assert_output --partial "## Task json-01"
+    assert_output --partial "id: json-01"
+    assert_output --partial "title: JSON task"
+    assert_output --partial "priority: 1"
+    assert_output --partial "status: open"
+    assert_output --partial "category: feat"
 }
 
-@test "task list --json includes short keys" {
+@test "task list --json includes full-name keys" {
     "$SCRIPT_DIR/task" create "json-02" "JSON keys test" -p 1 -c "feat" > /dev/null
 
     run "$SCRIPT_DIR/task" list --json
     assert_success
-    # Verify short keys exist
-    echo "$output" | jq -e '.id' > /dev/null
-    echo "$output" | jq -e '.t' > /dev/null
-    echo "$output" | jq -e '.p' > /dev/null
-    echo "$output" | jq -e '.s' > /dev/null
-    echo "$output" | jq -e '.cat' > /dev/null
+    assert_output --partial "id: json-02"
+    assert_output --partial "title: JSON keys test"
+    assert_output --partial "priority: 1"
+    assert_output --partial "status: open"
+    assert_output --partial "category: feat"
 }
 
 @test "task list --json includes steps and deps" {
@@ -170,12 +169,9 @@ teardown() {
 
     run "$SCRIPT_DIR/task" list --json
     assert_success
-    # Find the json-03 line and verify steps/deps
-    local task_line
-    task_line=$(echo "$output" | grep '"json-03"')
-    echo "$task_line" | jq -e '.steps | length == 1' > /dev/null
-    echo "$task_line" | jq -e '.deps | length == 1' > /dev/null
-    echo "$task_line" | jq -e '.deps[0] == "blocker-x"' > /dev/null
+    assert_output --partial "deps: blocker-x"
+    assert_output --partial "steps:"
+    assert_output --partial "- Do thing"
 }
 
 @test "task list --json with --status combines both flags" {
@@ -186,7 +182,26 @@ teardown() {
     run "$SCRIPT_DIR/task" list --status "done" --json
     assert_success
     refute_output --partial "combo-01"
-    assert_output --partial "combo-02"
+    assert_output --partial "## Task combo-02"
+    assert_output --partial "status: done"
+}
+
+@test "task list --json separates multiple tasks with blank lines" {
+    "$SCRIPT_DIR/task" create "sep-01" "First" -p 0 > /dev/null
+    "$SCRIPT_DIR/task" create "sep-02" "Second" -p 1 > /dev/null
+
+    run "$SCRIPT_DIR/task" list --json
+    assert_success
+    assert_output --partial "## Task sep-01"
+    assert_output --partial "## Task sep-02"
+    # Blank line separates the two task sections
+    [[ "$output" == *$'\n\n'"## Task"* ]]
+}
+
+@test "task list --json returns empty output with no tasks" {
+    run "$SCRIPT_DIR/task" list --json
+    assert_success
+    assert_output ""
 }
 
 # ---------------------------------------------------------------------------
