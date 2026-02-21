@@ -213,12 +213,13 @@ teardown() {
 # Steps and dependencies in output
 # ---------------------------------------------------------------------------
 @test "task claim includes steps in output" {
-    "$SCRIPT_DIR/task" create "t-steps" "Steps task" -p 0 -s '[{"content":"step one"},{"content":"step two"}]'
+    "$SCRIPT_DIR/task" create "t-steps" "Steps task" -p 0
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE id = 't-steps'" >/dev/null
 
     run "$SCRIPT_DIR/task" claim
     assert_success
     echo "$output" | jq -e '.steps | length == 2'
-    echo "$output" | jq -e '.steps[0].content == "step one"'
+    echo "$output" | jq -e '.steps[0] == "step one"'
 }
 
 @test "task claim includes blocker_results for resolved deps" {
@@ -362,7 +363,8 @@ teardown() {
 
 @test "task claim <id> returns blocker_results and steps like untargeted claim" {
     "$SCRIPT_DIR/task" create "t-dep-tgt-a" "Dep A" -p 0
-    "$SCRIPT_DIR/task" create "t-dep-tgt-b" "Dep B" -p 0 -s '[{"content":"step one"},{"content":"step two"}]'
+    "$SCRIPT_DIR/task" create "t-dep-tgt-b" "Dep B" -p 0
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE id = 't-dep-tgt-b'" >/dev/null
     "$SCRIPT_DIR/task" block "t-dep-tgt-b" --by "t-dep-tgt-a"
 
     # Claim and complete dep-a with a result
@@ -375,7 +377,7 @@ teardown() {
     echo "$output" | jq -e '.id == "t-dep-tgt-b"'
     echo "$output" | jq -e '.blocker_results["t-dep-tgt-a"].commit == "def456"'
     echo "$output" | jq -e '.steps | length == 2'
-    echo "$output" | jq -e '.steps[0].content == "step one"'
+    echo "$output" | jq -e '.steps[0] == "step one"'
 }
 
 @test "task claim <id> returns exit code 2 for nonexistent task" {

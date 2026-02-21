@@ -129,8 +129,8 @@ teardown() {
 
 @test "plan-export --json includes steps and deps" {
     "$SCRIPT_DIR/task" create "pej-blocker" "Blocker" > /dev/null
-    "$SCRIPT_DIR/task" create "pej-03" "Task with steps and deps" \
-        -s '[{"content":"Do thing"}]' --deps "pej-blocker" > /dev/null
+    "$SCRIPT_DIR/task" create "pej-03" "Task with steps and deps" --deps "pej-blocker" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE id = 'pej-03'" >/dev/null
 
     run "$SCRIPT_DIR/task" plan-export --json
     assert_success

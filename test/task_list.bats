@@ -165,8 +165,8 @@ teardown() {
 
 @test "task list --json includes steps and deps" {
     "$SCRIPT_DIR/task" create "blocker-x" "Blocker" > /dev/null
-    "$SCRIPT_DIR/task" create "json-03" "Task with steps and deps" \
-        -s '[{"content":"Do thing"}]' --deps "blocker-x" > /dev/null
+    "$SCRIPT_DIR/task" create "json-03" "Task with steps and deps" --deps "blocker-x" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE id = 'json-03'" >/dev/null
 
     run "$SCRIPT_DIR/task" list --json
     assert_success
