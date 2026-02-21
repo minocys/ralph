@@ -126,7 +126,7 @@ EOF
 # ---------------------------------------------------------------------------
 cmd_plan_sync() {
     # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
-    # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":[{"content":"..."}]}
+    # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":["step text",...]}
 
 
     # Read all stdin lines into an array
@@ -274,21 +274,25 @@ cmd_plan_sync() {
                 set_parts+=", ref = NULL"
             fi
 
-            sql+="
-UPDATE tasks SET ${set_parts} WHERE id = '${esc_id}';"
-
-            # Replace steps
-            sql+="
-DELETE FROM task_steps WHERE task_id = '${esc_id}';"
+            # Build steps ARRAY literal
+            local steps_val="NULL"
             local step_count
             step_count=$(printf '%s' "$steps_json" | jq 'length')
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-                esc_step=$(sql_esc "$step_content")
-                sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-            done
+            if [[ "$step_count" -gt 0 ]]; then
+                steps_val="ARRAY["
+                for ((i=0; i<step_count; i++)); do
+                    local step_content esc_step
+                    step_content=$(printf '%s' "$steps_json" | jq -r ".[$i]")
+                    esc_step=$(sql_esc "$step_content")
+                    [[ $i -gt 0 ]] && steps_val+=","
+                    steps_val+="'${esc_step}'"
+                done
+                steps_val+="]::TEXT[]"
+            fi
+            set_parts+=", steps = ${steps_val}"
+
+            sql+="
+UPDATE tasks SET ${set_parts} WHERE id = '${esc_id}';"
 
             # Replace deps
             sql+="
@@ -312,20 +316,25 @@ INSERT INTO task_deps (task_id, blocked_by) VALUES ('${esc_id}', '${esc_dep}');"
             [[ -n "$spec_ref" ]] && spec_val="'${esc_spec}'" || spec_val="NULL"
             [[ -n "$ref" ]] && ref_val="'${esc_ref}'" || ref_val="NULL"
 
-            sql+="
-INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, updated_at)
-VALUES ('${esc_id}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, now());"
-
-            # Insert steps
+            # Build steps ARRAY literal
+            local steps_val="NULL"
             local step_count
             step_count=$(printf '%s' "$steps_json" | jq 'length')
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-                esc_step=$(sql_esc "$step_content")
-                sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-            done
+            if [[ "$step_count" -gt 0 ]]; then
+                steps_val="ARRAY["
+                for ((i=0; i<step_count; i++)); do
+                    local step_content esc_step
+                    step_content=$(printf '%s' "$steps_json" | jq -r ".[$i]")
+                    esc_step=$(sql_esc "$step_content")
+                    [[ $i -gt 0 ]] && steps_val+=","
+                    steps_val+="'${esc_step}'"
+                done
+                steps_val+="]::TEXT[]"
+            fi
+
+            sql+="
+INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, steps, updated_at)
+VALUES ('${esc_id}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, ${steps_val}, now());"
 
             # Insert deps
             local dep_count
@@ -416,7 +425,7 @@ cmd_plan_export() {
                 'spec', t.spec_ref,
                 'ref', t.ref,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = t.id), '[]'::json)
+                'steps', COALESCE(to_json(t.steps), '[]'::json)
             )
             FROM tasks t
             ORDER BY t.priority ASC, t.created_at ASC;
@@ -610,7 +619,7 @@ cmd_claim() {
                 'lease_expires_at', c.lease_expires_at,
                 'retry_count', c.retry_count,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
+                'steps', COALESCE(to_json(c.steps), '[]'::json),
                 'blocker_results', COALESCE((
                     SELECT json_object_agg(bt.id, bt.result)
                     FROM task_deps td
@@ -669,7 +678,7 @@ cmd_claim() {
                 'lease_expires_at', c.lease_expires_at,
                 'retry_count', c.retry_count,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
+                'steps', COALESCE(to_json(c.steps), '[]'::json),
                 'blocker_results', COALESCE((
                     SELECT json_object_agg(bt.id, bt.result)
                     FROM task_deps td
@@ -907,7 +916,7 @@ cmd_list() {
                 'ref', t.ref,
                 'assignee', t.assignee,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = t.id), '[]'::json)
+                'steps', COALESCE(to_json(t.steps), '[]'::json)
             )
             FROM tasks t
             ${where_clause}
@@ -987,18 +996,20 @@ cmd_show() {
     [[ -n "$t_updated" ]] && printf 'Updated:     %s\n' "$t_updated"
     [[ -n "$t_deleted" ]] && printf 'Deleted:     %s\n' "$t_deleted"
 
-    # Query steps
+    # Query steps from tasks.steps TEXT[] column
     local steps
     steps=$(psql_cmd -c "
-        SELECT seq, status, content FROM task_steps
-        WHERE task_id = '$(sql_esc "$id")'
-        ORDER BY seq;
+        SELECT unnest(steps) FROM tasks
+        WHERE id = '$(sql_esc "$id")'
+        AND steps IS NOT NULL;
     ")
 
     if [[ -n "$steps" ]]; then
         printf '\nSteps:\n'
-        while IFS='|' read -r s_seq s_status s_content; do
-            printf '  %s. [%s] %s\n' "$s_seq" "$s_status" "$s_content"
+        local seq=0
+        while IFS= read -r s_content; do
+            seq=$((seq + 1))
+            printf '  %s. %s\n' "$seq" "$s_content"
         done <<< "$steps"
     fi
 
