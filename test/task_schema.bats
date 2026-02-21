@@ -49,7 +49,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 # Schema creation
 # ---------------------------------------------------------------------------
-@test "ensure_schema creates all four tables" {
+@test "ensure_schema creates all three tables" {
     # Run any command that triggers ensure_schema — list will call it
     # list triggers ensure_schema on startup
     run "$SCRIPT_DIR/task" list
@@ -63,7 +63,6 @@ teardown() {
     assert_success
     assert_output --partial "agents"
     assert_output --partial "task_deps"
-    assert_output --partial "task_steps"
     assert_output --partial "tasks"
 }
 
@@ -78,10 +77,10 @@ teardown() {
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT count(*) FROM information_schema.tables
         WHERE table_schema = '$TEST_SCHEMA'
-        AND table_name IN ('tasks', 'task_steps', 'task_deps', 'agents');
+        AND table_name IN ('tasks', 'task_deps', 'agents');
     "
     assert_success
-    assert_output "4"
+    assert_output "3"
 }
 
 @test "tasks table has correct columns" {
@@ -106,24 +105,21 @@ teardown() {
     assert_output --partial "lease_expires_at"
     assert_output --partial "retry_count"
     assert_output --partial "fail_reason"
+    assert_output --partial "steps"
     assert_output --partial "created_at"
     assert_output --partial "updated_at"
     assert_output --partial "deleted_at"
 }
 
-@test "task_steps table has correct columns" {
+@test "task_steps table does not exist" {
     run "$SCRIPT_DIR/task" list
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT column_name FROM information_schema.columns
-        WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'task_steps'
-        ORDER BY ordinal_position;
+        SELECT count(*) FROM information_schema.tables
+        WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'task_steps';
     "
     assert_success
-    assert_output --partial "task_id"
-    assert_output --partial "seq"
-    assert_output --partial "content"
-    assert_output --partial "status"
+    assert_output "0"
 }
 
 @test "task_deps table has correct columns" {
@@ -155,20 +151,15 @@ teardown() {
     assert_output --partial "status"
 }
 
-@test "task_steps has foreign key to tasks with cascade delete" {
+@test "tasks.steps column is a TEXT array" {
     run "$SCRIPT_DIR/task" list
 
-    # Insert a task, add a step, delete the task — step should cascade
-    psql "$RALPH_DB_URL" -tAX -c "
-        INSERT INTO tasks (id, title) VALUES ('test-fk-1', 'FK Test');
-        INSERT INTO task_steps (task_id, seq, content) VALUES ('test-fk-1', 1, 'Step 1');
-        DELETE FROM tasks WHERE id = 'test-fk-1';
-    "
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT count(*) FROM task_steps WHERE task_id = 'test-fk-1';
+        SELECT data_type FROM information_schema.columns
+        WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'steps';
     "
     assert_success
-    assert_output "0"
+    assert_output "ARRAY"
 }
 
 @test "task_deps has foreign key to tasks with cascade delete" {
