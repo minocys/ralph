@@ -78,14 +78,14 @@ teardown() {
 # Show task with steps
 # ---------------------------------------------------------------------------
 @test "task show displays steps" {
-    "$SCRIPT_DIR/task" create "show-steps" "Task with steps" \
-        -s '[{"content":"First step"},{"content":"Second step"}]' > /dev/null
+    "$SCRIPT_DIR/task" create "show-steps" "Task with steps" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['First step','Second step']::TEXT[] WHERE id = 'show-steps'" >/dev/null
 
     run "$SCRIPT_DIR/task" show "show-steps"
     assert_success
     assert_output --partial "Steps:"
-    assert_output --partial "1. [pending] First step"
-    assert_output --partial "2. [pending] Second step"
+    assert_output --partial "1. First step"
+    assert_output --partial "2. Second step"
 }
 
 # ---------------------------------------------------------------------------

@@ -140,34 +140,34 @@ teardown() {
 # Steps replacement
 # ---------------------------------------------------------------------------
 @test "task update --steps replaces existing steps" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -s '[{"content":"step one"},{"content":"step two"}]'
+    "$SCRIPT_DIR/task" create "test/01" "A task" -s '["step one","step two"]'
 
     # Verify initial steps
     local count_before
-    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_steps WHERE task_id = 'test/01'")
+    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE id = 'test/01'")
     [ "$count_before" = "2" ]
 
     # Replace steps
-    run "$SCRIPT_DIR/task" update "test/01" --steps '[{"content":"new step A"},{"content":"new step B"},{"content":"new step C"}]'
+    run "$SCRIPT_DIR/task" update "test/01" --steps '["new step A","new step B","new step C"]'
     assert_success
 
     local count_after
-    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_steps WHERE task_id = 'test/01'")
+    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE id = 'test/01'")
     [ "$count_after" = "3" ]
 
     local first_step
-    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT content FROM task_steps WHERE task_id = 'test/01' AND seq = 1")
+    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps[1] FROM tasks WHERE id = 'test/01'")
     [ "$first_step" = "new step A" ]
 }
 
 @test "task update --steps with empty array clears steps" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -s '[{"content":"step one"}]'
+    "$SCRIPT_DIR/task" create "test/01" "A task" -s '["step one"]'
     run "$SCRIPT_DIR/task" update "test/01" --steps '[]'
     assert_success
 
-    local count
-    count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_steps WHERE task_id = 'test/01'")
-    [ "$count" = "0" ]
+    local steps_null
+    steps_null=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps IS NULL FROM tasks WHERE id = 'test/01'")
+    [ "$steps_null" = "t" ]
 }
 
 # ---------------------------------------------------------------------------

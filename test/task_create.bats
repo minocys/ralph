@@ -102,19 +102,18 @@ teardown() {
 # ---------------------------------------------------------------------------
 # Steps
 # ---------------------------------------------------------------------------
-@test "task create with steps inserts into task_steps" {
+@test "task create with steps stores steps in TEXT[] column" {
     run "$SCRIPT_DIR/task" create "step-01" "Task with steps" \
-        -s '[{"content":"First step"},{"content":"Second step"},{"content":"Third step"}]'
+        -s '["First step","Second step","Third step"]'
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT seq, content, status FROM task_steps
-        WHERE task_id = 'step-01' ORDER BY seq;
+        SELECT unnest(steps) FROM tasks WHERE id = 'step-01';
     "
     assert_success
-    assert_output "1|First step|pending
-2|Second step|pending
-3|Third step|pending"
+    assert_output "First step
+Second step
+Third step"
 }
 
 # ---------------------------------------------------------------------------

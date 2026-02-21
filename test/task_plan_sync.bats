@@ -76,7 +76,7 @@ teardown() {
 
     local input
     input='{"id":"ps-dep-01","t":"Blocker task","spec":"my-spec"}
-{"id":"ps-dep-02","t":"Dependent task","p":1,"spec":"my-spec","steps":[{"content":"Step one"},{"content":"Step two"}],"deps":["ps-dep-01"]}'
+{"id":"ps-dep-02","t":"Dependent task","p":1,"spec":"my-spec","steps":["Step one","Step two"],"deps":["ps-dep-01"]}'
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync' -- "$input"
     assert_success
@@ -122,13 +122,14 @@ teardown() {
     # Create tasks with steps
     "$SCRIPT_DIR/task" create ps-rep-01 "Blocker A" -r my-spec >/dev/null
     "$SCRIPT_DIR/task" create ps-rep-02 "Blocker B" -r my-spec >/dev/null
-    "$SCRIPT_DIR/task" create ps-rep-03 "Main task" -r my-spec \
-        -s '[{"content":"Old step"}]' --deps "ps-rep-01" >/dev/null
+    "$SCRIPT_DIR/task" create ps-rep-03 "Main task" -r my-spec --deps "ps-rep-01" >/dev/null
+    # Set initial steps directly via SQL (create command updated separately)
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Old step']::TEXT[] WHERE id = 'ps-rep-03'" >/dev/null
 
     local input
     input='{"id":"ps-rep-01","t":"Blocker A","spec":"my-spec"}
 {"id":"ps-rep-02","t":"Blocker B","spec":"my-spec"}
-{"id":"ps-rep-03","t":"Main task","spec":"my-spec","steps":[{"content":"New step 1"},{"content":"New step 2"}],"deps":["ps-rep-02"]}'
+{"id":"ps-rep-03","t":"Main task","spec":"my-spec","steps":["New step 1","New step 2"],"deps":["ps-rep-02"]}'
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync' -- "$input"
     assert_success
@@ -225,7 +226,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "plan-sync is idempotent — second run produces no changes" {
     local input
-    input='{"id":"ps-idem-01","t":"Idempotent task","p":1,"cat":"feat","spec":"my-spec","steps":[{"content":"Do something"}]}'
+    input='{"id":"ps-idem-01","t":"Idempotent task","p":1,"cat":"feat","spec":"my-spec","steps":["Do something"]}'
 
     # First sync
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/task" plan-sync' -- "$input"

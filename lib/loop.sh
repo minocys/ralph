@@ -51,9 +51,9 @@ run_loop() {
         fi
 
         # Plan-mode pre-fetch: get current task DAG for planner
-        local PLAN_EXPORT_JSONL=""
+        local PLAN_EXPORT_MD=""
         if [ "$MODE" = "plan" ] && [ -x "$TASK_SCRIPT" ]; then
-            PLAN_EXPORT_JSONL=$("$TASK_SCRIPT" plan-export --json 2>/dev/null) || true
+            PLAN_EXPORT_MD=$("$TASK_SCRIPT" plan-export 2>/dev/null) || true
         fi
 
         # In build mode, exit if peek succeeded but returned empty (no tasks)
@@ -67,8 +67,8 @@ run_loop() {
         local CLAUDE_ARGS
         if [ -n "$PEEK_JSONL" ]; then
             CLAUDE_ARGS=(-p "$COMMAND $PEEK_JSONL" --output-format=stream-json --verbose)
-        elif [ "$MODE" = "plan" ] && [ -n "$PLAN_EXPORT_JSONL" ]; then
-            CLAUDE_ARGS=(-p "$COMMAND $PLAN_EXPORT_JSONL" --output-format=stream-json --verbose)
+        elif [ "$MODE" = "plan" ] && [ -n "$PLAN_EXPORT_MD" ]; then
+            CLAUDE_ARGS=(-p "$COMMAND $PLAN_EXPORT_MD" --output-format=stream-json --verbose)
         else
             CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
         fi
@@ -97,7 +97,7 @@ run_loop() {
         # Crash-safety fallback: fail active tasks assigned to this agent
         if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
             local ACTIVE_TASKS
-            ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active --json 2>/dev/null | jq -r "select(.assignee == \"$AGENT_ID\") | .id" 2>/dev/null) || true
+            ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active 2>/dev/null | awk -v agent="$AGENT_ID" '$NF == agent { print $1 }') || true
             local ACTIVE_ID
             while IFS= read -r ACTIVE_ID; do
                 [ -z "$ACTIVE_ID" ] && continue

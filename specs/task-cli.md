@@ -12,7 +12,7 @@ Bash command-line interface for agents and the ralph planner to interact with th
 ### Plan Phase Commands
 
 - `task plan-sync` — read JSONL from stdin, upsert tasks into the database using the diff algorithm (see Task Scheduling spec), print summary of changes (inserted, updated, deleted)
-- `task plan-export [--json]` — dump the full task DAG; default is compact table, `--json` outputs JSONL
+- `task plan-export` — dump the full task DAG as markdown-KV format
 - `task plan-status` — print summary line: `N open, N active, N done, N blocked, N deleted`
 
 ### Build Phase Commands

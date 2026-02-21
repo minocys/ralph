@@ -123,8 +123,9 @@ teardown() {
 
     run "$SCRIPT_DIR/task" list --json
     assert_success
-    # The JSON for test/01 should include blocker/01 in deps
-    echo "$output" | grep 'test/01' | grep -q 'blocker/01'
+    # The markdown-KV output for test/01 should include blocker/01 in deps
+    assert_output --partial "id: test/01"
+    assert_output --partial "deps: blocker/01"
 }
 
 # ---------------------------------------------------------------------------
