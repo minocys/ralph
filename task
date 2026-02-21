@@ -96,8 +96,7 @@ Build Phase Commands:
   peek [-n 5]                Top N claimable + all active tasks (JSONL)
   claim [<id>] [--lease N]   Claim task (targeted by id, or highest-priority)
   renew <id> [--lease N]     Extend lease on an active task
-  step-done <id> <seq>       Mark a step as done
-  done <id> --result '<json>'  Mark task as done, store result
+done <id> --result '<json>'  Mark task as done, store result
   fail <id> --reason "<text>"  Release task back to open
 
 Shared Commands:
@@ -747,52 +746,6 @@ cmd_renew() {
     fi
     echo "Error: agent '$agent_id' is not the assignee of task '$task_id'" >&2
     exit 1
-}
-cmd_step_done() {
-    local task_id="${1:-}"
-    shift 2>/dev/null || true
-    local seq="${1:-}"
-
-    if [[ -z "$task_id" ]]; then
-        echo "Error: missing task ID" >&2
-        echo "Usage: task step-done <id> <seq>" >&2
-        exit 1
-    fi
-
-    if [[ -z "$seq" ]]; then
-        echo "Error: missing step sequence number" >&2
-        echo "Usage: task step-done <id> <seq>" >&2
-        exit 1
-    fi
-
-
-    local esc_id
-    esc_id=$(sql_esc "$task_id")
-
-    # Check task exists
-    local task_exists
-    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE id = '${esc_id}';")
-    if [[ -z "$task_exists" ]]; then
-        echo "Error: task '$task_id' not found" >&2
-        exit 2
-    fi
-
-    # Check step exists
-    local step_exists
-    step_exists=$(psql_cmd -c "SELECT seq FROM task_steps WHERE task_id = '${esc_id}' AND seq = ${seq};")
-    if [[ -z "$step_exists" ]]; then
-        echo "Error: step $seq not found for task '$task_id'" >&2
-        exit 2
-    fi
-
-    # Update the step status to 'done' (idempotent — no error if already done)
-    psql_cmd -c "
-        UPDATE task_steps
-        SET status = 'done'
-        WHERE task_id = '${esc_id}' AND seq = ${seq};
-    " > /dev/null
-
-    echo "step-done $task_id $seq"
 }
 cmd_done() {
     local task_id="${1:-}"
@@ -1582,7 +1535,6 @@ main() {
         peek)         db_check; ensure_schema; cmd_peek "$@" ;;
         claim)        db_check; ensure_schema; cmd_claim "$@" ;;
         renew)        db_check; ensure_schema; cmd_renew "$@" ;;
-        step-done)    db_check; ensure_schema; cmd_step_done "$@" ;;
         done)         db_check; ensure_schema; cmd_done "$@" ;;
         fail)         db_check; ensure_schema; cmd_fail "$@" ;;
         list)         db_check; ensure_schema; cmd_list "$@" ;;
