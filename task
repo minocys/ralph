@@ -57,8 +57,11 @@ render_task_md() {
         (.spec | if . != null and . != "" then "spec: \(.)" else empty end),
         (.ref | if . != null and . != "" then "ref: \(.)" else empty end),
         (.assignee | if . != null and . != "" then "assignee: \(.)" else empty end),
+        (.lease_expires_at | if . != null and . != "" then "lease_expires_at: \(.)" else empty end),
+        (.retry_count | if . != null then "retry_count: \(.)" else empty end),
         ((.deps // []) | if length > 0 then "deps: \(join(", "))" else empty end),
-        ((.steps // []) | if length > 0 then "steps:", (.[] | "- \(.)") else empty end)
+        ((.steps // []) | if length > 0 then "steps:", (.[] | "- \(.)") else empty end),
+        ((.blocker_results // {}) | if length > 0 then "blocker_results:", (to_entries[] | "- \(.key): \(.value | tojson)") else empty end)
     '
 }
 
@@ -738,7 +741,7 @@ cmd_claim() {
         fi
     fi
 
-    echo "$result"
+    render_task_md "$result"
 }
 cmd_renew() {
     local task_id=""
