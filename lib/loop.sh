@@ -97,7 +97,7 @@ run_loop() {
         # Crash-safety fallback: fail active tasks assigned to this agent
         if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
             local ACTIVE_TASKS
-            ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active --json 2>/dev/null | jq -r "select(.assignee == \"$AGENT_ID\") | .id" 2>/dev/null) || true
+            ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active 2>/dev/null | awk -v agent="$AGENT_ID" '$NF == agent { print $1 }') || true
             local ACTIVE_ID
             while IFS= read -r ACTIVE_ID; do
                 [ -z "$ACTIVE_ID" ] && continue

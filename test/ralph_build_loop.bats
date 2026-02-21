@@ -247,7 +247,7 @@ STUB
 @test "build mode fails active task after claude exits" {
     create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
-        '{"id":"t1","t":"Task one","s":"active","assignee":"t001"}'
+        $'ID P S CAT TITLE AGENT\nt1 0 active - Task_one t001'
 
     run "$TEST_WORK_DIR/ralph.sh" -n 1
     assert_success
@@ -274,7 +274,7 @@ STUB
 @test "build mode crash-safety runs before plan-status check" {
     create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
-        '{"id":"t1","t":"Task one","s":"active","assignee":"t001"}'
+        $'ID P S CAT TITLE AGENT\nt1 0 active - Task_one t001'
 
     run "$TEST_WORK_DIR/ralph.sh" -n 1
     assert_success
