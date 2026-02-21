@@ -17,3 +17,6 @@
 | [session-safety-hooks.md](session-safety-hooks.md) | PreCompact and SessionEnd hooks to release active tasks on unexpected exits |
 | [plan-sync-validation.md](plan-sync-validation.md) | Validate JSONL input in plan-sync before processing, fail fast on malformed data |
 | [graceful-interrupt.md](graceful-interrupt.md) | Two-stage Ctrl+C: graceful cleanup then force-kill |
+| [docker-auto-start.md](docker-auto-start.md) | Automatic PostgreSQL Docker container lifecycle management |
+| [shared-env-config.md](shared-env-config.md) | Single .env file as shared source of truth for database configuration |
+| [ralph-modular-refactor.md](ralph-modular-refactor.md) | Split ralph.sh monolith into sourced lib/ modules by concern |

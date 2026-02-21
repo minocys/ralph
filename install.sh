@@ -69,7 +69,7 @@ mkdir -p "$HOME/.claude"
 if [ ! -f "$SETTINGS_FILE" ]; then
     echo '{}' > "$SETTINGS_FILE"
 fi
-jq --arg repo "$REPO_DIR" '.hooks = {"PreCompact":[{"matcher":"*","hooks":[{"type":"command","command":("bash " + $repo + "/hooks/precompact.sh")}]}],"SessionEnd":[{"matcher":"*","hooks":[{"type":"command","command":("bash " + $repo + "/hooks/session_end.sh")}]}]}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+jq --arg repo "$REPO_DIR" '.hooks = ((.hooks // {}) * {"PreCompact":[{"matcher":"*","hooks":[{"type":"command","command":("bash " + $repo + "/hooks/precompact.sh")}]}],"SessionEnd":[{"matcher":"*","hooks":[{"type":"command","command":("bash " + $repo + "/hooks/session_end.sh")}]}]})' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
 echo "  Configured hooks in $SETTINGS_FILE"
 
 echo ""

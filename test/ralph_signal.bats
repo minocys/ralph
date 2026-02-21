@@ -23,9 +23,44 @@ setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
 
+    # Copy ralph.sh and lib/ into the test work directory so SCRIPT_DIR
+    # resolves to TEST_WORK_DIR (avoids using the real task script/DB)
+    cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
+    chmod +x "$TEST_WORK_DIR/ralph.sh"
+    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+
     # Minimal specs/ directory with a dummy spec so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
+
+    # Task stub so the build loop doesn't exit early on empty peek
+    cat > "$TEST_WORK_DIR/task" <<'TASKSTUB'
+#!/bin/bash
+case "$1" in
+    agent)
+        case "$2" in
+            register) echo "t001"; exit 0 ;;
+            deregister) exit 0 ;;
+            *) exit 0 ;;
+        esac
+        ;;
+    peek)
+        echo '{"id":"dummy-001","t":"Dummy task","s":"open","p":2}'
+        exit 0
+        ;;
+    plan-status)
+        echo "1 open, 0 active, 0 done, 0 blocked, 0 deleted"
+        exit 0
+        ;;
+    list|fail)
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+TASKSTUB
+    chmod +x "$TEST_WORK_DIR/task"
 
     # Stub directory for claude and other commands
     STUB_DIR="$(mktemp -d)"
@@ -37,16 +72,33 @@ echo "main"
 STUB
     chmod +x "$STUB_DIR/git"
 
+    # Docker/pg_isready stubs so ensure_postgres passes quickly
+    cat > "$STUB_DIR/docker" <<'DOCKERSTUB'
+#!/bin/bash
+case "$1" in
+    compose)
+        if [ "$2" = "version" ]; then echo "Docker Compose version v2.24.0"; fi
+        exit 0 ;;
+    inspect)
+        if [ "$3" = "{{.State.Running}}" ]; then echo "true"
+        elif [ "$3" = "{{.State.Health.Status}}" ]; then echo "healthy"; fi
+        exit 0 ;;
+esac
+exit 0
+DOCKERSTUB
+    chmod +x "$STUB_DIR/docker"
+    cat > "$STUB_DIR/pg_isready" <<'PGSTUB'
+#!/bin/bash
+exit 0
+PGSTUB
+    chmod +x "$STUB_DIR/pg_isready"
+
     # Prepend stub directory so stubs are found instead of real commands
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
     # Ensure no bedrock env var leaks into tests
     unset CLAUDE_CODE_USE_BEDROCK
-
-    # Unset RALPH_DB_URL so task-peek doesn't cause early loop exit
-    # (signal tests don't need DB connectivity)
-    unset RALPH_DB_URL
 
     # Save dirs for teardown
     export TEST_WORK_DIR
@@ -110,7 +162,7 @@ launch_ralph_in_session() {
         $SIG{INT} = "DEFAULT";
         $SIG{TERM} = "DEFAULT";
         exec @ARGV or die "exec: $!";
-    ' -- "$SCRIPT_DIR/ralph.sh" "${ralph_args[@]}" > "$OUTPUT_FILE" 2>&1 &
+    ' -- "$TEST_WORK_DIR/ralph.sh" "${ralph_args[@]}" > "$OUTPUT_FILE" 2>&1 &
     RALPH_PID=$!
 
     # The perl setsid makes the child its own session leader,
@@ -126,6 +178,20 @@ send_sigint() {
 # send_sigterm: send SIGTERM to the entire process group
 send_sigterm() {
     kill -TERM -- "-$RALPH_PGID" 2>/dev/null || true
+}
+
+# wait_for_pipeline: poll OUTPUT_FILE until the claude stub's output appears,
+# proving the background pipeline (claude | tee | jq) is running and signal
+# handlers are installed. Replaces the fixed `sleep 2` that caused
+# intermittent failures on loaded macOS systems.
+wait_for_pipeline() {
+    local timeout="${1:-10}"
+    local i=0
+    while ! grep -q "working" "$OUTPUT_FILE" 2>/dev/null && [ "$i" -lt "$((timeout * 10))" ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+    grep -q "working" "$OUTPUT_FILE" 2>/dev/null
 }
 
 # wait_for_ralph: wait for ralph to exit, returns its exit code
@@ -157,8 +223,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Send SIGINT (simulating Ctrl+C) to the process group
     send_sigint
@@ -192,8 +258,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Send a single SIGINT (simulating Ctrl+C) to the process group
     send_sigint
@@ -226,8 +292,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # First SIGINT: ralph should print waiting message but NOT exit
     # (because the claude stub ignores INT and stays alive)
@@ -276,8 +342,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and create the temp file
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Verify at least one temp file was recorded by the mktemp stub
     [ -s "$TMPFILE_TRACKER" ]
@@ -317,8 +383,8 @@ STUB
     # Launch ralph.sh in its own session
     launch_ralph_in_session -n 1
 
-    # Wait for ralph to start and reach the pipeline
-    sleep 2
+    # Wait for ralph's pipeline to start (claude stub produces "working")
+    wait_for_pipeline
 
     # Send SIGTERM (no grace period expected)
     send_sigterm
