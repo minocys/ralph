@@ -46,7 +46,10 @@ STUB
         new_path="$new_path:$d"
     done
     export PATH="$new_path"
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    # Test check_docker_installed directly (running ralph.sh would fail on
+    # Linux where /usr/bin contains both docker and essential tools like dirname)
+    _load_docker_functions
+    run check_docker_installed
     assert_failure
     assert_output --partial "docker CLI not found"
     assert_output --partial "https://docs.docker.com/get-docker/"

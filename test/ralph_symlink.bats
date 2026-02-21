@@ -42,12 +42,23 @@ load test_helper
 }
 
 @test "SCRIPT_DIR is exported for child processes" {
-    # Use isolated test schema so task-peek returns data (prevents early loop exit)
-    local test_schema="test_symlink_$(date +%s)_$$"
-    local orig_url="$RALPH_DB_URL"
-    psql "$orig_url" -tAX -c "CREATE SCHEMA $test_schema" >/dev/null 2>&1
-    export RALPH_DB_URL="${orig_url}?options=-csearch_path%3D${test_schema}"
-    "$SCRIPT_DIR/task" create dummy-001 "Dummy task" >/dev/null 2>&1
+    # Copy ralph.sh + lib/ into TEST_WORK_DIR with a task stub so the build
+    # loop doesn't exit early on empty peek (avoids needing a real DB here)
+    # Resolve to physical path (ralph.sh uses cd -P which resolves symlinks)
+    TEST_WORK_DIR="$(cd -P "$TEST_WORK_DIR" && pwd)"
+    cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
+    chmod +x "$TEST_WORK_DIR/ralph.sh"
+    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+
+    cat > "$TEST_WORK_DIR/task" <<'TASKSTUB'
+#!/bin/bash
+case "$1" in
+    agent) case "$2" in register) echo "t001" ;; esac; exit 0 ;;
+    peek) echo '{"id":"d","t":"Dummy","s":"open","p":2}'; exit 0 ;;
+    *) exit 0 ;;
+esac
+TASKSTUB
+    chmod +x "$TEST_WORK_DIR/task"
 
     # Replace the claude stub with one that writes SCRIPT_DIR to a file
     local marker="$TEST_WORK_DIR/script_dir_marker"
@@ -58,13 +69,9 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
     assert_success
     assert_file_exists "$marker"
     run cat "$marker"
-    assert_output "$SCRIPT_DIR"
-
-    # Cleanup test schema
-    psql "$orig_url" -tAX -c "DROP SCHEMA $test_schema CASCADE" >/dev/null 2>&1
-    export RALPH_DB_URL="$orig_url"
+    assert_output "$TEST_WORK_DIR"
 }
