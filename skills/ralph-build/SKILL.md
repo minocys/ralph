@@ -12,10 +12,9 @@ argument-hint: [highest priority tasks]
 3. Search the codebase before implementing — confirm before assuming missing.
 4. Implement the change.
 5. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
-6. Mark completed steps with `task step-done <id> <seq>` as implementation progresses.
-7. `git add -A` then `git commit` with a message describing the changes.
-8. Run `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 8.)
-9. **IMPORTANT**: DO NOT START A NEW TASK.
+6. `git add -A` then `git commit` with a message describing the changes.
+7. Run `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 7.)
+8. **IMPORTANT**: DO NOT START A NEW TASK.
 
 ## Rules
 
