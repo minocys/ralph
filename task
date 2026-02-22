@@ -127,7 +127,7 @@ done <id> --result '<json>'  Mark task as done, store result
   fail <id> --reason "<text>"  Release task back to open
 
 Shared Commands:
-  list [--status S] [--json]   List tasks (default: non-deleted)
+  list [--status S] [--markdown] List tasks (default: non-deleted)
   show <id> [--with-deps]      Full detail for one task
   create <id> <title> [opts]   Create a task
   update <id> [opts]           Update fields on a non-done task
@@ -937,12 +937,12 @@ cmd_fail() {
 }
 cmd_list() {
     local status_filter=""
-    local json_output=0
+    local markdown_output=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --status) status_filter="$2"; shift 2 ;;
-            --json)   json_output=1; shift ;;
+            --status)   status_filter="$2"; shift 2 ;;
+            --markdown) markdown_output=1; shift ;;
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
@@ -965,7 +965,7 @@ cmd_list() {
         where_clause="WHERE status != 'deleted'"
     fi
 
-    if [[ "$json_output" -eq 1 ]]; then
+    if [[ "$markdown_output" -eq 1 ]]; then
         # Markdown-KV output via render_task_md
         local jsonl
         jsonl=$(psql_cmd -c "

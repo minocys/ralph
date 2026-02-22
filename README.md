@@ -171,7 +171,7 @@ task create <id> <title> -p <priority> -c <category> -d <description>
 # List tasks (excludes deleted by default)
 task list
 task list --status open,active
-task list --json
+task list --markdown
 
 # Show full task detail
 task show <id>

@@ -116,12 +116,12 @@ teardown() {
     assert_output --partial "blocker/01"
 }
 
-@test "task block dependency appears in list --json" {
+@test "task block dependency appears in list --markdown" {
     "$SCRIPT_DIR/task" create "test/01" "Task"
     "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
     "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
 
-    run "$SCRIPT_DIR/task" list --json
+    run "$SCRIPT_DIR/task" list --markdown
     assert_success
     # The markdown-KV output for test/01 should include blocker/01 in deps
     assert_output --partial "id: test/01"

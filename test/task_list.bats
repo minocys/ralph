@@ -135,12 +135,12 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# --json output
+# --markdown output
 # ---------------------------------------------------------------------------
-@test "task list --json outputs markdown-KV format" {
+@test "task list --markdown outputs markdown-KV format" {
     "$SCRIPT_DIR/task" create "json-01" "JSON task" -p 1 -c "feat" -d "A description" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --json
+    run "$SCRIPT_DIR/task" list --markdown
     assert_success
     assert_output --partial "## Task json-01"
     assert_output --partial "id: json-01"
@@ -150,10 +150,10 @@ teardown() {
     assert_output --partial "category: feat"
 }
 
-@test "task list --json includes full-name keys" {
+@test "task list --markdown includes full-name keys" {
     "$SCRIPT_DIR/task" create "json-02" "JSON keys test" -p 1 -c "feat" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --json
+    run "$SCRIPT_DIR/task" list --markdown
     assert_success
     assert_output --partial "id: json-02"
     assert_output --partial "title: JSON keys test"
@@ -162,35 +162,35 @@ teardown() {
     assert_output --partial "category: feat"
 }
 
-@test "task list --json includes steps and deps" {
+@test "task list --markdown includes steps and deps" {
     "$SCRIPT_DIR/task" create "blocker-x" "Blocker" > /dev/null
     "$SCRIPT_DIR/task" create "json-03" "Task with steps and deps" --deps "blocker-x" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE id = 'json-03'" >/dev/null
 
-    run "$SCRIPT_DIR/task" list --json
+    run "$SCRIPT_DIR/task" list --markdown
     assert_success
     assert_output --partial "deps: blocker-x"
     assert_output --partial "steps:"
     assert_output --partial "- Do thing"
 }
 
-@test "task list --json with --status combines both flags" {
+@test "task list --markdown with --status combines both flags" {
     "$SCRIPT_DIR/task" create "combo-01" "Open" > /dev/null
     "$SCRIPT_DIR/task" create "combo-02" "Done" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE id = 'combo-02'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --status "done" --json
+    run "$SCRIPT_DIR/task" list --status "done" --markdown
     assert_success
     refute_output --partial "combo-01"
     assert_output --partial "## Task combo-02"
     assert_output --partial "status: done"
 }
 
-@test "task list --json separates multiple tasks with blank lines" {
+@test "task list --markdown separates multiple tasks with blank lines" {
     "$SCRIPT_DIR/task" create "sep-01" "First" -p 0 > /dev/null
     "$SCRIPT_DIR/task" create "sep-02" "Second" -p 1 > /dev/null
 
-    run "$SCRIPT_DIR/task" list --json
+    run "$SCRIPT_DIR/task" list --markdown
     assert_success
     assert_output --partial "## Task sep-01"
     assert_output --partial "## Task sep-02"
@@ -198,8 +198,8 @@ teardown() {
     [[ "$output" == *$'\n\n'"## Task"* ]]
 }
 
-@test "task list --json returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" list --json
+@test "task list --markdown returns empty output with no tasks" {
+    run "$SCRIPT_DIR/task" list --markdown
     assert_success
     assert_output ""
 }

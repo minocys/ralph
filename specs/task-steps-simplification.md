@@ -49,7 +49,7 @@ Replace the `task_steps` table with a `TEXT[]` column on the `tasks` table and r
 
 ### Update list
 
-- `task list --json` must read steps from the `steps` column instead of joining `task_steps`
+- `task list --markdown` must read steps from the `steps` column instead of joining `task_steps`
 
 ### Update peek
 

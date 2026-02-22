@@ -7,7 +7,7 @@ Claude Code hooks that ensure active tasks are properly released when agent sess
 ### PreCompact Hook
 
 - When the PreCompact event fires, the hook must:
-  1. Determine the currently active task for this agent by querying `task list --status active --json` and filtering by `$RALPH_AGENT_ID`
+  1. Determine the currently active task for this agent by querying `task list --status active` and filtering by `$RALPH_AGENT_ID`
   2. Log a warning to stderr identifying the agent and task
   3. Run `task fail <id> --reason "context limit reached"` to release the task for retry
   4. Output `{ "continue": false, "stopReason": "Context Limit Reached" }` to stdout
@@ -17,7 +17,7 @@ Claude Code hooks that ensure active tasks are properly released when agent sess
 ### SessionEnd Hook
 
 - When the SessionEnd event fires, the hook must:
-  1. Determine the currently active task for this agent by querying `task list --status active --json` and filtering by `$RALPH_AGENT_ID`
+  1. Determine the currently active task for this agent by querying `task list --status active` and filtering by `$RALPH_AGENT_ID`
   2. If an active task exists, log a warning to stderr identifying the agent and task
   3. Run `task fail <id> --reason "session ended unexpectedly"` to release the task for retry
   4. Exit with code 0
