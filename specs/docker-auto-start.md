@@ -17,7 +17,7 @@ Ralph plan and build both require a running PostgreSQL server, but currently use
 - The `docker-compose.yml` mounts `./db/init/` to `/docker-entrypoint-initdb.d/:ro` for schema initialization on first boot.
 - The database schema SQL file lives at `db/init/001-schema.sql`, extracted from the `task` script's `ensure_schema()` function. It uses `CREATE TABLE IF NOT EXISTS` for idempotency.
 - The `task` script retains its own `ensure_schema()` call for backwards compatibility with databases not initialized via Docker entrypoint.
-- A `RALPH_SKIP_DOCKER=1` environment variable skips all Docker checks (for unit tests that don't need a running database).
+- BATS tests bypass Docker checks by prepending a `STUB_DIR` to `PATH` containing fake `docker` and `pg_isready` scripts (same PATH-stub pattern used for other external commands). This exercises the real code paths in `ensure_postgres()` without requiring a running Docker daemon.
 
 ## Constraints
 
