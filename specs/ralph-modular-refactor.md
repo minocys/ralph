@@ -18,7 +18,7 @@
 - All `lib/` files share the same global namespace (sourced, not subshelled). Global variables use `UPPER_CASE`; function-local variables use the `local` keyword.
 - The `--help` flag continues to work by reading from `$0` (which is `ralph.sh`, the orchestrator that retains the comment header).
 - The orchestrator executes phases in order: (1) parse args, (2) detect backend / resolve model, (3) preflight checks (specs, plan file), (4) ensure postgres, (5) session setup (iteration counter, branch, tmpfile, agent registration), (6) setup traps, (7) print banner, (8) run loop.
-- Existing BATS tests pass without modification beyond adding `export RALPH_SKIP_DOCKER=1` to test setup functions.
+- Existing BATS tests pass without modification; the shared `test_helper.bash` setup already prepends PATH-stub `docker` and `pg_isready` scripts so `ensure_postgres()` succeeds without a running Docker daemon.
 - A new `test/ralph_docker.bats` file tests Docker functions using stubbed `docker` commands (same PATH-stub pattern as existing tests).
 
 ## Constraints
