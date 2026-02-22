@@ -793,6 +793,13 @@ cmd_done() {
         esac
     done
 
+    # Validate result JSON contains required 'commit' key
+    if [[ -n "$result_json" ]]; then
+        if ! printf '%s' "$result_json" | jq -e '.commit' >/dev/null 2>&1; then
+            echo "Error: result JSON must include a 'commit' key" >&2
+            exit 1
+        fi
+    fi
 
     local esc_id
     esc_id=$(sql_esc "$task_id")
