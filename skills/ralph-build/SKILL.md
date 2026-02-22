@@ -14,7 +14,7 @@ argument-hint: [highest priority tasks]
 4. Implement the change.
 5. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
 6. `git add -A` then `git commit` with a message describing the changes.
-7. Run `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 7.)
+7. Run `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 6.
 8. **IMPORTANT**: DO NOT START A NEW TASK.
 
 ## Rules
