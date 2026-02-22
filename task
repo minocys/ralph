@@ -1488,8 +1488,6 @@ cmd_unblock() {
 }
 
 cmd_agent_register() {
-    ensure_schema
-
     local agent_id attempt max_attempts=10
     local pid="$$"
     local host="${HOSTNAME:-$(hostname)}"
@@ -1517,8 +1515,6 @@ cmd_agent_register() {
 }
 
 cmd_agent_list() {
-    ensure_schema
-
     local result
     result=$(psql_cmd -c "
         SELECT id, pid, hostname, started_at, status
