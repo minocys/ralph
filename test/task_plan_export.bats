@@ -126,6 +126,24 @@ teardown() {
     assert_output --partial "category: feat"
 }
 
+@test "plan-export --markdown omits null and empty fields" {
+    # Create task with only required fields — no category, spec, ref, assignee, deps, steps
+    "$SCRIPT_DIR/task" create "pe-minimal" "Minimal task" > /dev/null
+
+    run "$SCRIPT_DIR/task" plan-export --markdown
+    assert_success
+    assert_output --partial "## Task pe-minimal"
+    assert_output --partial "id: pe-minimal"
+    assert_output --partial "title: Minimal task"
+    # These null/empty fields must be omitted entirely per spec
+    refute_output --partial "category:"
+    refute_output --partial "spec:"
+    refute_output --partial "ref:"
+    refute_output --partial "assignee:"
+    refute_output --partial "deps:"
+    refute_output --partial "steps:"
+}
+
 @test "plan-export --markdown includes deleted tasks (full DAG)" {
     "$SCRIPT_DIR/task" create "pe-alive" "Alive task" > /dev/null
     "$SCRIPT_DIR/task" create "pe-dead" "Dead task" > /dev/null
