@@ -388,3 +388,62 @@ teardown() {
     run "$SCRIPT_DIR/task" claim nonexistent-id
     assert_failure 2
 }
+
+# ---------------------------------------------------------------------------
+# Concurrent claim atomicity (FOR UPDATE SKIP LOCKED)
+# ---------------------------------------------------------------------------
+@test "concurrent claims: exactly one wins when two agents race for same task" {
+    # Insert a single claimable task
+    "$SCRIPT_DIR/task" create "t-race" "Race condition test" -p 0
+
+    # Launch two concurrent claims in background, capturing exit codes and output
+    local out1="$TEST_WORK_DIR/claim1.out"
+    local out2="$TEST_WORK_DIR/claim2.out"
+    local rc1_file="$TEST_WORK_DIR/claim1.rc"
+    local rc2_file="$TEST_WORK_DIR/claim2.rc"
+
+    (
+        rc=0
+        "$SCRIPT_DIR/task" claim --agent agent-1 > "$out1" 2>&1 || rc=$?
+        echo "$rc" > "$rc1_file"
+    ) &
+    local pid1=$!
+
+    (
+        rc=0
+        "$SCRIPT_DIR/task" claim --agent agent-2 > "$out2" 2>&1 || rc=$?
+        echo "$rc" > "$rc2_file"
+    ) &
+    local pid2=$!
+
+    # Wait for both to finish
+    wait "$pid1" "$pid2" || true
+
+    local rc1 rc2
+    rc1=$(cat "$rc1_file")
+    rc2=$(cat "$rc2_file")
+
+    # Exactly one must succeed (exit 0) and one must fail (exit 2)
+    local wins=0 losses=0
+    [[ "$rc1" == "0" ]] && wins=$((wins + 1))
+    [[ "$rc2" == "0" ]] && wins=$((wins + 1))
+    [[ "$rc1" == "2" ]] && losses=$((losses + 1))
+    [[ "$rc2" == "2" ]] && losses=$((losses + 1))
+
+    [[ "$wins" -eq 1 ]]
+    [[ "$losses" -eq 1 ]]
+
+    # The winner's output should show the task as active
+    if [[ "$rc1" == "0" ]]; then
+        [[ "$(cat "$out1")" == *"id: t-race"* ]]
+        [[ "$(cat "$out1")" == *"status: active"* ]]
+    else
+        [[ "$(cat "$out2")" == *"id: t-race"* ]]
+        [[ "$(cat "$out2")" == *"status: active"* ]]
+    fi
+
+    # Verify the task is claimed exactly once in the database
+    local active_count
+    active_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT COUNT(*) FROM tasks WHERE id = 't-race' AND status = 'active'")
+    [[ "$active_count" -eq 1 ]]
+}
