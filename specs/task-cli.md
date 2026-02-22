@@ -12,21 +12,20 @@ Bash command-line interface for agents and the ralph planner to interact with th
 ### Plan Phase Commands
 
 - `task plan-sync` — read JSONL from stdin, upsert tasks into the database using the diff algorithm (see Task Scheduling spec), print summary of changes (inserted, updated, deleted)
-- `task plan-export [--json]` — dump the full task DAG; default is compact table, `--json` outputs JSONL
+- `task plan-export [--markdown]` — dump the full task DAG as a table (default) or markdown-KV with `--markdown`
 - `task plan-status` — print summary line: `N open, N active, N done, N blocked, N deleted`
 
 ### Build Phase Commands
 
-- `task peek [-n 5]` — return the top N claimable tasks (open + unblocked, or active with expired lease) sorted by priority/created_at, plus all currently active tasks with assignees; output is JSONL matching the standard short-key format; if no claimable or active tasks exist, output is empty and exit code is 0
-- `task claim [<id>] [--lease 600]` — when called without `<id>`, atomically claim the highest-priority unblocked task (existing behavior); when called with `<id>`, claim that specific task after verifying it is eligible (open + unblocked, or active with expired lease); return full context as JSON (task fields + steps + blocker results); default lease is 600 seconds; exit code 2 if no eligible task or if the specified task is not eligible
+- `task peek [-n 5]` — return the top N claimable tasks (open + unblocked, or active with expired lease) sorted by priority/created_at, plus all currently active tasks with assignees; output is markdown-KV; if no claimable or active tasks exist, output is empty and exit code is 0
+- `task claim [<id>] [--lease 600]` — when called without `<id>`, atomically claim the highest-priority unblocked task (existing behavior); when called with `<id>`, claim that specific task after verifying it is eligible (open + unblocked, or active with expired lease); return full context as markdown-KV (task fields + steps + blocker results); default lease is 600 seconds; exit code 2 if no eligible task or if the specified task is not eligible
 - `task renew <id> [--lease 600]` — extend the lease on an active task
-- `task step-done <id> <seq>` — mark a step as done
 - `task done <id> --result '<json>'` — mark task as done, store result JSONB (must include `commit` key)
 - `task fail <id> --reason "<text>"` — release task back to `open`, clear assignee, increment `retry_count`
 
 ### Shared Commands
 
-- `task list [--status open,active] [--json]` — show tasks filtered by status; default is compact table, `--json` outputs JSONL
+- `task list [--status open,active] [--markdown]` — show tasks filtered by status; default is compact table, `--markdown` outputs markdown-KV
 - `task show <id> [--with-deps]` — full detail for one task; `--with-deps` includes blocker task results
 - `task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]` — create a task with a given ID and title, print its ID
 - `task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]` — update fields on a non-done task
@@ -44,11 +43,13 @@ Bash command-line interface for agents and the ralph planner to interact with th
 - `task agent list` — show active agents
 - `task agent deregister <id>` — mark agent as stopped
 
-### JSONL Format
+### Markdown-KV Format
 
-All JSONL output uses short keys for token efficiency:
-- `id`, `t` (title), `d` (description), `p` (priority), `s` (status), `cat` (category), `spec` (spec_ref), `ref`, `deps` (array of blocker IDs), `steps` (array of step objects)
-- `task claim` returns a JSON object with all of the above plus `blocker_results` (map of blocker ID to its result JSONB)
+Commands that pass task state to LLMs use markdown-KV format (defined in `specs/task-output-format.md`):
+- `task peek`, `task claim` always output markdown-KV
+- `task list --markdown` and `task plan-export --markdown` output markdown-KV when the flag is set
+- Keys use full names: `id`, `title`, `priority`, `status`, `category`, `spec`, `ref`, `assignee`, `deps`, `steps`
+- `task claim` additionally includes `lease_expires_at`, `retry_count`, and `blocker_results`
 
 ### Table Format
 

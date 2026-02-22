@@ -121,7 +121,7 @@ teardown() {
     assert_output --partial "$id2"
 }
 
-@test "agent list shows all agents including stopped" {
+@test "agent list excludes stopped agents" {
     # Register and then manually stop one agent
     run "$SCRIPT_DIR/task" agent register
     assert_success
@@ -136,9 +136,11 @@ teardown() {
 
     run "$SCRIPT_DIR/task" agent list
     assert_success
-    assert_output --partial "$id1"
+    # Stopped agent should NOT appear in the list
+    refute_output --partial "$id1"
+    # Active agent should still appear
     assert_output --partial "$id2"
-    assert_output --partial "stopped"
+    refute_output --partial "stopped"
     assert_output --partial "active"
 }
 

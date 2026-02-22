@@ -74,6 +74,9 @@ load_env() {
 
 # ensure_postgres: orchestrate Docker container startup and health check
 ensure_postgres() {
+    if [ "${RALPH_SKIP_DOCKER:-}" = "1" ]; then
+        return 0
+    fi
     check_docker_installed
     if is_container_running; then
         wait_for_healthy

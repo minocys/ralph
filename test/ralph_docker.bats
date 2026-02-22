@@ -391,6 +391,24 @@ STUB
     assert_success
 }
 
+@test "ensure_postgres skips all Docker checks when RALPH_SKIP_DOCKER=1" {
+    # Remove docker stub so any Docker call would fail
+    rm -f "$STUB_DIR/docker"
+    local new_path="$STUB_DIR"
+    IFS=: read -ra dirs <<< "$PATH"
+    for d in "${dirs[@]}"; do
+        [ -x "$d/docker" ] && continue
+        new_path="$new_path:$d"
+    done
+    export PATH="$new_path"
+
+    _load_docker_functions
+    export RALPH_SKIP_DOCKER=1
+    run ensure_postgres
+    assert_success
+    assert_output ""
+}
+
 @test "ensure_postgres calls check_docker_installed before anything else" {
     # Make docker unavailable — ensure_postgres should fail with docker check error
     rm -f "$STUB_DIR/docker"

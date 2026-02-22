@@ -52,17 +52,18 @@ teardown() {
 # ---------------------------------------------------------------------------
 # Basic claim
 # ---------------------------------------------------------------------------
-@test "task claim returns highest priority open task as JSON" {
+@test "task claim returns highest priority open task as markdown-KV" {
     "$SCRIPT_DIR/task" create "t-low" "Low priority" -p 2
     "$SCRIPT_DIR/task" create "t-high" "High priority" -p 0
 
     run "$SCRIPT_DIR/task" claim
     assert_success
 
-    # Should return JSON with the higher priority task
-    echo "$output" | jq -e '.id == "t-high"'
-    echo "$output" | jq -e '.s == "active"'
-    echo "$output" | jq -e '.p == 0'
+    # Should return markdown-KV with the higher priority task
+    assert_output --partial "## Task t-high"
+    assert_output --partial "id: t-high"
+    assert_output --partial "status: active"
+    assert_output --partial "priority: 0"
 }
 
 @test "task claim sets assignee from --agent flag" {
@@ -71,7 +72,7 @@ teardown() {
     run "$SCRIPT_DIR/task" claim --agent "a1b2"
     assert_success
 
-    echo "$output" | jq -e '.assignee == "a1b2"'
+    assert_output --partial "assignee: a1b2"
 }
 
 @test "task claim sets assignee from RALPH_AGENT_ID env var" {
@@ -80,25 +81,24 @@ teardown() {
     RALPH_AGENT_ID="c3d4" run "$SCRIPT_DIR/task" claim
     assert_success
 
-    echo "$output" | jq -e '.assignee == "c3d4"'
+    assert_output --partial "assignee: c3d4"
 }
 
-@test "task claim uses short keys in JSON output" {
-    "$SCRIPT_DIR/task" create "t-keys" "Key test" -p 1 -c feat -d "A description"
+@test "task claim outputs markdown-KV with expected fields" {
+    "$SCRIPT_DIR/task" create "t-keys" "Key test" -p 1 -c feat
 
     run "$SCRIPT_DIR/task" claim
     assert_success
 
-    # Verify all short keys present
-    echo "$output" | jq -e 'has("id")'
-    echo "$output" | jq -e 'has("t")'
-    echo "$output" | jq -e 'has("d")'
-    echo "$output" | jq -e 'has("p")'
-    echo "$output" | jq -e 'has("s")'
-    echo "$output" | jq -e 'has("cat")'
-    echo "$output" | jq -e 'has("deps")'
-    echo "$output" | jq -e 'has("steps")'
-    echo "$output" | jq -e 'has("blocker_results")'
+    # Verify markdown-KV fields present
+    assert_output --partial "## Task t-keys"
+    assert_output --partial "id: t-keys"
+    assert_output --partial "title: Key test"
+    assert_output --partial "priority: 1"
+    assert_output --partial "status: active"
+    assert_output --partial "category: feat"
+    assert_output --partial "lease_expires_at:"
+    assert_output --partial "retry_count: 0"
 }
 
 # ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ teardown() {
 
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-p1-first"'
+    assert_output --partial "id: t-p1-first"
 }
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ teardown() {
     run "$SCRIPT_DIR/task" claim
     assert_success
     # Should claim the blocker (unblocked), not the blocked task
-    echo "$output" | jq -e '.id == "t-blocker"'
+    assert_output --partial "id: t-blocker"
 }
 
 @test "task claim picks unblocked task even if lower priority" {
@@ -136,7 +136,7 @@ teardown() {
     run "$SCRIPT_DIR/task" claim
     assert_success
     # Only the blocker is eligible
-    echo "$output" | jq -e '.id == "t-blocker2"'
+    assert_output --partial "id: t-blocker2"
 }
 
 @test "task claim returns blocked task after blocker is done" {
@@ -147,7 +147,7 @@ teardown() {
     # Claim and complete the blocker
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-b-done"'
+    assert_output --partial "id: t-b-done"
 
     # Mark blocker as done
     "$SCRIPT_DIR/task" update "t-b-done" --status done
@@ -155,7 +155,7 @@ teardown() {
     # Now the waiting task should be eligible
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-b-wait"'
+    assert_output --partial "id: t-b-wait"
 }
 
 @test "task claim unblocks when blocker is deleted" {
@@ -169,7 +169,7 @@ teardown() {
     # The waiting task should now be eligible
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-del-wait"'
+    assert_output --partial "id: t-del-wait"
 }
 
 # ---------------------------------------------------------------------------
@@ -182,12 +182,12 @@ teardown() {
     # Claim first task
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-active"'
+    assert_output --partial "id: t-active"
 
     # Second claim should get the backup task
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-backup"'
+    assert_output --partial "id: t-backup"
 }
 
 @test "task claim re-claims task with expired lease" {
@@ -196,8 +196,8 @@ teardown() {
     # Claim with a very short lease (1 second)
     run "$SCRIPT_DIR/task" claim --lease 1
     assert_success
-    echo "$output" | jq -e '.id == "t-expire"'
-    echo "$output" | jq -e '.retry_count == 0'
+    assert_output --partial "id: t-expire"
+    assert_output --partial "retry_count: 0"
 
     # Wait for lease to expire
     sleep 2
@@ -205,20 +205,22 @@ teardown() {
     # Re-claim should work and increment retry_count
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-expire"'
-    echo "$output" | jq -e '.retry_count == 1'
+    assert_output --partial "id: t-expire"
+    assert_output --partial "retry_count: 1"
 }
 
 # ---------------------------------------------------------------------------
 # Steps and dependencies in output
 # ---------------------------------------------------------------------------
 @test "task claim includes steps in output" {
-    "$SCRIPT_DIR/task" create "t-steps" "Steps task" -p 0 -s '[{"content":"step one"},{"content":"step two"}]'
+    "$SCRIPT_DIR/task" create "t-steps" "Steps task" -p 0
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE id = 't-steps'" >/dev/null
 
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.steps | length == 2'
-    echo "$output" | jq -e '.steps[0].content == "step one"'
+    assert_output --partial "steps:"
+    assert_output --partial "- step one"
+    assert_output --partial "- step two"
 }
 
 @test "task claim includes blocker_results for resolved deps" {
@@ -230,14 +232,15 @@ teardown() {
     run "$SCRIPT_DIR/task" claim
     assert_success
 
-    # Set the blocker to done with a result via direct SQL (since task done isn't implemented yet)
+    # Set the blocker to done with a result via direct SQL
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE id='t-dep-a';" >/dev/null
 
     # Now claim dep-b
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-dep-b"'
-    echo "$output" | jq -e '.blocker_results["t-dep-a"].commit == "abc123"'
+    assert_output --partial "id: t-dep-b"
+    assert_output --partial "blocker_results:"
+    assert_output --partial '- t-dep-a: {"commit":"abc123"}'
 }
 
 # ---------------------------------------------------------------------------
@@ -248,8 +251,8 @@ teardown() {
 
     run "$SCRIPT_DIR/task" claim --lease 300
     assert_success
-    # lease_expires_at should be set (non-null)
-    echo "$output" | jq -e '.lease_expires_at != null'
+    # lease_expires_at should be present in the output
+    assert_output --partial "lease_expires_at:"
 }
 
 # ---------------------------------------------------------------------------
@@ -288,7 +291,7 @@ teardown() {
     # Targeted claim should get t-a even though t-b has higher priority
     run "$SCRIPT_DIR/task" claim t-a
     assert_success
-    echo "$output" | jq -e '.id == "t-a"'
+    assert_output --partial "id: t-a"
 }
 
 @test "task claim <id> sets status to active with assignee and lease" {
@@ -296,9 +299,9 @@ teardown() {
 
     run "$SCRIPT_DIR/task" claim t-1 --agent a1b2
     assert_success
-    echo "$output" | jq -e '.s == "active"'
-    echo "$output" | jq -e '.assignee == "a1b2"'
-    echo "$output" | jq -e '.lease_expires_at != null'
+    assert_output --partial "status: active"
+    assert_output --partial "assignee: a1b2"
+    assert_output --partial "lease_expires_at:"
 }
 
 @test "task claim <id> returns exit code 2 for already-active task with valid lease" {
@@ -307,7 +310,7 @@ teardown() {
     # Claim it first (untargeted)
     run "$SCRIPT_DIR/task" claim
     assert_success
-    echo "$output" | jq -e '.id == "t-active-tgt"'
+    assert_output --partial "id: t-active-tgt"
 
     # Targeted claim of same task by different agent should fail
     run "$SCRIPT_DIR/task" claim t-active-tgt --agent other-agent
@@ -347,7 +350,7 @@ teardown() {
     # Claim with 1-second lease
     run "$SCRIPT_DIR/task" claim t-exp-tgt --lease 1
     assert_success
-    echo "$output" | jq -e '.retry_count == 0'
+    assert_output --partial "retry_count: 0"
 
     # Wait for lease to expire
     sleep 2
@@ -355,14 +358,15 @@ teardown() {
     # Targeted re-claim should succeed and increment retry_count
     run "$SCRIPT_DIR/task" claim t-exp-tgt --agent reclaimer
     assert_success
-    echo "$output" | jq -e '.id == "t-exp-tgt"'
-    echo "$output" | jq -e '.retry_count == 1'
-    echo "$output" | jq -e '.assignee == "reclaimer"'
+    assert_output --partial "id: t-exp-tgt"
+    assert_output --partial "retry_count: 1"
+    assert_output --partial "assignee: reclaimer"
 }
 
 @test "task claim <id> returns blocker_results and steps like untargeted claim" {
     "$SCRIPT_DIR/task" create "t-dep-tgt-a" "Dep A" -p 0
-    "$SCRIPT_DIR/task" create "t-dep-tgt-b" "Dep B" -p 0 -s '[{"content":"step one"},{"content":"step two"}]'
+    "$SCRIPT_DIR/task" create "t-dep-tgt-b" "Dep B" -p 0
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE id = 't-dep-tgt-b'" >/dev/null
     "$SCRIPT_DIR/task" block "t-dep-tgt-b" --by "t-dep-tgt-a"
 
     # Claim and complete dep-a with a result
@@ -372,13 +376,74 @@ teardown() {
     # Targeted claim of dep-b
     run "$SCRIPT_DIR/task" claim t-dep-tgt-b
     assert_success
-    echo "$output" | jq -e '.id == "t-dep-tgt-b"'
-    echo "$output" | jq -e '.blocker_results["t-dep-tgt-a"].commit == "def456"'
-    echo "$output" | jq -e '.steps | length == 2'
-    echo "$output" | jq -e '.steps[0].content == "step one"'
+    assert_output --partial "id: t-dep-tgt-b"
+    assert_output --partial "blocker_results:"
+    assert_output --partial '- t-dep-tgt-a: {"commit":"def456"}'
+    assert_output --partial "steps:"
+    assert_output --partial "- step one"
+    assert_output --partial "- step two"
 }
 
 @test "task claim <id> returns exit code 2 for nonexistent task" {
     run "$SCRIPT_DIR/task" claim nonexistent-id
     assert_failure 2
+}
+
+# ---------------------------------------------------------------------------
+# Concurrent claim atomicity (FOR UPDATE SKIP LOCKED)
+# ---------------------------------------------------------------------------
+@test "concurrent claims: exactly one wins when two agents race for same task" {
+    # Insert a single claimable task
+    "$SCRIPT_DIR/task" create "t-race" "Race condition test" -p 0
+
+    # Launch two concurrent claims in background, capturing exit codes and output
+    local out1="$TEST_WORK_DIR/claim1.out"
+    local out2="$TEST_WORK_DIR/claim2.out"
+    local rc1_file="$TEST_WORK_DIR/claim1.rc"
+    local rc2_file="$TEST_WORK_DIR/claim2.rc"
+
+    (
+        rc=0
+        "$SCRIPT_DIR/task" claim --agent agent-1 > "$out1" 2>&1 || rc=$?
+        echo "$rc" > "$rc1_file"
+    ) &
+    local pid1=$!
+
+    (
+        rc=0
+        "$SCRIPT_DIR/task" claim --agent agent-2 > "$out2" 2>&1 || rc=$?
+        echo "$rc" > "$rc2_file"
+    ) &
+    local pid2=$!
+
+    # Wait for both to finish
+    wait "$pid1" "$pid2" || true
+
+    local rc1 rc2
+    rc1=$(cat "$rc1_file")
+    rc2=$(cat "$rc2_file")
+
+    # Exactly one must succeed (exit 0) and one must fail (exit 2)
+    local wins=0 losses=0
+    [[ "$rc1" == "0" ]] && wins=$((wins + 1))
+    [[ "$rc2" == "0" ]] && wins=$((wins + 1))
+    [[ "$rc1" == "2" ]] && losses=$((losses + 1))
+    [[ "$rc2" == "2" ]] && losses=$((losses + 1))
+
+    [[ "$wins" -eq 1 ]]
+    [[ "$losses" -eq 1 ]]
+
+    # The winner's output should show the task as active
+    if [[ "$rc1" == "0" ]]; then
+        [[ "$(cat "$out1")" == *"id: t-race"* ]]
+        [[ "$(cat "$out1")" == *"status: active"* ]]
+    else
+        [[ "$(cat "$out2")" == *"id: t-race"* ]]
+        [[ "$(cat "$out2")" == *"status: active"* ]]
+    fi
+
+    # Verify the task is claimed exactly once in the database
+    local active_count
+    active_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT COUNT(*) FROM tasks WHERE id = 't-race' AND status = 'active'")
+    [[ "$active_count" -eq 1 ]]
 }

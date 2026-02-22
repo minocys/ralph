@@ -2,7 +2,7 @@
 # test/ralph_plan_mode.bats — plan-mode task export integration tests for ralph.sh
 #
 # These tests verify that plan mode pre-fetches the task DAG via
-# `task plan-export --json` and passes it to Claude as part of the prompt.
+# `task plan-export` and passes it to Claude as part of the prompt.
 
 load test_helper
 
@@ -115,31 +115,38 @@ teardown() {
 # Plan-mode task export tests
 # ---------------------------------------------------------------------------
 
-@test "plan mode calls task plan-export --json before claude invocation" {
-    create_task_stub '{"id":"t-01","t":"Test task","s":"open"}'
+@test "plan mode calls task plan-export before claude invocation" {
+    create_task_stub '## Task t-01
+id: t-01
+title: Test task
+status: open'
 
     run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
     assert_success
 
-    # Verify task stub was called with plan-export --json
+    # Verify task stub was called with plan-export --markdown
     [ -f "$TEST_WORK_DIR/task_calls.log" ]
     run cat "$TEST_WORK_DIR/task_calls.log"
-    assert_output --partial "plan-export --json"
+    assert_output --partial "plan-export --markdown"
 
     # Verify claude was called
     [ -f "$TEST_WORK_DIR/claude_args.txt" ]
 }
 
-@test "plan mode passes JSONL to claude prompt argument" {
-    create_task_stub '{"id":"t-01","t":"Test task","s":"open"}'
+@test "plan mode passes markdown-KV to claude prompt argument" {
+    create_task_stub '## Task t-01
+id: t-01
+title: Test task
+status: open'
 
     run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
     assert_success
 
-    # The -p value should be "/ralph-plan {JSONL}" as a single argument
+    # The -p value should be "/ralph-plan {markdown-KV}" as a single argument
     [ -f "$TEST_WORK_DIR/claude_args.txt" ]
     run cat "$TEST_WORK_DIR/claude_args.txt"
-    assert_output --partial '/ralph-plan {"id":"t-01","t":"Test task","s":"open"}'
+    assert_output --partial '## Task t-01'
+    assert_output --partial 'title: Test task'
 }
 
 @test "plan mode handles empty plan-export output" {
@@ -148,10 +155,10 @@ teardown() {
     run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
     assert_success
 
-    # Claude should still be called with just /ralph-plan (no JSONL appended)
+    # Claude should still be called with just /ralph-plan (no task data appended)
     [ -f "$TEST_WORK_DIR/claude_args.txt" ]
     run cat "$TEST_WORK_DIR/claude_args.txt"
     assert_output --partial '/ralph-plan'
-    # Should NOT contain any JSON data
-    refute_output --partial '{"id":'
+    # Should NOT contain any task data
+    refute_output --partial '## Task'
 }

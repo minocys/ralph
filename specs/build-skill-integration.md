@@ -6,11 +6,12 @@ The ralph-build skill receives a task landscape snapshot via prompt input, selec
 
 ### Task Landscape Reception
 
-- The builder receives a peek snapshot as JSONL appended to its prompt by ralph.sh (see build-loop-control spec)
-- The JSONL contains two categories of tasks, distinguished by the `s` (status) field:
+- The builder receives a peek snapshot in markdown-KV format appended to its prompt by ralph.sh (see build-loop-control spec)
+- Each task is a `## Task {id}` section with `key: value` lines (id, title, priority, status, category, spec, ref, assignee, deps, steps); null fields are omitted
+- The snapshot contains two categories of tasks, distinguished by the `status` field:
   - `open` — claimable tasks sorted by priority, available for this agent to claim
   - `active` — tasks currently being worked on by other agents, with `assignee` indicating which agent
-- The builder must parse this JSONL to understand the current task landscape before selecting a task
+- The builder must read this markdown-KV to understand the current task landscape before selecting a task
 
 ### Task Selection
 
@@ -26,7 +27,7 @@ The ralph-build skill receives a task landscape snapshot via prompt input, selec
 ### Implementation
 
 - The builder must search the codebase before implementing — confirm before assuming missing
-- The builder must mark individual steps complete via `task step-done <id> <seq>` as implementation progresses
+- Steps in the task are informational only — they guide the builder but are not tracked for completion
 - The builder must complete a task via `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from the git commit just made
 - The builder must release a task on failure via `task fail <id> --reason "<text>"` — this sets status back to `open`, clears the assignee, and increments `retry_count`
 - The builder must use `task create` to log discovered bugs or new work items as tasks instead of editing a JSON file

@@ -1,12 +1,12 @@
 ---
 name: ralph-plan
 description: Implementation planner that studies and breaks down specs into tasks for implementation.
-argument-hint: [current-plan-dag]
+argument-hint: [current-task-dag]
 ---
 
 # TASK
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
-0b. Study the current plan DAG (if present) to understand the plan so far: $ARGUMENTS[0]
+0b. Study the current plan DAG (if present) to understand the plan so far. The DAG is provided in markdown-KV format — each task is a `## Task {id}` section with `key: value` lines (id, title, priority, status, category, spec, ref, assignee, deps, steps). Empty fields are omitted. DAG input: $ARGUMENTS[0]
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.

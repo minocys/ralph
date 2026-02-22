@@ -38,6 +38,56 @@ psql_cmd() {
 # sql_esc: double single quotes for SQL string literals
 sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
+# Build a PostgreSQL TEXT[] literal from a JSON array of strings.
+# Usage: build_steps_literal "$json_array"   →   ARRAY['s1','s2']::TEXT[]
+# Returns "NULL" for empty/zero-length arrays.
+build_steps_literal() {
+    local json="$1"
+    local count
+    count=$(printf '%s' "$json" | jq 'length')
+    if [[ "$count" -le 0 ]]; then
+        printf 'NULL'
+        return
+    fi
+    local val="ARRAY["
+    for ((i=0; i<count; i++)); do
+        local content esc
+        content=$(printf '%s' "$json" | jq -r ".[$i]")
+        esc=$(sql_esc "$content")
+        [[ $i -gt 0 ]] && val+=","
+        val+="'${esc}'"
+    done
+    val+="]::TEXT[]"
+    printf '%s' "$val"
+}
+
+# ---------------------------------------------------------------------------
+# Rendering helpers
+# ---------------------------------------------------------------------------
+
+# render_task_md: Render a JSON task object as markdown-KV format.
+# Accepts short keys (t, p, s, cat, spec) or long keys (title, priority, status, category).
+# Omits null/empty fields. Renders deps as comma-separated, steps as bullet list.
+# Usage: render_task_md '{"id":"x","t":"Title","p":0,"s":"open",...}'
+render_task_md() {
+    printf '%s' "$1" | jq -r '
+        "## Task \(.id)",
+        "id: \(.id)",
+        ((.t // .title // null) | if . != null and . != "" then "title: \(.)" else empty end),
+        ((.p // .priority // null) | if . != null then "priority: \(.)" else empty end),
+        ((.s // .status // null) | if . != null and . != "" then "status: \(.)" else empty end),
+        ((.cat // .category // null) | if . != null and . != "" then "category: \(.)" else empty end),
+        (.spec | if . != null and . != "" then "spec: \(.)" else empty end),
+        (.ref | if . != null and . != "" then "ref: \(.)" else empty end),
+        (.assignee | if . != null and . != "" then "assignee: \(.)" else empty end),
+        (.lease_expires_at | if . != null and . != "" then "lease_expires_at: \(.)" else empty end),
+        (.retry_count | if . != null then "retry_count: \(.)" else empty end),
+        ((.deps // []) | if length > 0 then "deps: \(join(", "))" else empty end),
+        ((.steps // []) | if length > 0 then "steps:", (.[] | "- \(.)") else empty end),
+        ((.blocker_results // {}) | if length > 0 then "blocker_results:", (to_entries[] | "- \(.key): \(.value | tojson)") else empty end)
+    '
+}
+
 # ---------------------------------------------------------------------------
 # Schema management
 # ---------------------------------------------------------------------------
@@ -58,17 +108,10 @@ ensure_schema() {
         lease_expires_at TIMESTAMPTZ,
         retry_count     INT DEFAULT 0,
         fail_reason     TEXT,
+        steps           TEXT[],
         created_at      TIMESTAMPTZ DEFAULT now(),
         updated_at      TIMESTAMPTZ,
         deleted_at      TIMESTAMPTZ
-    );
-
-    CREATE TABLE IF NOT EXISTS task_steps (
-        task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
-        seq     INT,
-        content TEXT,
-        status  TEXT DEFAULT 'pending',
-        PRIMARY KEY (task_id, seq)
     );
 
     CREATE TABLE IF NOT EXISTS task_deps (
@@ -96,19 +139,18 @@ Usage: task <command> [options]
 
 Plan Phase Commands:
   plan-sync             Read JSONL from stdin, upsert tasks into the database
-  plan-export [--json]  Dump the full task DAG (table or JSONL)
+  plan-export [--markdown]  Dump the full task DAG (table default, --markdown for KV)
   plan-status           Print summary: N open, N active, N done, N blocked, N deleted
 
 Build Phase Commands:
-  peek [-n 5]                Top N claimable + all active tasks (JSONL)
+  peek [-n 10]               Top N claimable + all active tasks (markdown-KV)
   claim [<id>] [--lease N]   Claim task (targeted by id, or highest-priority)
   renew <id> [--lease N]     Extend lease on an active task
-  step-done <id> <seq>       Mark a step as done
   done <id> --result '<json>'  Mark task as done, store result
   fail <id> --reason "<text>"  Release task back to open
 
 Shared Commands:
-  list [--status S] [--json]   List tasks (default: non-deleted)
+  list [--status S] [--markdown] List tasks (default: non-deleted)
   show <id> [--with-deps]      Full detail for one task
   create <id> <title> [opts]   Create a task
   update <id> [opts]           Update fields on a non-done task
@@ -134,7 +176,7 @@ EOF
 # ---------------------------------------------------------------------------
 cmd_plan_sync() {
     # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
-    # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":[{"content":"..."}]}
+    # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":["step text",...]}
 
 
     # Read all stdin lines into an array
@@ -208,23 +250,23 @@ cmd_plan_sync() {
         fi
     done
 
-    # Batch-fetch existing task statuses — single query replaces N+1 individual lookups
-    local batch_statuses=""
-    if [[ ${#all_ids[@]} -gt 0 ]]; then
-        local in_clause=""
-        for _bid in "${all_ids[@]}"; do
-            [[ -n "$in_clause" ]] && in_clause+=","
-            in_clause+="'$(sql_esc "$_bid")'"
-        done
-        batch_statuses=$(psql_cmd -c "SELECT id, status FROM tasks WHERE id IN (${in_clause});")
-    fi
+    # Build IN clause for batch status pre-fetch
+    local in_clause=""
+    for _bid in "${all_ids[@]}"; do
+        [[ -n "$in_clause" ]] && in_clause+=","
+        in_clause+="'$(sql_esc "$_bid")'"
+    done
 
-    local inserted=0 updated=0 deleted=0 skipped=0
-
-    # Build the entire sync as a single SQL transaction
+    # Build the entire sync as a single SQL transaction — all reads and writes
+    # execute within BEGIN...COMMIT for atomicity (task-scheduling.md requirement)
     local sql="BEGIN;"
 
-    # Process each task from stdin
+    # Batch-fetch existing task statuses INSIDE the transaction (for counting)
+    sql+="
+CREATE TEMP TABLE _sync_pre ON COMMIT DROP AS
+  SELECT id, status FROM tasks WHERE id IN (${in_clause});"
+
+    # Process each task from stdin — upsert via INSERT ... ON CONFLICT
     for line in "${lines[@]}"; do
         local tid title desc priority category spec_ref ref deps_json steps_json
         tid=$(printf '%s' "$line" | jq -r '.id')
@@ -245,113 +287,51 @@ cmd_plan_sync() {
         esc_spec=$(sql_esc "$spec_ref")
         esc_ref=$(sql_esc "$ref")
 
-        # Lookup status from batch-fetched results
-        local existing_status=""
-        if [[ -n "$batch_statuses" ]]; then
-            existing_status=$(printf '%s\n' "$batch_statuses" | awk -F'|' -v id="$tid" '$1 == id { print $2; exit }')
-        fi
+        # Build optional value expressions
+        local desc_val cat_val spec_val ref_val
+        [[ -n "$desc" ]] && desc_val="'${esc_desc}'" || desc_val="NULL"
+        [[ -n "$category" ]] && cat_val="'${esc_category}'" || cat_val="NULL"
+        [[ -n "$spec_ref" ]] && spec_val="'${esc_spec}'" || spec_val="NULL"
+        [[ -n "$ref" ]] && ref_val="'${esc_ref}'" || ref_val="NULL"
 
-        if [[ -n "$existing_status" ]]; then
-            # Task exists in DB
-            if [[ "$existing_status" == "done" ]]; then
-                # Skip done tasks — they are immutable
-                skipped=$((skipped + 1))
-                continue
-            fi
+        # Build steps ARRAY literal
+        local steps_val
+        steps_val=$(build_steps_literal "$steps_json")
 
-            # Update existing non-done task
-            local set_parts="title = '${esc_title}', priority = ${priority}, updated_at = now()"
-            if [[ -n "$desc" ]]; then
-                set_parts+=", description = '${esc_desc}'"
-            else
-                set_parts+=", description = NULL"
-            fi
-            if [[ -n "$category" ]]; then
-                set_parts+=", category = '${esc_category}'"
-            else
-                set_parts+=", category = NULL"
-            fi
-            if [[ -n "$spec_ref" ]]; then
-                set_parts+=", spec_ref = '${esc_spec}'"
-            else
-                set_parts+=", spec_ref = NULL"
-            fi
-            if [[ -n "$ref" ]]; then
-                set_parts+=", ref = '${esc_ref}'"
-            else
-                set_parts+=", ref = NULL"
-            fi
+        # Upsert: INSERT new or UPDATE existing (skip done tasks via WHERE clause)
+        sql+="
+INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, steps, updated_at)
+VALUES ('${esc_id}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, ${steps_val}, now())
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  priority = EXCLUDED.priority,
+  spec_ref = EXCLUDED.spec_ref,
+  ref = EXCLUDED.ref,
+  steps = EXCLUDED.steps,
+  updated_at = now()
+WHERE tasks.status != 'done';"
 
+        # Replace deps (guarded: only for non-done tasks)
+        sql+="
+DELETE FROM task_deps WHERE task_id = '${esc_id}'
+  AND EXISTS (SELECT 1 FROM tasks WHERE id = '${esc_id}' AND status != 'done');"
+        local dep_count
+        dep_count=$(printf '%s' "$deps_json" | jq 'length')
+        for ((i=0; i<dep_count; i++)); do
+            local dep_id esc_dep
+            dep_id=$(printf '%s' "$deps_json" | jq -r ".[$i]")
+            esc_dep=$(sql_esc "$dep_id")
             sql+="
-UPDATE tasks SET ${set_parts} WHERE id = '${esc_id}';"
-
-            # Replace steps
-            sql+="
-DELETE FROM task_steps WHERE task_id = '${esc_id}';"
-            local step_count
-            step_count=$(printf '%s' "$steps_json" | jq 'length')
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-                esc_step=$(sql_esc "$step_content")
-                sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-            done
-
-            # Replace deps
-            sql+="
-DELETE FROM task_deps WHERE task_id = '${esc_id}';"
-            local dep_count
-            dep_count=$(printf '%s' "$deps_json" | jq 'length')
-            for ((i=0; i<dep_count; i++)); do
-                local dep_id esc_dep
-                dep_id=$(printf '%s' "$deps_json" | jq -r ".[$i]")
-                esc_dep=$(sql_esc "$dep_id")
-                sql+="
-INSERT INTO task_deps (task_id, blocked_by) VALUES ('${esc_id}', '${esc_dep}');"
-            done
-
-            updated=$((updated + 1))
-        else
-            # Insert new task
-            local desc_val cat_val spec_val ref_val
-            [[ -n "$desc" ]] && desc_val="'${esc_desc}'" || desc_val="NULL"
-            [[ -n "$category" ]] && cat_val="'${esc_category}'" || cat_val="NULL"
-            [[ -n "$spec_ref" ]] && spec_val="'${esc_spec}'" || spec_val="NULL"
-            [[ -n "$ref" ]] && ref_val="'${esc_ref}'" || ref_val="NULL"
-
-            sql+="
-INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, updated_at)
-VALUES ('${esc_id}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, now());"
-
-            # Insert steps
-            local step_count
-            step_count=$(printf '%s' "$steps_json" | jq 'length')
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-                esc_step=$(sql_esc "$step_content")
-                sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-            done
-
-            # Insert deps
-            local dep_count
-            dep_count=$(printf '%s' "$deps_json" | jq 'length')
-            for ((i=0; i<dep_count; i++)); do
-                local dep_id esc_dep
-                dep_id=$(printf '%s' "$deps_json" | jq -r ".[$i]")
-                esc_dep=$(sql_esc "$dep_id")
-                sql+="
-INSERT INTO task_deps (task_id, blocked_by) VALUES ('${esc_id}', '${esc_dep}');"
-            done
-
-            inserted=$((inserted + 1))
-        fi
+INSERT INTO task_deps (task_id, blocked_by)
+  SELECT '${esc_id}', '${esc_dep}'
+  WHERE EXISTS (SELECT 1 FROM tasks WHERE id = '${esc_id}' AND status != 'done');"
+        done
     done
 
-    # Soft-delete tasks in DB whose spec_ref is in the stdin set but whose ID is NOT in stdin
-    # Only delete non-done tasks
+    # Soft-delete orphaned tasks inside the transaction — tasks in DB whose spec_ref
+    # is in the stdin set but whose ID is NOT in stdin (excludes done tasks)
     for spec in "${all_spec_refs[@]}"; do
         local esc_spec_del
         esc_spec_del=$(sql_esc "$spec")
@@ -365,55 +345,70 @@ INSERT INTO task_deps (task_id, blocked_by) VALUES ('${esc_id}', '${esc_dep}');"
             if [[ "$line_spec" == "$spec" ]]; then
                 local esc_line_id
                 esc_line_id=$(sql_esc "$line_id")
-                if [[ -n "$id_in_list" ]]; then
-                    id_in_list+=","
-                fi
+                [[ -n "$id_in_list" ]] && id_in_list+=","
                 id_in_list+="'${esc_line_id}'"
             fi
         done
 
-        # Find tasks in DB with this spec_ref but not in stdin's ID set (and not done)
-        local orphaned
-        orphaned=$(psql_cmd -c "
-            SELECT id FROM tasks
-            WHERE spec_ref = '${esc_spec_del}'
-              AND id NOT IN (${id_in_list})
-              AND status != 'done';
-        ")
-
-        if [[ -n "$orphaned" ]]; then
-            while IFS= read -r orphan_id; do
-                [[ -z "$orphan_id" ]] && continue
-                local esc_orphan
-                esc_orphan=$(sql_esc "$orphan_id")
-                sql+="
-UPDATE tasks SET status = 'deleted', deleted_at = now(), updated_at = now() WHERE id = '${esc_orphan}';"
-                deleted=$((deleted + 1))
-            done <<< "$orphaned"
-        fi
+        # Inline orphan soft-delete with counted output via CTE RETURNING
+        sql+="
+WITH _orphaned AS (
+  UPDATE tasks SET status = 'deleted', deleted_at = now(), updated_at = now()
+  WHERE spec_ref = '${esc_spec_del}'
+    AND id NOT IN (${id_in_list})
+    AND status != 'done'
+  RETURNING id
+)
+SELECT '_SYNC_DEL_|' || count(*) FROM _orphaned;"
     done
+
+    # Compute insert/update/skip counts from within the transaction
+    sql+="
+SELECT '_SYNC_COUNTS_|' ||
+  (SELECT count(*) FROM _sync_pre WHERE status = 'done') || '|' ||
+  (SELECT count(*) FROM _sync_pre WHERE status != 'done') || '|' ||
+  (${#all_ids[@]} - (SELECT count(*) FROM _sync_pre));"
 
     sql+="
 COMMIT;"
 
-    # Execute the entire transaction
-    printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1 > /dev/null
+    # Execute the entire transaction and capture tagged output
+    local tx_output
+    tx_output=$(printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1)
+
+    # Parse counts from tagged output
+    local inserted=0 updated=0 deleted=0 skipped=0
+    local counts_line
+    counts_line=$(printf '%s\n' "$tx_output" | grep '^_SYNC_COUNTS_|' | head -1)
+    if [[ -n "$counts_line" ]]; then
+        skipped=$(printf '%s' "$counts_line" | cut -d'|' -f2)
+        updated=$(printf '%s' "$counts_line" | cut -d'|' -f3)
+        inserted=$(printf '%s' "$counts_line" | cut -d'|' -f4)
+    fi
+    local del_line
+    while IFS= read -r del_line; do
+        [[ -z "$del_line" ]] && continue
+        local del_count
+        del_count=$(printf '%s' "$del_line" | cut -d'|' -f2)
+        deleted=$((deleted + del_count))
+    done < <(printf '%s\n' "$tx_output" | grep '^_SYNC_DEL_|')
 
     echo "inserted: ${inserted}, updated: ${updated}, deleted: ${deleted}, skipped (done): ${skipped}"
 }
 cmd_plan_export() {
-    local json_output=0
+    local markdown_output=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --json) json_output=1; shift ;;
+            --markdown) markdown_output=1; shift ;;
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
 
-    if [[ "$json_output" -eq 1 ]]; then
-        # JSONL output with short keys — full DAG, all statuses
-        psql_cmd -c "
+    if [[ "$markdown_output" -eq 1 ]]; then
+        # Markdown-KV output via render_task_md — full DAG, all statuses
+        local jsonl
+        jsonl=$(psql_cmd -c "
             SELECT json_build_object(
                 'id', t.id,
                 't', t.title,
@@ -423,12 +418,29 @@ cmd_plan_export() {
                 'cat', t.category,
                 'spec', t.spec_ref,
                 'ref', t.ref,
+                'assignee', t.assignee,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = t.id), '[]'::json)
+                'steps', COALESCE(to_json(t.steps), '[]'::json)
             )
             FROM tasks t
             ORDER BY t.priority ASC, t.created_at ASC;
-        "
+        ")
+
+        if [[ -z "$jsonl" ]]; then
+            return 0
+        fi
+
+        local first=true
+        local line
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$jsonl"
     else
         # Table output: ID, P, S, CAT, TITLE, AGENT — full DAG, all statuses
         local result
@@ -442,7 +454,6 @@ cmd_plan_export() {
             return 0
         fi
 
-        # Print header and rows with column alignment
         printf '%-20s %s %-8s %-5s %-35s %s\n' "ID" "P" "S" "CAT" "TITLE" "AGENT"
         while IFS='|' read -r id priority status category title assignee; do
             printf '%-20s %s %-8s %-5s %-35s %s\n' "$id" "$priority" "$status" "$category" "$title" "$assignee"
@@ -506,6 +517,7 @@ cmd_peek() {
             's', 'open',
             'cat', t.category,
             'spec', t.spec_ref,
+            'steps', COALESCE(to_json(t.steps), '[]'::json),
             'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json)
         )
         FROM tasks t
@@ -531,6 +543,7 @@ cmd_peek() {
             's', 'active',
             'cat', t.category,
             'spec', t.spec_ref,
+            'steps', COALESCE(to_json(t.steps), '[]'::json),
             'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
             'assignee', t.assignee
         )
@@ -540,12 +553,29 @@ cmd_peek() {
         ORDER BY t.priority ASC, t.created_at ASC;
     ")
 
-    # Output claimable then active as JSONL; if both empty, output nothing
+    # Output claimable then active as markdown-KV; if both empty, output nothing
+    local first=true
     if [[ -n "$claimable" ]]; then
-        printf '%s\n' "$claimable"
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$claimable"
     fi
     if [[ -n "$active" ]]; then
-        printf '%s\n' "$active"
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$active"
     fi
 }
 cmd_claim() {
@@ -618,7 +648,7 @@ cmd_claim() {
                 'lease_expires_at', c.lease_expires_at,
                 'retry_count', c.retry_count,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
+                'steps', COALESCE(to_json(c.steps), '[]'::json),
                 'blocker_results', COALESCE((
                     SELECT json_object_agg(bt.id, bt.result)
                     FROM task_deps td
@@ -677,7 +707,7 @@ cmd_claim() {
                 'lease_expires_at', c.lease_expires_at,
                 'retry_count', c.retry_count,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = c.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = c.id), '[]'::json),
+                'steps', COALESCE(to_json(c.steps), '[]'::json),
                 'blocker_results', COALESCE((
                     SELECT json_object_agg(bt.id, bt.result)
                     FROM task_deps td
@@ -694,7 +724,7 @@ cmd_claim() {
         fi
     fi
 
-    echo "$result"
+    render_task_md "$result"
 }
 cmd_renew() {
     local task_id=""
@@ -755,52 +785,6 @@ cmd_renew() {
     echo "Error: agent '$agent_id' is not the assignee of task '$task_id'" >&2
     exit 1
 }
-cmd_step_done() {
-    local task_id="${1:-}"
-    shift 2>/dev/null || true
-    local seq="${1:-}"
-
-    if [[ -z "$task_id" ]]; then
-        echo "Error: missing task ID" >&2
-        echo "Usage: task step-done <id> <seq>" >&2
-        exit 1
-    fi
-
-    if [[ -z "$seq" ]]; then
-        echo "Error: missing step sequence number" >&2
-        echo "Usage: task step-done <id> <seq>" >&2
-        exit 1
-    fi
-
-
-    local esc_id
-    esc_id=$(sql_esc "$task_id")
-
-    # Check task exists
-    local task_exists
-    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE id = '${esc_id}';")
-    if [[ -z "$task_exists" ]]; then
-        echo "Error: task '$task_id' not found" >&2
-        exit 2
-    fi
-
-    # Check step exists
-    local step_exists
-    step_exists=$(psql_cmd -c "SELECT seq FROM task_steps WHERE task_id = '${esc_id}' AND seq = ${seq};")
-    if [[ -z "$step_exists" ]]; then
-        echo "Error: step $seq not found for task '$task_id'" >&2
-        exit 2
-    fi
-
-    # Update the step status to 'done' (idempotent — no error if already done)
-    psql_cmd -c "
-        UPDATE task_steps
-        SET status = 'done'
-        WHERE task_id = '${esc_id}' AND seq = ${seq};
-    " > /dev/null
-
-    echo "step-done $task_id $seq"
-}
 cmd_done() {
     local task_id="${1:-}"
     shift 2>/dev/null || true
@@ -820,6 +804,13 @@ cmd_done() {
         esac
     done
 
+    # Validate result JSON contains required 'commit' key
+    if [[ -n "$result_json" ]]; then
+        if ! printf '%s' "$result_json" | jq -e '.commit' >/dev/null 2>&1; then
+            echo "Error: result JSON must include a 'commit' key" >&2
+            exit 1
+        fi
+    fi
 
     local esc_id
     esc_id=$(sql_esc "$task_id")
@@ -919,12 +910,12 @@ cmd_fail() {
 }
 cmd_list() {
     local status_filter=""
-    local json_output=0
+    local markdown_output=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --status) status_filter="$2"; shift 2 ;;
-            --json)   json_output=1; shift ;;
+            --status)   status_filter="$2"; shift 2 ;;
+            --markdown) markdown_output=1; shift ;;
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
@@ -947,9 +938,10 @@ cmd_list() {
         where_clause="WHERE status != 'deleted'"
     fi
 
-    if [[ "$json_output" -eq 1 ]]; then
-        # JSONL output with short keys
-        psql_cmd -c "
+    if [[ "$markdown_output" -eq 1 ]]; then
+        # Markdown-KV output via render_task_md
+        local jsonl
+        jsonl=$(psql_cmd -c "
             SELECT json_build_object(
                 'id', t.id,
                 't', t.title,
@@ -961,12 +953,28 @@ cmd_list() {
                 'ref', t.ref,
                 'assignee', t.assignee,
                 'deps', COALESCE((SELECT json_agg(td.blocked_by) FROM task_deps td WHERE td.task_id = t.id), '[]'::json),
-                'steps', COALESCE((SELECT json_agg(json_build_object('seq', ts.seq, 'content', ts.content, 'status', ts.status) ORDER BY ts.seq) FROM task_steps ts WHERE ts.task_id = t.id), '[]'::json)
+                'steps', COALESCE(to_json(t.steps), '[]'::json)
             )
             FROM tasks t
             ${where_clause}
             ORDER BY t.priority ASC, t.created_at ASC;
-        "
+        ")
+
+        if [[ -z "$jsonl" ]]; then
+            return 0
+        fi
+
+        local first=true
+        local line
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo
+            fi
+            render_task_md "$line"
+        done <<< "$jsonl"
     else
         # Table output: ID, P, S, CAT, TITLE, AGENT
         local result
@@ -1041,18 +1049,20 @@ cmd_show() {
     [[ -n "$t_updated" ]] && printf 'Updated:     %s\n' "$t_updated"
     [[ -n "$t_deleted" ]] && printf 'Deleted:     %s\n' "$t_deleted"
 
-    # Query steps
+    # Query steps from tasks.steps TEXT[] column
     local steps
     steps=$(psql_cmd -c "
-        SELECT seq, status, content FROM task_steps
-        WHERE task_id = '$(sql_esc "$id")'
-        ORDER BY seq;
+        SELECT unnest(steps) FROM tasks
+        WHERE id = '$(sql_esc "$id")'
+        AND steps IS NOT NULL;
     ")
 
     if [[ -n "$steps" ]]; then
         printf '\nSteps:\n'
-        while IFS='|' read -r s_seq s_status s_content; do
-            printf '  %s. [%s] %s\n' "$s_seq" "$s_status" "$s_content"
+        local seq=0
+        while IFS= read -r s_content; do
+            seq=$((seq + 1))
+            printf '  %s. %s\n' "$seq" "$s_content"
         done <<< "$steps"
     fi
 
@@ -1141,10 +1151,16 @@ cmd_create() {
     esc_spec_ref=$(sql_esc "$spec_ref")
     esc_ref=$(sql_esc "$ref")
 
+    # Build steps ARRAY literal from JSON string array: ["step1","step2"]
+    local steps_val="NULL"
+    if [[ -n "$steps_json" ]]; then
+        steps_val=$(build_steps_literal "$steps_json")
+    fi
+
     # Build INSERT for tasks
     local sql
     sql="BEGIN;
-INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, updated_at)
+INSERT INTO tasks (id, title, description, category, priority, spec_ref, ref, steps, updated_at)
 VALUES ('${esc_id}', '${esc_title}'"
     if [[ -n "$description" ]]; then
         sql+=", '${esc_desc}'"
@@ -1167,20 +1183,8 @@ VALUES ('${esc_id}', '${esc_title}'"
     else
         sql+=", NULL"
     fi
+    sql+=", ${steps_val}"
     sql+=", now());"
-
-    # Insert steps from JSON array: [{"content":"step text"}, ...]
-    if [[ -n "$steps_json" ]]; then
-        local step_count
-        step_count=$(printf '%s' "$steps_json" | jq 'length')
-        for ((i=0; i<step_count; i++)); do
-            local step_content esc_step
-            step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-            esc_step=$(sql_esc "$step_content")
-            sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-        done
-    fi
 
     # Insert dependencies
     if [[ -n "$deps" ]]; then
@@ -1272,21 +1276,14 @@ cmd_update() {
     sql+="
 UPDATE tasks SET ${set_clause} WHERE id = '${esc_id}';"
 
-    # If --steps provided, delete existing and insert new
+    # If --steps provided, update tasks.steps TEXT[] column
     if [[ "$has_steps" -eq 1 ]]; then
-        sql+="
-DELETE FROM task_steps WHERE task_id = '${esc_id}';"
+        local steps_val="NULL"
         if [[ -n "$steps_json" ]]; then
-            local step_count
-            step_count=$(printf '%s' "$steps_json" | jq 'length')
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i].content")
-                esc_step=$(sql_esc "$step_content")
-                sql+="
-INSERT INTO task_steps (task_id, seq, content) VALUES ('${esc_id}', $((i+1)), '${esc_step}');"
-            done
+            steps_val=$(build_steps_literal "$steps_json")
         fi
+        sql+="
+UPDATE tasks SET steps = ${steps_val} WHERE id = '${esc_id}';"
     fi
 
     sql+="
@@ -1478,8 +1475,6 @@ cmd_unblock() {
 }
 
 cmd_agent_register() {
-    ensure_schema
-
     local agent_id attempt max_attempts=10
     local pid="$$"
     local host="${HOSTNAME:-$(hostname)}"
@@ -1507,12 +1502,11 @@ cmd_agent_register() {
 }
 
 cmd_agent_list() {
-    ensure_schema
-
     local result
     result=$(psql_cmd -c "
         SELECT id, pid, hostname, started_at, status
         FROM agents
+        WHERE status = 'active'
         ORDER BY started_at DESC;
     ")
 
@@ -1589,7 +1583,6 @@ main() {
         peek)         db_check; ensure_schema; cmd_peek "$@" ;;
         claim)        db_check; ensure_schema; cmd_claim "$@" ;;
         renew)        db_check; ensure_schema; cmd_renew "$@" ;;
-        step-done)    db_check; ensure_schema; cmd_step_done "$@" ;;
         done)         db_check; ensure_schema; cmd_done "$@" ;;
         fail)         db_check; ensure_schema; cmd_fail "$@" ;;
         list)         db_check; ensure_schema; cmd_list "$@" ;;
@@ -1601,6 +1594,7 @@ main() {
         block)        db_check; ensure_schema; cmd_block "$@" ;;
         unblock)      db_check; ensure_schema; cmd_unblock "$@" ;;
         agent)        db_check; ensure_schema; cmd_agent "$@" ;;
+        _render-md)   render_task_md "$1" ;;
         "")
             echo "Error: missing command" >&2
             echo "" >&2

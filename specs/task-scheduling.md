@@ -9,7 +9,7 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 - `task peek [-n N]` returns a read-only snapshot of the task landscape for agent decision-making
 - Claimable tasks: the top N tasks matching claim eligibility criteria (see below), sorted by priority ASC then `created_at` ASC
 - Active tasks: all tasks with `status = 'active'` regardless of N limit, including their `assignee` field
-- Output is JSONL using the standard short-key format, with claimable and active tasks distinguished by the `s` (status) field — `open` for claimable, `active` for in-progress
+- Output is markdown-KV format (each task as a `## Task {id}` section with `key: value` lines), with claimable and active tasks distinguished by the `status` field — `open` for claimable, `active` for in-progress
 - Peek is non-locking — it does not acquire `FOR UPDATE` locks, so the snapshot may be stale by the time the agent acts on it
 - If no claimable or active tasks exist, output is empty and exit code is 0
 

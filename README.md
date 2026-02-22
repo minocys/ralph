@@ -131,11 +131,8 @@ Commands used during planning to synchronize specs with the task backlog:
 # Sync tasks from JSONL input (idempotent — safe to re-run)
 cat tasks.jsonl | task plan-sync
 
-# Export full task DAG as a table
+# Export full task DAG as markdown-KV
 task plan-export
-
-# Export as JSONL (token-efficient short keys)
-task plan-export --json
 
 # Show status summary (open, active, done, blocked, deleted)
 task plan-status
@@ -174,7 +171,7 @@ task create <id> <title> -p <priority> -c <category> -d <description>
 # List tasks (excludes deleted by default)
 task list
 task list --status open,active
-task list --json
+task list --markdown
 
 # Show full task detail
 task show <id>
