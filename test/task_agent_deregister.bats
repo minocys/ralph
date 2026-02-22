@@ -102,7 +102,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 # Agent record preserved
 # ---------------------------------------------------------------------------
-@test "deregistered agent still visible in agent list" {
+@test "deregistered agent excluded from agent list" {
     run "$SCRIPT_DIR/task" agent register
     assert_success
     local agent_id="$output"
@@ -110,10 +110,10 @@ teardown() {
     run "$SCRIPT_DIR/task" agent deregister "$agent_id"
     assert_success
 
+    # Deregistered (stopped) agent should not appear in agent list
     run "$SCRIPT_DIR/task" agent list
     assert_success
-    assert_output --partial "$agent_id"
-    assert_output --partial "stopped"
+    refute_output --partial "$agent_id"
 }
 
 # ---------------------------------------------------------------------------

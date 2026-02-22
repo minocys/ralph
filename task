@@ -1523,6 +1523,7 @@ cmd_agent_list() {
     result=$(psql_cmd -c "
         SELECT id, pid, hostname, started_at, status
         FROM agents
+        WHERE status = 'active'
         ORDER BY started_at DESC;
     ")
 
