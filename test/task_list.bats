@@ -205,6 +205,42 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# Table vs markdown-KV format contrast
+# ---------------------------------------------------------------------------
+@test "task list table format does not contain markdown-KV markers" {
+    "$SCRIPT_DIR/task" create "fmt-01" "Format test" -p 1 -c "feat" > /dev/null
+
+    run "$SCRIPT_DIR/task" list
+    assert_success
+    # Table format must NOT contain markdown-KV section headers or key: value lines
+    refute_output --partial "## Task"
+    refute_output --partial "id: fmt-01"
+    refute_output --partial "title: Format test"
+    # Table format MUST contain columnar header
+    assert_output --partial "ID"
+    assert_output --partial "TITLE"
+    assert_output --partial "AGENT"
+}
+
+@test "task list --markdown omits null fields" {
+    "$SCRIPT_DIR/task" create "null-01" "Minimal task" -p 2 > /dev/null
+
+    run "$SCRIPT_DIR/task" list --markdown
+    assert_success
+    assert_output --partial "## Task null-01"
+    assert_output --partial "title: Minimal task"
+    assert_output --partial "priority: 2"
+    assert_output --partial "status: open"
+    # Null optional fields must be omitted
+    refute_output --partial "category:"
+    refute_output --partial "spec:"
+    refute_output --partial "ref:"
+    refute_output --partial "assignee:"
+    refute_output --partial "deps:"
+    refute_output --partial "steps:"
+}
+
+# ---------------------------------------------------------------------------
 # Table format: assignee column
 # ---------------------------------------------------------------------------
 @test "task list table shows assignee when set" {
