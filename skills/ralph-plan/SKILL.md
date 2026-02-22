@@ -1,7 +1,7 @@
 ---
 name: ralph-plan
 description: Implementation planner that studies and breaks down specs into tasks for implementation.
-argument-hint: [current-plan-dag]
+argument-hint: [current-task-dag]
 ---
 
 # TASK
