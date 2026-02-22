@@ -124,11 +124,10 @@ status: open'
     run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
     assert_success
 
-    # Verify task stub was called with plan-export (no --json)
+    # Verify task stub was called with plan-export --markdown
     [ -f "$TEST_WORK_DIR/task_calls.log" ]
     run cat "$TEST_WORK_DIR/task_calls.log"
-    assert_output --partial "plan-export"
-    refute_output --partial "plan-export --json"
+    assert_output --partial "plan-export --markdown"
 
     # Verify claude was called
     [ -f "$TEST_WORK_DIR/claude_args.txt" ]

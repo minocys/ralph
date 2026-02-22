@@ -46,12 +46,77 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# Markdown-KV format
+# Default table format
 # ---------------------------------------------------------------------------
-@test "plan-export outputs markdown-KV sections" {
+@test "plan-export defaults to table format" {
     "$SCRIPT_DIR/task" create "pe-01" "First task" -p 1 -c "feat" > /dev/null
 
     run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    assert_output --partial "ID"
+    assert_output --partial "TITLE"
+    assert_output --partial "pe-01"
+    assert_output --partial "First task"
+    # Should NOT contain markdown-KV markers
+    refute_output --partial "## Task"
+}
+
+@test "plan-export table includes deleted tasks (full DAG)" {
+    "$SCRIPT_DIR/task" create "pe-alive" "Alive task" > /dev/null
+    "$SCRIPT_DIR/task" create "pe-dead" "Dead task" > /dev/null
+    "$SCRIPT_DIR/task" delete "pe-dead" > /dev/null
+
+    run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    assert_output --partial "pe-alive"
+    assert_output --partial "pe-dead"
+    assert_output --partial "deleted"
+}
+
+@test "plan-export table orders by priority ascending" {
+    "$SCRIPT_DIR/task" create "pe-low" "Low priority" -p 3 > /dev/null
+    "$SCRIPT_DIR/task" create "pe-high" "High priority" -p 0 > /dev/null
+    "$SCRIPT_DIR/task" create "pe-mid" "Mid priority" -p 1 > /dev/null
+
+    run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    local high_line mid_line low_line
+    high_line=$(echo "$output" | grep -n "pe-high" | cut -d: -f1)
+    mid_line=$(echo "$output" | grep -n "pe-mid" | cut -d: -f1)
+    low_line=$(echo "$output" | grep -n "pe-low" | cut -d: -f1)
+    [ "$high_line" -lt "$mid_line" ]
+    [ "$mid_line" -lt "$low_line" ]
+}
+
+@test "plan-export table shows header columns" {
+    "$SCRIPT_DIR/task" create "pe-hdr" "Header test" -p 1 -c "feat" > /dev/null
+
+    run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    # Verify header row has the expected columns
+    assert_output --partial "ID"
+    assert_output --partial "P"
+    assert_output --partial "CAT"
+    assert_output --partial "TITLE"
+    assert_output --partial "AGENT"
+}
+
+@test "plan-export table shows assignee when set" {
+    "$SCRIPT_DIR/task" create "pe-agent" "Assigned task" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'b3c4', status = 'active' WHERE id = 'pe-agent'" > /dev/null
+
+    run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    assert_output --partial "b3c4"
+}
+
+# ---------------------------------------------------------------------------
+# Markdown-KV format (--markdown flag)
+# ---------------------------------------------------------------------------
+@test "plan-export --markdown outputs markdown-KV sections" {
+    "$SCRIPT_DIR/task" create "pe-01" "First task" -p 1 -c "feat" > /dev/null
+
+    run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
     assert_output --partial "## Task pe-01"
     assert_output --partial "id: pe-01"
@@ -61,24 +126,24 @@ teardown() {
     assert_output --partial "category: feat"
 }
 
-@test "plan-export includes deleted tasks (full DAG)" {
+@test "plan-export --markdown includes deleted tasks (full DAG)" {
     "$SCRIPT_DIR/task" create "pe-alive" "Alive task" > /dev/null
     "$SCRIPT_DIR/task" create "pe-dead" "Dead task" > /dev/null
     "$SCRIPT_DIR/task" delete "pe-dead" > /dev/null
 
-    run "$SCRIPT_DIR/task" plan-export
+    run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
     assert_output --partial "## Task pe-alive"
     assert_output --partial "## Task pe-dead"
     assert_output --partial "status: deleted"
 }
 
-@test "plan-export orders by priority ascending" {
+@test "plan-export --markdown orders by priority ascending" {
     "$SCRIPT_DIR/task" create "pe-low" "Low priority" -p 3 > /dev/null
     "$SCRIPT_DIR/task" create "pe-high" "High priority" -p 0 > /dev/null
     "$SCRIPT_DIR/task" create "pe-mid" "Mid priority" -p 1 > /dev/null
 
-    run "$SCRIPT_DIR/task" plan-export
+    run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
     local high_line mid_line low_line
     high_line=$(echo "$output" | grep -n "## Task pe-high" | cut -d: -f1)
@@ -88,37 +153,43 @@ teardown() {
     [ "$mid_line" -lt "$low_line" ]
 }
 
-@test "plan-export shows assignee when set" {
+@test "plan-export --markdown shows assignee when set" {
     "$SCRIPT_DIR/task" create "pe-agent" "Assigned task" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'b3c4', status = 'active' WHERE id = 'pe-agent'" > /dev/null
 
-    run "$SCRIPT_DIR/task" plan-export
+    run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
     assert_output --partial "assignee: b3c4"
 }
 
-@test "plan-export includes steps and deps in markdown-KV" {
+@test "plan-export --markdown includes steps and deps" {
     "$SCRIPT_DIR/task" create "pe-blocker" "Blocker" > /dev/null
     "$SCRIPT_DIR/task" create "pe-03" "Task with steps and deps" --deps "pe-blocker" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE id = 'pe-03'" >/dev/null
 
-    run "$SCRIPT_DIR/task" plan-export
+    run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
     assert_output --partial "deps: pe-blocker"
     assert_output --partial "steps:"
     assert_output --partial "- Do thing"
 }
 
-@test "plan-export separates tasks with blank lines" {
+@test "plan-export --markdown separates tasks with blank lines" {
     "$SCRIPT_DIR/task" create "pe-a" "Task A" -p 0 > /dev/null
     "$SCRIPT_DIR/task" create "pe-b" "Task B" -p 1 > /dev/null
 
-    run "$SCRIPT_DIR/task" plan-export
+    run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
     # There should be a blank line between the two task sections
     local blank_count
     blank_count=$(echo "$output" | grep -c '^$' || true)
     [ "$blank_count" -ge 1 ]
+}
+
+@test "plan-export --markdown returns empty output with no tasks" {
+    run "$SCRIPT_DIR/task" plan-export --markdown
+    assert_success
+    assert_output ""
 }
 
 # ---------------------------------------------------------------------------
@@ -134,7 +205,7 @@ teardown() {
     assert_success
     refute_output --partial "pe-del"
 
-    # plan-export includes deleted
+    # plan-export includes deleted (table format)
     run "$SCRIPT_DIR/task" plan-export
     assert_success
     assert_output --partial "pe-del"

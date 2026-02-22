@@ -53,7 +53,7 @@ run_loop() {
         # Plan-mode pre-fetch: get current task DAG for planner
         local PLAN_EXPORT_MD=""
         if [ "$MODE" = "plan" ] && [ -x "$TASK_SCRIPT" ]; then
-            PLAN_EXPORT_MD=$("$TASK_SCRIPT" plan-export 2>/dev/null) || true
+            PLAN_EXPORT_MD=$("$TASK_SCRIPT" plan-export --markdown 2>/dev/null) || true
         fi
 
         # In build mode, exit if peek succeeded but returned empty (no tasks)
