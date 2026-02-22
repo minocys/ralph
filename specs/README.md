@@ -20,5 +20,6 @@
 | [docker-auto-start.md](docker-auto-start.md) | Automatic PostgreSQL Docker container lifecycle management |
 | [shared-env-config.md](shared-env-config.md) | Single .env file as shared source of truth for database configuration |
 | [ralph-modular-refactor.md](ralph-modular-refactor.md) | Split ralph.sh monolith into sourced lib/ modules by concern |
-| [task-output-format.md](task-output-format.md) | Replace JSONL output with markdown-KV format for plan-export and peek |
+| [task-output-format.md](task-output-format.md) | Replace JSONL output with markdown-KV format for `list --all` and peek |
 | [task-steps-simplification.md](task-steps-simplification.md) | Flatten task steps from a separate table into a TEXT[] column and remove step tracking |
+| [deprecate-plan-export.md](deprecate-plan-export.md) | Consolidate `plan-export` into `list --all` to eliminate a redundant command |

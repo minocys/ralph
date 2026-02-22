@@ -50,6 +50,6 @@ The ralph-build skill receives a task landscape snapshot via prompt input, selec
 
 - Lease renewal (`task renew`) — tasks should be small enough that 600 seconds suffices
 - Retry count logic — ralph.sh does not react to retry_count
-- Plan-phase operations (`task plan-sync`, `task plan-export`)
+- Plan-phase operations (`task plan-sync`, `task list --all`)
 - Loop control decisions (covered by build-loop-control spec)
 - Session crash recovery (covered by session-safety-hooks spec and build-loop-control crash-safety fallback)

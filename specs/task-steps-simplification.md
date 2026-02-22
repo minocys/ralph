@@ -43,9 +43,9 @@ Replace the `task_steps` table with a `TEXT[]` column on the `tasks` table and r
 - `task claim` must read steps from the `steps` column instead of joining `task_steps`
 - Steps in output are a plain list (no seq/status metadata)
 
-### Update plan-export
+### Update list --all
 
-- `task plan-export` must read steps from the `steps` column instead of joining `task_steps`
+- `task list --all` (and `task list --all --markdown`) must read steps from the `steps` column instead of joining `task_steps`
 
 ### Update list
 

@@ -46,7 +46,7 @@ Scoped task lists add `scope_repo` and `scope_branch` columns to the database. E
 - The UUID is internal only — never exposed to users, planners, or builders
 - Commands affected: `claim`, `done`, `fail`, `renew`, `show`, `update`, `delete`, `deps`, `block`, `unblock`
 - `task create` must accept the slug as the first positional argument (same ergonomics as today's `id`), and generate the UUID automatically
-- `task list`, `task peek`, `task plan-export`, `task plan-status` must filter results by the current scope
+- `task list` (including `--all`), `task peek`, `task plan-status` must filter results by the current scope
 - `task plan-sync` must match incoming tasks to existing DB rows using `(scope_repo, scope_branch, slug)` — the incoming JSONL `id` field maps to the `slug` column
 - `task plan-sync` orphan deletion must be scoped: only soft-delete tasks within the current scope's `spec_ref` group
 - `task agent register` must record `scope_repo` and `scope_branch` on the agent row
@@ -54,7 +54,7 @@ Scoped task lists add `scope_repo` and `scope_branch` columns to the database. E
 
 ### Output Format
 
-- Markdown-KV output (`render_task_md`, `plan-export`, `peek`, `claim`, `list --json`) must use `slug` where `id` was previously used — the output field name remains `id` for backward compatibility with skills
+- Markdown-KV output (`render_task_md`, `list --all --markdown`, `peek`, `claim`, `list --markdown`) must use `slug` where `id` was previously used — the output field name remains `id` for backward compatibility with skills
 - The UUID must not appear in any user-facing or skill-facing output
 
 ### Hooks
