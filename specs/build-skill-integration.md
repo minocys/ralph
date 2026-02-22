@@ -27,7 +27,7 @@ The ralph-build skill receives a task landscape snapshot via prompt input, selec
 ### Implementation
 
 - The builder must search the codebase before implementing — confirm before assuming missing
-- The builder must mark individual steps complete via `task step-done <id> <seq>` as implementation progresses
+- Steps in the task are informational only — they guide the builder but are not tracked for completion
 - The builder must complete a task via `task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from the git commit just made
 - The builder must release a task on failure via `task fail <id> --reason "<text>"` — this sets status back to `open`, clears the assignee, and increments `retry_count`
 - The builder must use `task create` to log discovered bugs or new work items as tasks instead of editing a JSON file
