@@ -62,6 +62,61 @@ build_steps_literal() {
 }
 
 # ---------------------------------------------------------------------------
+# Scope derivation
+# ---------------------------------------------------------------------------
+# get_scope: Determine SCOPE_REPO and SCOPE_BRANCH from env vars or git.
+# Sets global variables SCOPE_REPO and SCOPE_BRANCH.
+# Env vars RALPH_SCOPE_REPO / RALPH_SCOPE_BRANCH override git derivation.
+get_scope() {
+    # Repo scope: env var takes precedence over git
+    if [[ -n "${RALPH_SCOPE_REPO:-}" ]]; then
+        SCOPE_REPO="$RALPH_SCOPE_REPO"
+    else
+        if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            echo 'Error: not inside a git repository. Run: git init' >&2
+            exit 1
+        fi
+
+        local remote_url
+        if ! remote_url=$(git remote get-url origin 2>/dev/null); then
+            echo 'Error: no git remote "origin" found. Run: git remote add origin <url>' >&2
+            exit 1
+        fi
+
+        # Strip trailing .git suffix
+        local clean_url="${remote_url%.git}"
+
+        if [[ "$clean_url" =~ ^[a-zA-Z]+:// ]]; then
+            # URL format: https://github.com/owner/repo or ssh://git@github.com/owner/repo
+            local path="${clean_url#*://}"  # remove scheme
+            path="${path#*/}"               # remove host
+            SCOPE_REPO="$path"
+        else
+            # SCP-like SSH format: git@github.com:owner/repo
+            SCOPE_REPO="${clean_url##*:}"
+        fi
+    fi
+
+    # Branch scope: env var takes precedence over git
+    if [[ -n "${RALPH_SCOPE_BRANCH:-}" ]]; then
+        SCOPE_BRANCH="$RALPH_SCOPE_BRANCH"
+    else
+        if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            echo 'Error: not inside a git repository. Run: git init' >&2
+            exit 1
+        fi
+
+        local branch
+        branch=$(git branch --show-current)
+        if [[ -z "$branch" ]]; then
+            echo 'Error: detached HEAD state. Run: git checkout <branch>' >&2
+            exit 1
+        fi
+        SCOPE_BRANCH="$branch"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
 
@@ -1595,6 +1650,7 @@ main() {
         unblock)      db_check; ensure_schema; cmd_unblock "$@" ;;
         agent)        db_check; ensure_schema; cmd_agent "$@" ;;
         _render-md)   render_task_md "$1" ;;
+        _get-scope)   get_scope; echo "repo:$SCOPE_REPO"; echo "branch:$SCOPE_BRANCH" ;;
         "")
             echo "Error: missing command" >&2
             echo "" >&2
