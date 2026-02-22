@@ -149,6 +149,27 @@ teardown() {
     assert_output --partial "result JSON must include a 'commit' key"
 }
 
+@test "task done commit key validation via claim flow" {
+    export RALPH_AGENT_ID="agent-test"
+
+    # Step 1: Create a task and claim it
+    "$SCRIPT_DIR/task" create "td-commit-e2e" "Commit key e2e test"
+    run "$SCRIPT_DIR/task" claim "td-commit-e2e"
+    assert_success
+    assert_output --partial "td-commit-e2e"
+
+    # Step 2-3: Call task done with result JSON missing commit key → fails
+    run "$SCRIPT_DIR/task" done "td-commit-e2e" --result '{"output":"no commit here"}'
+    assert_failure
+    [ "$status" -eq 1 ]
+    assert_output --partial "result JSON must include a 'commit' key"
+
+    # Step 4-5: Call task done with result JSON containing commit key → succeeds
+    run "$SCRIPT_DIR/task" done "td-commit-e2e" --result '{"commit":"abc123"}'
+    assert_success
+    assert_output "done td-commit-e2e"
+}
+
 @test "task done without --result stores no result" {
     "$SCRIPT_DIR/task" create "td-07" "Task without result"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-07';" >/dev/null
