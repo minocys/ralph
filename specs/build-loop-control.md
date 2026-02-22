@@ -6,7 +6,7 @@ ralph.sh controls the build iteration lifecycle: pre-invocation task peek, invok
 
 ### Pre-invocation Task Peek
 
-- Before each Claude invocation in build mode, ralph.sh must run `task peek -n 5` to get a snapshot of claimable and active tasks
+- Before each Claude invocation in build mode, ralph.sh must run `task peek -n 10` to get a snapshot of claimable and active tasks
 - If `task peek` returns empty output (no claimable tasks), ralph.sh must exit the loop successfully — there is no work to do
 - If `task peek` fails with a non-zero exit code, ralph.sh should treat it as a transient error and continue the loop (retry next iteration)
 - ralph.sh must pass the peek JSONL to Claude via the prompt argument: `claude -p "/ralph-build $PEEK_JSONL"`
