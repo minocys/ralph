@@ -4,7 +4,7 @@ PostgreSQL-backed persistent storage for multi-agent task orchestration across e
 
 ## Requirements
 
-- Store task, step, dependency, and agent data in a PostgreSQL database
+- Store task, dependency, and agent data in a PostgreSQL database
 - Connection via `RALPH_DB_URL` environment variable (e.g. `postgres://ralph:pass@db:5432/ralph`)
 - Create schema automatically on first invocation if tables do not exist
 - Task table schema:
@@ -23,13 +23,8 @@ PostgreSQL-backed persistent storage for multi-agent task orchestration across e
   - `fail_reason` — text, optional, stores the reason a task was failed
   - `created_at` — timestamptz, default `now()`
   - `updated_at` — timestamptz, updated on every write
+  - `steps` — text array (`TEXT[]`), ordered list of step descriptions (informational only, no per-step status tracking)
   - `deleted_at` — timestamptz, set on soft delete
-- Task steps table schema:
-  - `task_id` — text, references task ID with `ON DELETE CASCADE`
-  - `seq` — integer, step sequence number within the task
-  - `content` — text, description of the step
-  - `status` — text, default `pending`: `pending`, `done`, `skipped`
-  - Composite primary key on `(task_id, seq)`
 - Dependency table schema:
   - `task_id` — text, references task ID with `ON DELETE CASCADE`
   - `blocked_by` — text, references task ID with `ON DELETE CASCADE`
