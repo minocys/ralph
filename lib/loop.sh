@@ -45,7 +45,7 @@ run_loop() {
         local PEEK_JSONL=""
         local PEEK_OK=false
         if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
-            if PEEK_JSONL=$("$TASK_SCRIPT" peek -n 5 2>/dev/null); then
+            if PEEK_JSONL=$("$TASK_SCRIPT" peek -n 10 2>/dev/null); then
                 PEEK_OK=true
             fi
         fi
