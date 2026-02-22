@@ -32,8 +32,8 @@ steps:
 
 ### plan-export
 
-- `task plan-export` must output markdown-KV format as its default (and only) output
-- Remove the `--json` flag — JSONL output is no longer available from this command
+- `task plan-export` must default to the human-readable table format (same columns as `task list`: ID, P, S, CAT, TITLE, AGENT)
+- `task plan-export --markdown` must output markdown-KV format for machine consumption
 - The command must still dump the full task DAG (all statuses including deleted)
 - Sort order is unchanged: priority ASC, then created_at ASC
 
@@ -51,7 +51,7 @@ steps:
 
 ### Loop Integration
 
-- `lib/loop.sh` must call `task plan-export` (without `--json`) in plan mode
+- `lib/loop.sh` must call `task plan-export --markdown` in plan mode
 - `lib/loop.sh` must pass the markdown-KV output to the skill prompt unchanged
 - No other changes to loop.sh logic (exit conditions, error handling remain the same)
 
@@ -63,7 +63,7 @@ steps:
 
 ### list
 
-- `task list` must update its `--json` flag to output markdown-KV instead of JSONL
+- `task list --markdown` must output markdown-KV format (replaces the old `--json` flag)
 - The default table format for `task list` is unchanged (human inspection)
 
 ## Constraints

@@ -6,7 +6,7 @@ Migrate ralph-plan from IMPLEMENTATION_PLAN.json to the PostgreSQL-backed task C
 
 ### Task State Reception
 
-- ralph.sh must run `task plan-export` before each plan-mode Claude invocation and capture the output
+- ralph.sh must run `task plan-export --markdown` before each plan-mode Claude invocation and capture the output
 - ralph.sh must pass the captured markdown-KV to Claude via the prompt argument: `claude -p "/ralph-plan $PLAN_EXPORT_MD"` (mirrors the build-mode peek pattern in `specs/build-loop-control.md`)
 - If `task plan-export` returns empty output (no tasks yet), ralph.sh must still pass the empty string — the skill treats empty input as a fresh start
 - The skill must declare `argument-hint: [current-task-dag]` in its SKILL.md front-matter
