@@ -74,7 +74,7 @@ teardown() {
 @test "task update on done task exits 1" {
     "$SCRIPT_DIR/task" create "test/01" "A task"
     # Directly set status to done
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE id = 'test/01'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
     run "$SCRIPT_DIR/task" update "test/01" --title "New title"
     assert_failure
     [ "$status" -eq 1 ]
@@ -91,7 +91,7 @@ teardown() {
     assert_output "updated test/01"
 
     local new_title
-    new_title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
+    new_title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_title" = "Updated title" ]
 }
 
@@ -101,7 +101,7 @@ teardown() {
     assert_success
 
     local new_pri
-    new_pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE id = 'test/01'")
+    new_pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_pri" = "0" ]
 }
 
@@ -111,7 +111,7 @@ teardown() {
     assert_success
 
     local new_desc
-    new_desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE id = 'test/01'")
+    new_desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_desc" = "New desc" ]
 }
 
@@ -121,18 +121,18 @@ teardown() {
     assert_success
 
     local new_status
-    new_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id = 'test/01'")
+    new_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_status" = "active" ]
 }
 
 @test "task update always sets updated_at" {
     "$SCRIPT_DIR/task" create "test/01" "A task"
     # Clear updated_at to verify it gets set
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE id = 'test/01'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
     "$SCRIPT_DIR/task" update "test/01" --title "New"
 
     local updated
-    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE id = 'test/01'")
+    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$updated" = "t" ]
 }
 
@@ -144,7 +144,7 @@ teardown() {
 
     # Verify initial steps
     local count_before
-    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE id = 'test/01'")
+    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_before" = "2" ]
 
     # Replace steps
@@ -152,11 +152,11 @@ teardown() {
     assert_success
 
     local count_after
-    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE id = 'test/01'")
+    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_after" = "3" ]
 
     local first_step
-    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps[1] FROM tasks WHERE id = 'test/01'")
+    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps[1] FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$first_step" = "new step A" ]
 }
 
@@ -166,7 +166,7 @@ teardown() {
     assert_success
 
     local steps_null
-    steps_null=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps IS NULL FROM tasks WHERE id = 'test/01'")
+    steps_null=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps IS NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$steps_null" = "t" ]
 }
 
@@ -179,9 +179,9 @@ teardown() {
     assert_success
 
     local title pri desc
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
-    pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE id = 'test/01'")
-    desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE id = 'test/01'")
+    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "New title" ]
     [ "$pri" = "0" ]
     [ "$desc" = "New desc" ]
@@ -196,6 +196,6 @@ teardown() {
     assert_success
 
     local title
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
+    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "It's a test" ]
 }

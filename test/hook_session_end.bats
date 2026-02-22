@@ -33,7 +33,7 @@ setup() {
 
     # Ensure schema is initialized by running a benign task command
     "$SCRIPT_DIR/task" create "se-setup" "schema init" >/dev/null 2>&1
-    psql "$RALPH_DB_URL" -tAX -c "DELETE FROM tasks WHERE id='se-setup';" >/dev/null 2>&1
+    psql "$RALPH_DB_URL" -tAX -c "DELETE FROM tasks WHERE slug='se-setup' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null 2>&1
 }
 
 teardown() {
@@ -50,14 +50,14 @@ teardown() {
 @test "session end hook calls task fail on active task" {
     "$SCRIPT_DIR/task" create "se-01" "Active task for agent"
     psql "$RALPH_DB_URL" -tAX -c \
-        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='se-01';" >/dev/null
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='se-01' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/hooks/session_end.sh"
     assert_success
 
     # Task status must be set back to open
     local task_status
-    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='se-01';")
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='se-01' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "open" ]
 }
 
@@ -87,11 +87,11 @@ teardown() {
 @test "session end hook increments retry_count" {
     "$SCRIPT_DIR/task" create "se-02" "Task to check retry_count"
     psql "$RALPH_DB_URL" -tAX -c \
-        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='se-02';" >/dev/null
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     # Verify retry_count starts at 0
     local before
-    before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE id='se-02';")
+    before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$before" = "0" ]
 
     run "$SCRIPT_DIR/hooks/session_end.sh"
@@ -99,6 +99,6 @@ teardown() {
 
     # retry_count must be incremented
     local after
-    after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE id='se-02';")
+    after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$after" = "1" ]
 }

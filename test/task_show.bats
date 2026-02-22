@@ -79,7 +79,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task show displays steps" {
     "$SCRIPT_DIR/task" create "show-steps" "Task with steps" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['First step','Second step']::TEXT[] WHERE id = 'show-steps'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['First step','Second step']::TEXT[] WHERE slug = 'show-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
 
     run "$SCRIPT_DIR/task" show "show-steps"
     assert_success
@@ -112,7 +112,7 @@ teardown() {
 
     # Set blocker to done with result
     psql "$RALPH_DB_URL" -tAX -c "
-        UPDATE tasks SET status = 'done', result = '{\"commit\": \"abc123\"}' WHERE id = 'res-a';
+        UPDATE tasks SET status = 'done', result = '{\"commit\": \"abc123\"}' WHERE slug = 'res-a' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     " > /dev/null
 
     run "$SCRIPT_DIR/task" show "show-wd" --with-deps
@@ -139,7 +139,7 @@ teardown() {
     "$SCRIPT_DIR/task" create "show-nwd" "Dependent task" --deps "res-b" > /dev/null
 
     psql "$RALPH_DB_URL" -tAX -c "
-        UPDATE tasks SET status = 'done', result = '{\"commit\": \"def456\"}' WHERE id = 'res-b';
+        UPDATE tasks SET status = 'done', result = '{\"commit\": \"def456\"}' WHERE slug = 'res-b' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     " > /dev/null
 
     run "$SCRIPT_DIR/task" show "show-nwd"

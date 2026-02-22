@@ -93,6 +93,9 @@ teardown() {
     "
     assert_success
     assert_output --partial "id"
+    assert_output --partial "slug"
+    assert_output --partial "scope_repo"
+    assert_output --partial "scope_branch"
     assert_output --partial "title"
     assert_output --partial "description"
     assert_output --partial "category"
@@ -167,13 +170,17 @@ teardown() {
 
     # Insert two tasks, add a dep, delete the blocker — dep should cascade
     psql "$RALPH_DB_URL" -tAX -c "
-        INSERT INTO tasks (id, title) VALUES ('test-dep-1', 'Dep Test 1');
-        INSERT INTO tasks (id, title) VALUES ('test-dep-2', 'Dep Test 2');
-        INSERT INTO task_deps (task_id, blocked_by) VALUES ('test-dep-1', 'test-dep-2');
-        DELETE FROM tasks WHERE id = 'test-dep-2';
+        INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
+        VALUES ('550e8400-e29b-41d4-a716-446655440001', 'dep-1', 'owner/repo', 'main', 'Dep Test 1');
+        INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
+        VALUES ('550e8400-e29b-41d4-a716-446655440002', 'dep-2', 'owner/repo', 'main', 'Dep Test 2');
+        INSERT INTO task_deps (task_id, blocked_by)
+        VALUES ('550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002');
+        DELETE FROM tasks WHERE id = '550e8400-e29b-41d4-a716-446655440002';
     "
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT count(*) FROM task_deps WHERE task_id = 'test-dep-1';
+        SELECT count(*) FROM task_deps
+        WHERE task_id = '550e8400-e29b-41d4-a716-446655440001';
     "
     assert_success
     assert_output "0"
@@ -183,10 +190,12 @@ teardown() {
     run "$SCRIPT_DIR/task" list
 
     psql "$RALPH_DB_URL" -tAX -c "
-        INSERT INTO tasks (id, title) VALUES ('test-defaults', 'Default Test');
+        INSERT INTO tasks (slug, scope_repo, scope_branch, title)
+        VALUES ('test-defaults', 'owner/repo', 'main', 'Default Test');
     "
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT priority, status, retry_count FROM tasks WHERE id = 'test-defaults';
+        SELECT priority, status, retry_count FROM tasks
+        WHERE slug = 'test-defaults' AND scope_repo = 'owner/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "2|open|0"

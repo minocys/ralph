@@ -69,7 +69,7 @@ teardown() {
 @test "task done on already done task exits 1" {
     "$SCRIPT_DIR/task" create "td-02" "Task to complete"
     # Set status to active directly
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-02';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-02' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
     "$SCRIPT_DIR/task" done "td-02"
 
     # Try marking done again
@@ -84,7 +84,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task done on active task succeeds" {
     "$SCRIPT_DIR/task" create "td-03" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-03';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-03' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td-03"
     assert_success
@@ -93,23 +93,23 @@ teardown() {
 
 @test "task done sets status to done" {
     "$SCRIPT_DIR/task" create "td-04" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-04';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-04' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     "$SCRIPT_DIR/task" done "td-04"
 
     local task_status
-    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='td-04';")
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='td-04' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "done" ]
 }
 
 @test "task done sets updated_at" {
     "$SCRIPT_DIR/task" create "td-05" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1', updated_at=NULL WHERE id='td-05';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1', updated_at=NULL WHERE slug='td-05' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     "$SCRIPT_DIR/task" done "td-05"
 
     local updated
-    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at FROM tasks WHERE id='td-05';")
+    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at FROM tasks WHERE slug='td-05' AND scope_repo='test/repo' AND scope_branch='main';")
     [ -n "$updated" ]
 }
 
@@ -118,20 +118,20 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task done with --result stores JSONB" {
     "$SCRIPT_DIR/task" create "td-06" "Task with result"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-06';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-06' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td-06" --result '{"commit":"abc123","output":"success","files":["a.txt"]}'
     assert_success
     assert_output "done td-06"
 
     local result
-    result=$(psql "$RALPH_DB_URL" -tAX -c "SELECT result->>'output' FROM tasks WHERE id='td-06';")
+    result=$(psql "$RALPH_DB_URL" -tAX -c "SELECT result->>'output' FROM tasks WHERE slug='td-06' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$result" = "success" ]
 }
 
 @test "task done with --result missing commit key exits 1" {
     "$SCRIPT_DIR/task" create "td-06b" "Task missing commit"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-06b';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-06b' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td-06b" --result '{"output":"success"}'
     assert_failure
@@ -141,7 +141,7 @@ teardown() {
 
 @test "task done with --result commit null exits 1" {
     "$SCRIPT_DIR/task" create "td-06c" "Task commit null"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-06c';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-06c' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td-06c" --result '{"commit":null}'
     assert_failure
@@ -172,12 +172,12 @@ teardown() {
 
 @test "task done without --result stores no result" {
     "$SCRIPT_DIR/task" create "td-07" "Task without result"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-07';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-07' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     "$SCRIPT_DIR/task" done "td-07"
 
     local result
-    result=$(psql "$RALPH_DB_URL" -tAX -c "SELECT result FROM tasks WHERE id='td-07';")
+    result=$(psql "$RALPH_DB_URL" -tAX -c "SELECT result FROM tasks WHERE slug='td-07' AND scope_repo='test/repo' AND scope_branch='main';")
     [ -z "$result" ]
 }
 
@@ -192,7 +192,7 @@ teardown() {
     "$SCRIPT_DIR/task" create "td-downstream" "Downstream task" -p 1 --deps "td-blocker"
 
     # Downstream should not be claimable while blocker is open
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-test' WHERE id='td-blocker';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-test' WHERE slug='td-blocker' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
     run "$SCRIPT_DIR/task" claim
     assert_failure
     [ "$status" -eq 2 ]
@@ -211,7 +211,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task done result is visible in show output" {
     "$SCRIPT_DIR/task" create "td-08" "Task to show"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-08';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-08' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     "$SCRIPT_DIR/task" done "td-08" --result '{"commit":"abc123","summary":"all good"}'
 
@@ -227,7 +227,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task done works with special characters in task ID" {
     "$SCRIPT_DIR/task" create "td/special-09" "Special ID task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td/special-09';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td/special-09' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td/special-09"
     assert_success
@@ -236,7 +236,7 @@ teardown() {
 
 @test "task done works with single quotes in task ID" {
     "$SCRIPT_DIR/task" create "td'quoted" "Quoted ID task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td''quoted';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td''quoted' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td'quoted"
     assert_success
@@ -244,7 +244,7 @@ teardown() {
 
 @test "task done with result containing special JSON characters" {
     "$SCRIPT_DIR/task" create "td-10" "JSON special chars"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE id='td-10';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='td-10' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" done "td-10" --result '{"commit":"abc123","msg":"it'\''s \"working\""}'
     assert_success

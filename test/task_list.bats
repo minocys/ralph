@@ -63,7 +63,7 @@ teardown() {
     "$SCRIPT_DIR/task" create "alive-01" "Alive task" > /dev/null
     "$SCRIPT_DIR/task" create "dead-01" "Dead task" > /dev/null
     # Soft delete by updating status directly
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'deleted', deleted_at = now() WHERE id = 'dead-01'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'deleted', deleted_at = now() WHERE slug = 'dead-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" list
     assert_success
@@ -84,7 +84,7 @@ teardown() {
 @test "task list --status filters by single status" {
     "$SCRIPT_DIR/task" create "open-01" "Open task" > /dev/null
     "$SCRIPT_DIR/task" create "active-01" "Active task" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active' WHERE id = 'active-01'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active' WHERE slug = 'active-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" list --status "open"
     assert_success
@@ -96,8 +96,8 @@ teardown() {
     "$SCRIPT_DIR/task" create "s-open" "Open task" > /dev/null
     "$SCRIPT_DIR/task" create "s-active" "Active task" > /dev/null
     "$SCRIPT_DIR/task" create "s-done" "Done task" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active' WHERE id = 's-active'" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE id = 's-done'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active' WHERE slug = 's-active' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 's-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" list --status "open,active"
     assert_success
@@ -108,7 +108,7 @@ teardown() {
 
 @test "task list --status deleted shows deleted tasks" {
     "$SCRIPT_DIR/task" create "del-01" "Deleted task" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'deleted', deleted_at = now() WHERE id = 'del-01'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'deleted', deleted_at = now() WHERE slug = 'del-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" list --status "deleted"
     assert_success
@@ -165,7 +165,7 @@ teardown() {
 @test "task list --markdown includes steps and deps" {
     "$SCRIPT_DIR/task" create "blocker-x" "Blocker" > /dev/null
     "$SCRIPT_DIR/task" create "json-03" "Task with steps and deps" --deps "blocker-x" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE id = 'json-03'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE slug = 'json-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
 
     run "$SCRIPT_DIR/task" list --markdown
     assert_success
@@ -177,7 +177,7 @@ teardown() {
 @test "task list --markdown with --status combines both flags" {
     "$SCRIPT_DIR/task" create "combo-01" "Open" > /dev/null
     "$SCRIPT_DIR/task" create "combo-02" "Done" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE id = 'combo-02'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'combo-02' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" list --status "done" --markdown
     assert_success
@@ -245,7 +245,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task list table shows assignee when set" {
     "$SCRIPT_DIR/task" create "agent-01" "Assigned task" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a7f2' WHERE id = 'agent-01'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a7f2' WHERE slug = 'agent-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" list
     assert_success

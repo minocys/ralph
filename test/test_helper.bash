@@ -10,6 +10,11 @@ load "$TEST_DIR/libs/bats-support/load"
 load "$TEST_DIR/libs/bats-assert/load"
 load "$TEST_DIR/libs/bats-file/load"
 
+# Default scope for tests — set at load time so individual setup() overrides
+# still inherit these values. Overridable per-test by re-exporting.
+export RALPH_SCOPE_REPO="${RALPH_SCOPE_REPO:-test/repo}"
+export RALPH_SCOPE_BRANCH="${RALPH_SCOPE_BRANCH:-main}"
+
 setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
@@ -38,6 +43,10 @@ STUB
 
     # Always use the test database
     export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+
+    # Default scope for tests (overridable per-test)
+    export RALPH_SCOPE_REPO="test/repo"
+    export RALPH_SCOPE_BRANCH="main"
 
     # Docker/pg_isready stubs so ensure_postgres() passes without real Docker
     cat > "$STUB_DIR/docker" <<'DOCKERSTUB'

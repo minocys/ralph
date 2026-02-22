@@ -87,7 +87,7 @@ teardown() {
 
     # Verify in database
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01' AND blocked_by = 'blocker/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -101,7 +101,7 @@ teardown() {
 
     # Still only one row
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01' AND blocked_by = 'blocker/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -139,7 +139,7 @@ teardown() {
     assert_success
 
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/it''s' AND blocked_by = 'block/it''s'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -189,7 +189,7 @@ teardown() {
 
     # Verify removed from database
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01' AND blocked_by = 'blocker/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }
 
@@ -204,11 +204,11 @@ teardown() {
 
     # blocker/01 removed, blocker/02 still there
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 
     local remaining
-    remaining=$(psql "$RALPH_DB_URL" -tAX -c "SELECT blocked_by FROM task_deps WHERE task_id = 'test/01'")
+    remaining=$(psql "$RALPH_DB_URL" -tAX -c "SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$remaining" = "blocker/02" ]
 }
 
@@ -236,6 +236,6 @@ teardown() {
     assert_success
 
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/it''s' AND blocked_by = 'block/it''s'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }

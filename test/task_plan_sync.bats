@@ -124,7 +124,7 @@ teardown() {
     "$SCRIPT_DIR/task" create ps-rep-02 "Blocker B" -r my-spec >/dev/null
     "$SCRIPT_DIR/task" create ps-rep-03 "Main task" -r my-spec --deps "ps-rep-01" >/dev/null
     # Set initial steps directly via SQL (create command updated separately)
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Old step']::TEXT[] WHERE id = 'ps-rep-03'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Old step']::TEXT[] WHERE slug = 'ps-rep-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
 
     local input
     input='{"id":"ps-rep-01","t":"Blocker A","spec":"my-spec"}

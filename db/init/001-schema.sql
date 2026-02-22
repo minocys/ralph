@@ -5,7 +5,10 @@
 SET client_min_messages TO WARNING;
 
 CREATE TABLE IF NOT EXISTS tasks (
-    id              TEXT PRIMARY KEY,
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug            TEXT NOT NULL,
+    scope_repo      TEXT NOT NULL,
+    scope_branch    TEXT NOT NULL,
     title           TEXT NOT NULL,
     description     TEXT,
     category        TEXT,
@@ -21,12 +24,16 @@ CREATE TABLE IF NOT EXISTS tasks (
     steps           TEXT[],
     created_at      TIMESTAMPTZ DEFAULT now(),
     updated_at      TIMESTAMPTZ,
-    deleted_at      TIMESTAMPTZ
+    deleted_at      TIMESTAMPTZ,
+    UNIQUE(scope_repo, scope_branch, slug)
 );
 
+CREATE INDEX IF NOT EXISTS idx_tasks_scope_status
+    ON tasks(scope_repo, scope_branch, status, priority, created_at);
+
 CREATE TABLE IF NOT EXISTS task_deps (
-    task_id    TEXT REFERENCES tasks(id) ON DELETE CASCADE,
-    blocked_by TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id    UUID REFERENCES tasks(id) ON DELETE CASCADE,
+    blocked_by UUID REFERENCES tasks(id) ON DELETE CASCADE,
     PRIMARY KEY (task_id, blocked_by)
 );
 
