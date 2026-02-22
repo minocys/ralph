@@ -13,7 +13,8 @@ fi
 active_output=$("$RALPH_TASK_SCRIPT" list --status active 2>/dev/null || true)
 
 if [[ -n "$active_output" ]]; then
-    # Parse table format: ID is first column, AGENT is last column
+    # Table format: ID is $1, AGENT is $NF (last column).
+    # Relies on agent IDs not appearing as last word of multi-word titles.
     task_id=$(echo "$active_output" | awk -v agent="$RALPH_AGENT_ID" '$NF == agent { print $1 }' | head -n1)
 else
     task_id=""

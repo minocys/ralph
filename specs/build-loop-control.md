@@ -9,7 +9,7 @@ ralph.sh controls the build iteration lifecycle: pre-invocation task peek, invok
 - Before each Claude invocation in build mode, ralph.sh must run `task peek -n 10` to get a snapshot of claimable and active tasks
 - If `task peek` returns empty output (no claimable tasks), ralph.sh must exit the loop successfully — there is no work to do
 - If `task peek` fails with a non-zero exit code, ralph.sh should treat it as a transient error and continue the loop (retry next iteration)
-- ralph.sh must pass the peek JSONL to Claude via the prompt argument: `claude -p "/ralph-build $PEEK_JSONL"`
+- ralph.sh must pass the peek output to Claude via the prompt argument: `claude -p "/ralph-build $PEEK_MD"`
 - ralph.sh does not claim tasks — the build skill performs targeted claiming inside the session (see build-skill-integration spec)
 
 ### Post-invocation Checks
@@ -29,7 +29,7 @@ ralph.sh controls the build iteration lifecycle: pre-invocation task peek, invok
 ## Constraints
 
 - `task plan-status` output format is defined in `specs/task-cli.md` — ralph.sh must parse it reliably
-- `task peek` JSONL output format is defined in `specs/task-cli.md` — ralph.sh passes it through without parsing (Claude parses it)
+- `task peek` output format is defined in `specs/task-cli.md` — ralph.sh passes it through without parsing (Claude parses it)
 - If `task plan-status` fails (DB unreachable, CLI error), ralph.sh should treat it as "tasks remain" and continue the loop
 - This change only affects build mode (`--plan` mode retains the `<promise>` mechanism)
 - The crash-safety fallback is defense-in-depth — the SessionEnd hook (see session-safety-hooks spec) is the primary mechanism for releasing tasks on abnormal exits
@@ -39,4 +39,4 @@ ralph.sh controls the build iteration lifecycle: pre-invocation task peek, invok
 - Retry count thresholds (e.g., stopping after N failures on the same task)
 - Switching between plan and build modes automatically
 - Parallel agent coordination (each ralph.sh instance runs its own loop independently)
-- Parsing or interpreting the peek JSONL in ralph.sh (it is passed through to Claude as-is)
+- Parsing or interpreting the peek output in ralph.sh (it is passed through to Claude as-is)

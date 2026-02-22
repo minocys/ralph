@@ -42,10 +42,10 @@ run_loop() {
         fi
 
         # Pre-invocation task peek: get claimable + active tasks snapshot
-        local PEEK_JSONL=""
+        local PEEK_MD=""
         local PEEK_OK=false
         if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then
-            if PEEK_JSONL=$("$TASK_SCRIPT" peek -n 10 2>/dev/null); then
+            if PEEK_MD=$("$TASK_SCRIPT" peek -n 10 2>/dev/null); then
                 PEEK_OK=true
             fi
         fi
@@ -58,15 +58,15 @@ run_loop() {
 
         # In build mode, exit if peek succeeded but returned empty (no tasks)
         # If peek failed (non-zero exit), treat as transient and continue
-        if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && $PEEK_OK && [ -z "$PEEK_JSONL" ]; then
+        if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && $PEEK_OK && [ -z "$PEEK_MD" ]; then
             echo "No tasks available. Exiting loop."
             break
         fi
 
         # Build Claude argument list for this iteration
         local CLAUDE_ARGS
-        if [ -n "$PEEK_JSONL" ]; then
-            CLAUDE_ARGS=(-p "$COMMAND $PEEK_JSONL" --output-format=stream-json --verbose)
+        if [ -n "$PEEK_MD" ]; then
+            CLAUDE_ARGS=(-p "$COMMAND $PEEK_MD" --output-format=stream-json --verbose)
         elif [ "$MODE" = "plan" ] && [ -n "$PLAN_EXPORT_MD" ]; then
             CLAUDE_ARGS=(-p "$COMMAND $PLAN_EXPORT_MD" --output-format=stream-json --verbose)
         else
@@ -97,6 +97,8 @@ run_loop() {
         # Crash-safety fallback: fail active tasks assigned to this agent
         if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
             local ACTIVE_TASKS
+            # Table format: ID is $1, AGENT is $NF (last column).
+            # Relies on agent IDs not appearing as last word of multi-word titles.
             ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active 2>/dev/null | awk -v agent="$AGENT_ID" '$NF == agent { print $1 }') || true
             local ACTIVE_ID
             while IFS= read -r ACTIVE_ID; do

@@ -38,6 +38,29 @@ psql_cmd() {
 # sql_esc: double single quotes for SQL string literals
 sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
+# Build a PostgreSQL TEXT[] literal from a JSON array of strings.
+# Usage: build_steps_literal "$json_array"   →   ARRAY['s1','s2']::TEXT[]
+# Returns "NULL" for empty/zero-length arrays.
+build_steps_literal() {
+    local json="$1"
+    local count
+    count=$(printf '%s' "$json" | jq 'length')
+    if [[ "$count" -le 0 ]]; then
+        printf 'NULL'
+        return
+    fi
+    local val="ARRAY["
+    for ((i=0; i<count; i++)); do
+        local content esc
+        content=$(printf '%s' "$json" | jq -r ".[$i]")
+        esc=$(sql_esc "$content")
+        [[ $i -gt 0 ]] && val+=","
+        val+="'${esc}'"
+    done
+    val+="]::TEXT[]"
+    printf '%s' "$val"
+}
+
 # ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
@@ -120,10 +143,10 @@ Plan Phase Commands:
   plan-status           Print summary: N open, N active, N done, N blocked, N deleted
 
 Build Phase Commands:
-  peek [-n 5]                Top N claimable + all active tasks (JSONL)
+  peek [-n 10]               Top N claimable + all active tasks (markdown-KV)
   claim [<id>] [--lease N]   Claim task (targeted by id, or highest-priority)
   renew <id> [--lease N]     Extend lease on an active task
-done <id> --result '<json>'  Mark task as done, store result
+  done <id> --result '<json>'  Mark task as done, store result
   fail <id> --reason "<text>"  Release task back to open
 
 Shared Commands:
@@ -272,20 +295,8 @@ CREATE TEMP TABLE _sync_pre ON COMMIT DROP AS
         [[ -n "$ref" ]] && ref_val="'${esc_ref}'" || ref_val="NULL"
 
         # Build steps ARRAY literal
-        local steps_val="NULL"
-        local step_count
-        step_count=$(printf '%s' "$steps_json" | jq 'length')
-        if [[ "$step_count" -gt 0 ]]; then
-            steps_val="ARRAY["
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i]")
-                esc_step=$(sql_esc "$step_content")
-                [[ $i -gt 0 ]] && steps_val+=","
-                steps_val+="'${esc_step}'"
-            done
-            steps_val+="]::TEXT[]"
-        fi
+        local steps_val
+        steps_val=$(build_steps_literal "$steps_json")
 
         # Upsert: INSERT new or UPDATE existing (skip done tasks via WHERE clause)
         sql+="
@@ -1143,19 +1154,7 @@ cmd_create() {
     # Build steps ARRAY literal from JSON string array: ["step1","step2"]
     local steps_val="NULL"
     if [[ -n "$steps_json" ]]; then
-        local step_count
-        step_count=$(printf '%s' "$steps_json" | jq 'length')
-        if [[ "$step_count" -gt 0 ]]; then
-            steps_val="ARRAY["
-            for ((i=0; i<step_count; i++)); do
-                local step_content esc_step
-                step_content=$(printf '%s' "$steps_json" | jq -r ".[$i]")
-                esc_step=$(sql_esc "$step_content")
-                [[ $i -gt 0 ]] && steps_val+=","
-                steps_val+="'${esc_step}'"
-            done
-            steps_val+="]::TEXT[]"
-        fi
+        steps_val=$(build_steps_literal "$steps_json")
     fi
 
     # Build INSERT for tasks
@@ -1281,19 +1280,7 @@ UPDATE tasks SET ${set_clause} WHERE id = '${esc_id}';"
     if [[ "$has_steps" -eq 1 ]]; then
         local steps_val="NULL"
         if [[ -n "$steps_json" ]]; then
-            local step_count
-            step_count=$(printf '%s' "$steps_json" | jq 'length')
-            if [[ "$step_count" -gt 0 ]]; then
-                steps_val="ARRAY["
-                for ((i=0; i<step_count; i++)); do
-                    local step_content esc_step
-                    step_content=$(printf '%s' "$steps_json" | jq -r ".[$i]")
-                    esc_step=$(sql_esc "$step_content")
-                    [[ $i -gt 0 ]] && steps_val+=","
-                    steps_val+="'${esc_step}'"
-                done
-                steps_val+="]::TEXT[]"
-            fi
+            steps_val=$(build_steps_literal "$steps_json")
         fi
         sql+="
 UPDATE tasks SET steps = ${steps_val} WHERE id = '${esc_id}';"
