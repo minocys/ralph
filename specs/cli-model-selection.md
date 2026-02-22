@@ -81,7 +81,7 @@ test/
 
 - Load `bats-support`, `bats-assert`, and `bats-file` via `bats_load_library` or `load` from `test/libs/`.
 - Set `SCRIPT_DIR` to the project root so the script under test can locate `models.json`.
-- Provide a `setup` function that creates a temporary working directory (`$BATS_TMPDIR`) with a minimal `specs/` directory and dummy `IMPLEMENTATION_PLAN.json` so preflight checks pass when not under test.
+- Provide a `setup` function that creates a temporary working directory (`$BATS_TMPDIR`) with a minimal `specs/` directory so preflight checks pass when not under test.
 - Provide a `teardown` function that cleans up temp files.
 
 ### Test cases
@@ -105,8 +105,6 @@ test/
 |---|------|-----|
 | 1 | Missing `specs/` directory exits 1 | Remove the specs dir before run → `assert_failure` + `assert_output --partial "No specs found"` |
 | 2 | Empty `specs/` directory exits 1 | Create empty specs dir → `assert_failure` + `assert_output --partial "No specs found"` |
-| 3 | Missing `IMPLEMENTATION_PLAN.json` in build mode exits 1 | Remove the plan file → `assert_failure` + `assert_output --partial "IMPLEMENTATION_PLAN.json not found"` |
-| 4 | Missing plan file is OK in plan mode | `run ./ralph.sh --plan` with no plan file → should not fail on that check (will fail later at `claude` invocation, which is fine — preflight passed) |
 
 #### `ralph_model.bats` — model & backend resolution
 
