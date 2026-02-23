@@ -123,19 +123,19 @@ _source_env() {
 
 @test "sourcing .env preserves existing RALPH_DB_URL" {
     printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
-    RALPH_DB_URL="postgres://custom:custom@remotehost:5432/mydb"
+    RALPH_DB_URL="postgres://custom:custom@remotehost:5499/mydb"
     SCRIPT_DIR="$TEST_WORK_DIR"
     _source_env
-    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5432/mydb" ]
+    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5499/mydb" ]
 }
 
 @test "sourcing .env loads POSTGRES_* even when RALPH_DB_URL is pre-set" {
     printf 'POSTGRES_USER=ralph\nPOSTGRES_PORT=5499\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
-    RALPH_DB_URL="postgres://custom:custom@remotehost:5432/mydb"
+    RALPH_DB_URL="postgres://custom:custom@remotehost:5499/mydb"
     unset POSTGRES_USER POSTGRES_PORT
     SCRIPT_DIR="$TEST_WORK_DIR"
     _source_env
     [ "$POSTGRES_USER" = "ralph" ]
     [ "$POSTGRES_PORT" = "5499" ]
-    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5432/mydb" ]
+    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5499/mydb" ]
 }

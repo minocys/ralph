@@ -9,16 +9,11 @@ if [[ -z "${RALPH_TASK_SCRIPT:-}" ]] || [[ -z "${RALPH_AGENT_ID:-}" ]]; then
     exit 0
 fi
 
-# Query active tasks for this agent; swallow errors from DB unavailability
-active_output=$("$RALPH_TASK_SCRIPT" list --status active 2>/dev/null || true)
+# Query active tasks for this agent in markdown-KV format; swallow errors from DB unavailability
+active_output=$("$RALPH_TASK_SCRIPT" list --status active --assignee "$RALPH_AGENT_ID" --markdown 2>/dev/null || true)
 
-if [[ -n "$active_output" ]]; then
-    # Table format: ID is $1, AGENT is $NF (last column).
-    # Relies on agent IDs not appearing as last word of multi-word titles.
-    task_id=$(echo "$active_output" | awk -v agent="$RALPH_AGENT_ID" '$NF == agent { print $1 }' | head -n1)
-else
-    task_id=""
-fi
+# Extract task slug from the first "id: <slug>" line in the markdown-KV output.
+task_id=$(echo "$active_output" | awk '/^id: /{print substr($0,5); exit}')
 
 if [[ -n "$task_id" ]]; then
     echo "Warning: agent $RALPH_AGENT_ID session ended, failing task $task_id" >&2

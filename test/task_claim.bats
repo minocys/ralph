@@ -214,7 +214,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task claim includes steps in output" {
     "$SCRIPT_DIR/task" create "t-steps" "Steps task" -p 0
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE id = 't-steps'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE slug = 't-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
 
     run "$SCRIPT_DIR/task" claim
     assert_success
@@ -233,7 +233,7 @@ teardown() {
     assert_success
 
     # Set the blocker to done with a result via direct SQL
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE id='t-dep-a';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE slug='t-dep-a' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     # Now claim dep-b
     run "$SCRIPT_DIR/task" claim
@@ -261,7 +261,7 @@ teardown() {
 @test "task claim with all tasks done exits 2" {
     "$SCRIPT_DIR/task" create "t-alldone" "All done" -p 0
     "$SCRIPT_DIR/task" claim >/dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done' WHERE id='t-alldone';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done' WHERE slug='t-alldone' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run "$SCRIPT_DIR/task" claim
     assert_failure 2
@@ -366,12 +366,12 @@ teardown() {
 @test "task claim <id> returns blocker_results and steps like untargeted claim" {
     "$SCRIPT_DIR/task" create "t-dep-tgt-a" "Dep A" -p 0
     "$SCRIPT_DIR/task" create "t-dep-tgt-b" "Dep B" -p 0
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE id = 't-dep-tgt-b'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE slug = 't-dep-tgt-b' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
     "$SCRIPT_DIR/task" block "t-dep-tgt-b" --by "t-dep-tgt-a"
 
     # Claim and complete dep-a with a result
     "$SCRIPT_DIR/task" claim >/dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE id='t-dep-tgt-a';" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE slug='t-dep-tgt-a' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     # Targeted claim of dep-b
     run "$SCRIPT_DIR/task" claim t-dep-tgt-b
@@ -444,6 +444,6 @@ teardown() {
 
     # Verify the task is claimed exactly once in the database
     local active_count
-    active_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT COUNT(*) FROM tasks WHERE id = 't-race' AND status = 'active'")
+    active_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT COUNT(*) FROM tasks WHERE slug = 't-race' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }

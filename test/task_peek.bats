@@ -247,15 +247,15 @@ teardown() {
 
     # Verify tasks are still status=open in DB
     local db_status
-    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='t-nl1'")
+    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
-    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='t-nl2'")
+    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='t-nl2' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
     # Verify assignee is still NULL
     local db_assignee
-    db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE id='t-nl1'")
+    db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ -z "$db_assignee" ]]
 }
 

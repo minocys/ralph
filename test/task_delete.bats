@@ -65,7 +65,7 @@ teardown() {
     assert_output "deleted test/01"
 
     local task_status
-    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id = 'test/01'")
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$task_status" = "deleted" ]
 }
 
@@ -74,18 +74,18 @@ teardown() {
     "$SCRIPT_DIR/task" delete "test/01"
 
     local deleted_at
-    deleted_at=$(psql "$RALPH_DB_URL" -tAX -c "SELECT deleted_at IS NOT NULL FROM tasks WHERE id = 'test/01'")
+    deleted_at=$(psql "$RALPH_DB_URL" -tAX -c "SELECT deleted_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$deleted_at" = "t" ]
 }
 
 @test "task delete sets updated_at timestamp" {
     "$SCRIPT_DIR/task" create "test/01" "A task to delete"
     # Clear updated_at to verify it gets set
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE id = 'test/01'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
     "$SCRIPT_DIR/task" delete "test/01"
 
     local updated_at
-    updated_at=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE id = 'test/01'")
+    updated_at=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$updated_at" = "t" ]
 }
 
@@ -122,7 +122,7 @@ teardown() {
     assert_output "deleted test/it's"
 
     local task_status
-    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id = 'test/it''s'")
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$task_status" = "deleted" ]
 }
 
@@ -135,12 +135,12 @@ teardown() {
 
     # Task should still exist in the database
     local count
-    count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM tasks WHERE id = 'test/01'")
+    count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count" = "1" ]
 
     # Original fields should be preserved
     local title
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
+    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "Soft deleted task" ]
 }
 

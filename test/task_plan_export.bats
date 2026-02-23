@@ -103,7 +103,7 @@ teardown() {
 
 @test "plan-export table shows assignee when set" {
     "$SCRIPT_DIR/task" create "pe-agent" "Assigned task" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'b3c4', status = 'active' WHERE id = 'pe-agent'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'b3c4', status = 'active' WHERE slug = 'pe-agent' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" plan-export
     assert_success
@@ -173,7 +173,7 @@ teardown() {
 
 @test "plan-export --markdown shows assignee when set" {
     "$SCRIPT_DIR/task" create "pe-agent" "Assigned task" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'b3c4', status = 'active' WHERE id = 'pe-agent'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'b3c4', status = 'active' WHERE slug = 'pe-agent' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
     run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success
@@ -183,7 +183,7 @@ teardown() {
 @test "plan-export --markdown includes steps and deps" {
     "$SCRIPT_DIR/task" create "pe-blocker" "Blocker" > /dev/null
     "$SCRIPT_DIR/task" create "pe-03" "Task with steps and deps" --deps "pe-blocker" > /dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE id = 'pe-03'" >/dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE slug = 'pe-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
 
     run "$SCRIPT_DIR/task" plan-export --markdown
     assert_success

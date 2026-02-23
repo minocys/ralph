@@ -61,7 +61,7 @@ teardown() {
 
     # Verify task exists in DB
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT id, title, priority, status, retry_count FROM tasks WHERE id = 'test-01';
+        SELECT slug, title, priority, status, retry_count FROM tasks WHERE slug = 'test-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "test-01|My first task|2|open|0"
@@ -72,7 +72,7 @@ teardown() {
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT CASE WHEN updated_at IS NOT NULL THEN 'set' ELSE 'null' END FROM tasks WHERE id = 'test-ts';
+        SELECT CASE WHEN updated_at IS NOT NULL THEN 'set' ELSE 'null' END FROM tasks WHERE slug = 'test-ts' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "set"
@@ -92,8 +92,8 @@ teardown() {
     assert_output "feat-01"
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT id, title, description, category, priority, spec_ref, ref
-        FROM tasks WHERE id = 'feat-01';
+        SELECT slug, title, description, category, priority, spec_ref, ref
+        FROM tasks WHERE slug = 'feat-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "feat-01|Full task|A detailed description|feat|1|task-cli|specs/task-cli.md"
@@ -108,7 +108,7 @@ teardown() {
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT unnest(steps) FROM tasks WHERE id = 'step-01';
+        SELECT unnest(steps) FROM tasks WHERE slug = 'step-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "First step
@@ -128,8 +128,7 @@ Third step"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT blocked_by FROM task_deps
-        WHERE task_id = 'dep-01' ORDER BY blocked_by;
+        SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'dep-01' AND scope_repo = 'test/repo' AND scope_branch = 'main') ORDER BY t.slug;
     "
     assert_success
     assert_output "blocker-a
@@ -144,7 +143,7 @@ blocker-b"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT priority, status FROM tasks WHERE id = 'def-01';
+        SELECT priority, status FROM tasks WHERE slug = 'def-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "2|open"
@@ -158,7 +157,7 @@ blocker-b"
         SELECT
             CASE WHEN description IS NULL THEN 'null' ELSE description END,
             CASE WHEN category IS NULL THEN 'null' ELSE category END
-        FROM tasks WHERE id = 'null-01';
+        FROM tasks WHERE slug = 'null-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "null|null"
@@ -182,7 +181,7 @@ blocker-b"
     assert_output "quote-01"
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT title FROM tasks WHERE id = 'quote-01';
+        SELECT title FROM tasks WHERE slug = 'quote-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "It's a task"
