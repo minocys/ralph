@@ -7,6 +7,8 @@
 #
 # Globals set by setup_session:
 #   ITERATION, CURRENT_BRANCH, TMPFILE, TASK_SCRIPT, AGENT_ID
+# Exports set by setup_session:
+#   RALPH_SCOPE_REPO, RALPH_SCOPE_BRANCH (derived via task _get-scope)
 # Globals used (must be set before calling run_loop):
 #   MODE, COMMAND, MAX_ITERATIONS, ITERATION, DANGER, RESOLVED_MODEL,
 #   TASK_SCRIPT, AGENT_ID, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID
@@ -23,6 +25,18 @@ setup_session() {
 
     TASK_SCRIPT="$SCRIPT_DIR/task"
     export RALPH_TASK_SCRIPT="$TASK_SCRIPT"
+
+    # Derive and export scope so all subprocesses (task, claude) inherit it.
+    # Uses `task _get-scope` to avoid duplicating URL-parsing logic.
+    if [ -x "$TASK_SCRIPT" ]; then
+        local scope_output
+        if scope_output=$("$TASK_SCRIPT" _get-scope 2>/dev/null); then
+            export RALPH_SCOPE_REPO
+            RALPH_SCOPE_REPO=$(echo "$scope_output" | grep '^repo:' | cut -d: -f2-)
+            export RALPH_SCOPE_BRANCH
+            RALPH_SCOPE_BRANCH=$(echo "$scope_output" | grep '^branch:' | cut -d: -f2-)
+        fi
+    fi
 
     # Register agent in build mode if task script is available
     if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ]; then

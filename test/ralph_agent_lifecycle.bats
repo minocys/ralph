@@ -120,6 +120,47 @@ STUB
     [[ "$CAPTURED_ID" =~ ^[0-9a-f]{4}$ ]]
 }
 
+@test "build mode exports RALPH_SCOPE_REPO and RALPH_SCOPE_BRANCH for claude" {
+    ENVFILE="$TEST_WORK_DIR/scope_env.txt"
+    cat > "$STUB_DIR/claude" <<STUB
+#!/bin/bash
+echo "repo=\$RALPH_SCOPE_REPO" > "$ENVFILE"
+echo "branch=\$RALPH_SCOPE_BRANCH" >> "$ENVFILE"
+echo '{"type":"result","subtype":"success","total_cost_usd":0.001,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$SCRIPT_DIR/ralph.sh" -n 1
+    assert_success
+
+    [ -f "$ENVFILE" ]
+    run cat "$ENVFILE"
+    assert_line --index 0 "repo=test/repo"
+    assert_line --index 1 "branch=main"
+}
+
+@test "plan mode exports RALPH_SCOPE_REPO and RALPH_SCOPE_BRANCH for claude" {
+    ENVFILE="$TEST_WORK_DIR/scope_env.txt"
+    cat > "$STUB_DIR/claude" <<STUB
+#!/bin/bash
+echo "repo=\$RALPH_SCOPE_REPO" > "$ENVFILE"
+echo "branch=\$RALPH_SCOPE_BRANCH" >> "$ENVFILE"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.001,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$SCRIPT_DIR/ralph.sh" --plan -n 1
+    assert_success
+
+    [ -f "$ENVFILE" ]
+    run cat "$ENVFILE"
+    assert_line --index 0 "repo=test/repo"
+    assert_line --index 1 "branch=main"
+}
+
 @test "plan mode does not register agent" {
     run "$SCRIPT_DIR/ralph.sh" --plan -n 1
     assert_success
