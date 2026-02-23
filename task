@@ -242,7 +242,6 @@ Usage: task <command> [options]
 
 Plan Phase Commands:
   plan-sync             Read JSONL from stdin, upsert tasks into the database
-  plan-export [--markdown]  Dump the full task DAG (table default, --markdown for KV)
   plan-status           Print summary: N open, N active, N done, N blocked, N deleted
 
 Build Phase Commands:
@@ -253,7 +252,7 @@ Build Phase Commands:
   fail <id> --reason "<text>"  Release task back to open
 
 Shared Commands:
-  list [--status S] [--markdown] List tasks (default: non-deleted)
+  list [--all] [--status S] [--markdown] List tasks (default: non-deleted)
   show <id> [--with-deps]      Full detail for one task
   create <id> <title> [opts]   Create a task
   update <id> [opts]           Update fields on a non-done task
