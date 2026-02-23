@@ -65,9 +65,9 @@ run_loop() {
         fi
 
         # Plan-mode pre-fetch: get current task DAG for planner
-        local PLAN_EXPORT_MD=""
+        local LIST_ALL_MD=""
         if [ "$MODE" = "plan" ] && [ -x "$TASK_SCRIPT" ]; then
-            PLAN_EXPORT_MD=$("$TASK_SCRIPT" plan-export --markdown 2>/dev/null) || true
+            LIST_ALL_MD=$("$TASK_SCRIPT" list --all --markdown 2>/dev/null) || true
         fi
 
         # In build mode, exit if peek succeeded but returned empty (no tasks)
@@ -81,8 +81,8 @@ run_loop() {
         local CLAUDE_ARGS
         if [ -n "$PEEK_MD" ]; then
             CLAUDE_ARGS=(-p "$COMMAND $PEEK_MD" --output-format=stream-json --verbose)
-        elif [ "$MODE" = "plan" ] && [ -n "$PLAN_EXPORT_MD" ]; then
-            CLAUDE_ARGS=(-p "$COMMAND $PLAN_EXPORT_MD" --output-format=stream-json --verbose)
+        elif [ "$MODE" = "plan" ] && [ -n "$LIST_ALL_MD" ]; then
+            CLAUDE_ARGS=(-p "$COMMAND $LIST_ALL_MD" --output-format=stream-json --verbose)
         else
             CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
         fi
