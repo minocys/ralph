@@ -257,7 +257,7 @@ The `task` CLI requires PostgreSQL. A Docker Compose file is provided for local 
 docker compose up -d
 
 # Set the connection URL (required for task CLI)
-export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+export RALPH_DB_URL="postgres://ralph:ralph@localhost:5432/ralph"
 
 # Verify the connection
 task plan-status

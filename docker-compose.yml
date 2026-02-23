@@ -5,15 +5,15 @@
 #   docker compose down -v       # stop and delete data
 #
 # Connection URL (set in your shell profile or .env):
-#   export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+#   export RALPH_DB_URL="postgres://ralph:ralph@localhost:5432/ralph"
 
 services:
-  ralph-task-db:
+  ralph-task-dev:
     image: postgres:17-alpine
-    container_name: ralph-task-db
+    container_name: ralph-task-dev
     env_file: .env
     ports:
-      - "${POSTGRES_PORT:-5499}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ralph}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ralph}

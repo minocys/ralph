@@ -6,10 +6,10 @@ Ralph's database credentials are currently passed via the `RALPH_DB_URL` environ
 
 ## Requirements
 
-- A `.env.example` file is tracked in git with default values: `POSTGRES_USER=ralph`, `POSTGRES_PASSWORD=ralph`, `POSTGRES_DB=ralph`, `POSTGRES_PORT=5499`, `RALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph`.
+- A `.env.example` file is tracked in git with default values: `POSTGRES_USER=ralph`, `POSTGRES_PASSWORD=ralph`, `POSTGRES_DB=ralph`, `POSTGRES_PORT=5432`, `RALPH_DB_URL=postgres://ralph:ralph@localhost:5432/ralph`.
 - The actual `.env` file is git-ignored (added to `.gitignore`).
 - If `.env` does not exist when `ralph.sh` runs, it is auto-copied from `.env.example` with an informational message. If `.env.example` is also missing, a warning is printed but execution continues (the user may have set `RALPH_DB_URL` manually).
-- `docker-compose.yml` references the `.env` file via `env_file: .env` and uses `${POSTGRES_PORT:-5499}` interpolation for the port mapping so compose works even without `.env`.
+- `docker-compose.yml` references the `.env` file via `env_file: .env` and uses `${POSTGRES_PORT:-5432}` interpolation for the port mapping so compose works even without `.env`.
 - `ralph.sh` sources `$SCRIPT_DIR/.env` after ensuring it exists, which sets `RALPH_DB_URL` and `POSTGRES_*` variables.
 - The `task` script's `db_check()` function attempts to source `$script_dir/.env` as a fallback when `RALPH_DB_URL` is not already set. If `RALPH_DB_URL` is already set in the environment, the `.env` file is not sourced (backwards compatible).
 - The `task` script resolves its own directory following symlinks (for `~/.local/bin/task`) to locate `.env` relative to the repo root.

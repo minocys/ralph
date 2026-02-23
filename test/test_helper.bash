@@ -42,7 +42,7 @@ STUB
     export STUB_DIR
 
     # Always use the test database
-    export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+    export RALPH_DB_URL="postgres://ralph:ralph@localhost:5432/ralph"
 
     # Default scope for tests (overridable per-test)
     export RALPH_SCOPE_REPO="test/repo"
