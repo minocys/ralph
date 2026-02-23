@@ -38,9 +38,11 @@ CREATE TABLE IF NOT EXISTS task_deps (
 );
 
 CREATE TABLE IF NOT EXISTS agents (
-    id         TEXT PRIMARY KEY,
-    pid        INT,
-    hostname   TEXT,
-    started_at TIMESTAMPTZ DEFAULT now(),
-    status     TEXT DEFAULT 'active'
+    id           TEXT PRIMARY KEY,
+    pid          INT,
+    hostname     TEXT,
+    scope_repo   TEXT NOT NULL DEFAULT '',
+    scope_branch TEXT NOT NULL DEFAULT '',
+    started_at   TIMESTAMPTZ DEFAULT now(),
+    status       TEXT DEFAULT 'active'
 );

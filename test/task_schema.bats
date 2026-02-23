@@ -150,6 +150,8 @@ teardown() {
     assert_output --partial "id"
     assert_output --partial "pid"
     assert_output --partial "hostname"
+    assert_output --partial "scope_repo"
+    assert_output --partial "scope_branch"
     assert_output --partial "started_at"
     assert_output --partial "status"
 }

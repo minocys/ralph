@@ -10,6 +10,13 @@ load "$TEST_DIR/libs/bats-support/load"
 load "$TEST_DIR/libs/bats-assert/load"
 load "$TEST_DIR/libs/bats-file/load"
 
+# Source .env from project root for database URL (matches runtime behavior)
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+    # shellcheck disable=SC1091
+    . "$SCRIPT_DIR/.env"
+fi
+export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5499/ralph}"
+
 # Default scope for tests — set at load time so individual setup() overrides
 # still inherit these values. Overridable per-test by re-exporting.
 export RALPH_SCOPE_REPO="${RALPH_SCOPE_REPO:-test/repo}"
@@ -41,8 +48,7 @@ STUB
     export TEST_WORK_DIR
     export STUB_DIR
 
-    # Always use the test database
-    export RALPH_DB_URL="postgres://ralph:ralph@localhost:5432/ralph"
+    # RALPH_DB_URL is set at load time (above) from .env
 
     # Default scope for tests (overridable per-test)
     export RALPH_SCOPE_REPO="test/repo"

@@ -218,12 +218,18 @@ ensure_schema() {
     );
 
     CREATE TABLE IF NOT EXISTS agents (
-        id         TEXT PRIMARY KEY,
-        pid        INT,
-        hostname   TEXT,
-        started_at TIMESTAMPTZ DEFAULT now(),
-        status     TEXT DEFAULT 'active'
+        id           TEXT PRIMARY KEY,
+        pid          INT,
+        hostname     TEXT,
+        scope_repo   TEXT NOT NULL DEFAULT '',
+        scope_branch TEXT NOT NULL DEFAULT '',
+        started_at   TIMESTAMPTZ DEFAULT now(),
+        status       TEXT DEFAULT 'active'
     );
+
+    -- Idempotent migration: add scope columns to agents if upgrading from unscoped schema
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS scope_repo   TEXT NOT NULL DEFAULT '';
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS scope_branch TEXT NOT NULL DEFAULT '';
     " > /dev/null
 }
 
