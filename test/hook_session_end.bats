@@ -62,6 +62,23 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# SessionEnd hook: ignores active tasks assigned to other agents
+# ---------------------------------------------------------------------------
+@test "session end hook ignores active tasks assigned to other agents" {
+    "$SCRIPT_DIR/task" create "se-03" "Task for other agent"
+    psql "$RALPH_DB_URL" -tAX -c \
+        "UPDATE tasks SET status='active', assignee='zz99' WHERE slug='se-03' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+
+    run "$SCRIPT_DIR/hooks/session_end.sh"
+    assert_success
+
+    # Hook should not fail the other agent's task
+    local task_status
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='se-03' AND scope_repo='test/repo' AND scope_branch='main';")
+    [ "$task_status" = "active" ]
+}
+
+# ---------------------------------------------------------------------------
 # SessionEnd hook: no active task for this agent
 # ---------------------------------------------------------------------------
 @test "session end hook is a no-op when no active task exists" {

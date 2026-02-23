@@ -114,6 +114,25 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# PreCompact hook: ignores active tasks assigned to other agents
+# ---------------------------------------------------------------------------
+@test "precompact hook ignores active tasks assigned to other agents" {
+    "$SCRIPT_DIR/task" create "pc-05" "Task for other agent"
+    psql "$RALPH_DB_URL" -tAX -c \
+        "UPDATE tasks SET status='active', assignee='zz99' WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+
+    run "$SCRIPT_DIR/hooks/precompact.sh"
+    assert_success
+
+    # Hook should not fail the other agent's task
+    echo "$output" | jq -e '.continue == true'
+
+    local task_status
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';")
+    [ "$task_status" = "active" ]
+}
+
+# ---------------------------------------------------------------------------
 # PreCompact hook: no active task for this agent
 # ---------------------------------------------------------------------------
 @test "precompact hook is a no-op when no active task exists" {

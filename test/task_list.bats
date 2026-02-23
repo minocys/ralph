@@ -251,3 +251,50 @@ teardown() {
     assert_success
     assert_output --partial "a7f2"
 }
+
+# ---------------------------------------------------------------------------
+# --assignee filter
+# ---------------------------------------------------------------------------
+@test "task list --assignee filters by assignee" {
+    "$SCRIPT_DIR/task" create "asn-01" "My task" > /dev/null
+    "$SCRIPT_DIR/task" create "asn-02" "Other task" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a1b2' WHERE slug = 'asn-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'z9y8' WHERE slug = 'asn-02' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --assignee "a1b2"
+    assert_success
+    assert_output --partial "asn-01"
+    refute_output --partial "asn-02"
+}
+
+@test "task list --assignee with --status combines both filters" {
+    "$SCRIPT_DIR/task" create "asn-03" "Active mine" > /dev/null
+    "$SCRIPT_DIR/task" create "asn-04" "Open mine" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'a1b2' WHERE slug = 'asn-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a1b2' WHERE slug = 'asn-04' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --status "active" --assignee "a1b2"
+    assert_success
+    assert_output --partial "asn-03"
+    refute_output --partial "asn-04"
+}
+
+@test "task list --assignee returns empty when no tasks match" {
+    "$SCRIPT_DIR/task" create "asn-05" "Unassigned task" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --assignee "nobody"
+    assert_success
+    assert_output ""
+}
+
+@test "task list --assignee works with --markdown" {
+    "$SCRIPT_DIR/task" create "asn-06" "Markdown assignee" -p 1 > /dev/null
+    "$SCRIPT_DIR/task" create "asn-07" "Other agent" -p 1 > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a1b2' WHERE slug = 'asn-06' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'z9y8' WHERE slug = 'asn-07' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --assignee "a1b2" --markdown
+    assert_success
+    assert_output --partial "## Task asn-06"
+    refute_output --partial "asn-07"
+}
