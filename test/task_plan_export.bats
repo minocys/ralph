@@ -255,8 +255,45 @@ teardown() {
     assert_output --partial "task list --all"
 }
 
-@test "plan-export deprecation warning does not appear on stdout" {
+@test "plan-export deprecation warning appears on stderr separately" {
+    local stderr_file="$TEST_WORK_DIR/stderr.txt"
+    "$SCRIPT_DIR/task" plan-export 2>"$stderr_file" || true
+
+    # stderr must contain the deprecation warning
+    run cat "$stderr_file"
+    assert_output --partial "Warning: plan-export is deprecated"
+    assert_output --partial "task list --all"
+}
+
+@test "plan-export stdout is not polluted by deprecation warning" {
+    "$SCRIPT_DIR/task" create "pe-clean" "Clean stdout test" -p 1 -c "feat" > /dev/null
+
+    # Capture stdout only (discard stderr)
     local stdout_output
     stdout_output=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+
+    # stdout should contain task data
+    [[ "$stdout_output" == *"pe-clean"* ]]
+    [[ "$stdout_output" == *"Clean stdout test"* ]]
+
+    # stdout must NOT contain the deprecation warning
     [[ "$stdout_output" != *"deprecated"* ]]
+    [[ "$stdout_output" != *"Warning"* ]]
+}
+
+@test "plan-export --markdown stdout is not polluted by deprecation warning" {
+    "$SCRIPT_DIR/task" create "pe-md-clean" "Markdown clean test" -p 1 > /dev/null
+
+    # Capture stdout and stderr separately
+    local stdout_output stderr_file="$TEST_WORK_DIR/stderr_md.txt"
+    stdout_output=$("$SCRIPT_DIR/task" plan-export --markdown 2>"$stderr_file")
+
+    # stdout should have markdown-KV content
+    [[ "$stdout_output" == *"## Task pe-md-clean"* ]]
+    [[ "$stdout_output" != *"deprecated"* ]]
+    [[ "$stdout_output" != *"Warning"* ]]
+
+    # stderr should have the warning
+    run cat "$stderr_file"
+    assert_output --partial "Warning: plan-export is deprecated"
 }
