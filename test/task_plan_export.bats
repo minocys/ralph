@@ -40,7 +40,7 @@ teardown() {
 # Empty database
 # ---------------------------------------------------------------------------
 @test "plan-export returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" plan-export
+    run bash -c "'$SCRIPT_DIR/task' plan-export 2>/dev/null"
     assert_success
     assert_output ""
 }
@@ -205,7 +205,7 @@ teardown() {
 }
 
 @test "plan-export --markdown returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" plan-export --markdown
+    run bash -c "'$SCRIPT_DIR/task' plan-export --markdown 2>/dev/null"
     assert_success
     assert_output ""
 }
@@ -243,4 +243,103 @@ teardown() {
     run "$SCRIPT_DIR/task" plan-export --json
     assert_failure
     assert_output --partial "unknown flag"
+}
+
+# ---------------------------------------------------------------------------
+# Deprecation warning
+# ---------------------------------------------------------------------------
+@test "plan-export prints deprecation warning to stderr" {
+    run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    assert_output --partial "Warning: plan-export is deprecated"
+    assert_output --partial "task list --all"
+}
+
+@test "plan-export deprecation warning appears on stderr separately" {
+    local stderr_file="$TEST_WORK_DIR/stderr.txt"
+    "$SCRIPT_DIR/task" plan-export 2>"$stderr_file" || true
+
+    # stderr must contain the deprecation warning
+    run cat "$stderr_file"
+    assert_output --partial "Warning: plan-export is deprecated"
+    assert_output --partial "task list --all"
+}
+
+@test "plan-export stdout is not polluted by deprecation warning" {
+    "$SCRIPT_DIR/task" create "pe-clean" "Clean stdout test" -p 1 -c "feat" > /dev/null
+
+    # Capture stdout only (discard stderr)
+    local stdout_output
+    stdout_output=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+
+    # stdout should contain task data
+    [[ "$stdout_output" == *"pe-clean"* ]]
+    [[ "$stdout_output" == *"Clean stdout test"* ]]
+
+    # stdout must NOT contain the deprecation warning
+    [[ "$stdout_output" != *"deprecated"* ]]
+    [[ "$stdout_output" != *"Warning"* ]]
+}
+
+@test "plan-export --markdown stdout is not polluted by deprecation warning" {
+    "$SCRIPT_DIR/task" create "pe-md-clean" "Markdown clean test" -p 1 > /dev/null
+
+    # Capture stdout and stderr separately
+    local stdout_output stderr_file="$TEST_WORK_DIR/stderr_md.txt"
+    stdout_output=$("$SCRIPT_DIR/task" plan-export --markdown 2>"$stderr_file")
+
+    # stdout should have markdown-KV content
+    [[ "$stdout_output" == *"## Task pe-md-clean"* ]]
+    [[ "$stdout_output" != *"deprecated"* ]]
+    [[ "$stdout_output" != *"Warning"* ]]
+
+    # stderr should have the warning
+    run cat "$stderr_file"
+    assert_output --partial "Warning: plan-export is deprecated"
+}
+
+# ---------------------------------------------------------------------------
+# Output parity: list --all matches plan-export stdout
+# ---------------------------------------------------------------------------
+@test "list --all table output matches plan-export table stdout" {
+    "$SCRIPT_DIR/task" create "parity-open" "Open task" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/task" create "parity-done" "Done task" -p 2 -c "test" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'parity-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    "$SCRIPT_DIR/task" create "parity-del" "Deleted task" -p 3 > /dev/null
+    "$SCRIPT_DIR/task" delete "parity-del" > /dev/null
+
+    # Capture stdout only from both commands
+    local pe_stdout la_stdout
+    pe_stdout=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+    la_stdout=$("$SCRIPT_DIR/task" list --all 2>/dev/null)
+
+    # Outputs must be byte-identical
+    [ "$pe_stdout" = "$la_stdout" ]
+}
+
+@test "list --all --markdown output matches plan-export --markdown stdout" {
+    "$SCRIPT_DIR/task" create "mdpar-open" "Open task" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-done" "Done task" -p 2 -c "test" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'mdpar-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-del" "Deleted task" -p 3 > /dev/null
+    "$SCRIPT_DIR/task" delete "mdpar-del" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-blocker" "Blocker" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-blocked" "Blocked task" -p 0 --deps "mdpar-blocker" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Step one','Step two']::TEXT[] WHERE slug = 'mdpar-blocked' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+
+    # Capture stdout only from both commands
+    local pe_stdout la_stdout
+    pe_stdout=$("$SCRIPT_DIR/task" plan-export --markdown 2>/dev/null)
+    la_stdout=$("$SCRIPT_DIR/task" list --all --markdown 2>/dev/null)
+
+    # Outputs must be byte-identical
+    [ "$pe_stdout" = "$la_stdout" ]
+}
+
+@test "list --all matches plan-export stdout when database is empty" {
+    local pe_stdout la_stdout
+    pe_stdout=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+    la_stdout=$("$SCRIPT_DIR/task" list --all 2>/dev/null)
+
+    [ "$pe_stdout" = "$la_stdout" ]
 }

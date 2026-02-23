@@ -250,9 +250,10 @@ task_in_scope_b() {
     local input_a='{"id":"pe-only-a","t":"Only Alpha","p":1,"spec":"alpha.md"}'
     printf "%s\n" "$input_a" | task_in_scope_a plan-sync >/dev/null
 
-    run task_in_scope_b plan-export
-    assert_success
-    assert_output ""
+    # Redirect stderr to suppress deprecation warning; only check stdout
+    local stdout_output
+    stdout_output=$(task_in_scope_b plan-export 2>/dev/null)
+    [[ -z "$stdout_output" ]]
 }
 
 # ===========================================================================

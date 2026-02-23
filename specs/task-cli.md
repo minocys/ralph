@@ -12,7 +12,6 @@ Bash command-line interface for agents and the ralph planner to interact with th
 ### Plan Phase Commands
 
 - `task plan-sync` — read JSONL from stdin, upsert tasks into the database using the diff algorithm (see Task Scheduling spec), print summary of changes (inserted, updated, deleted)
-- `task plan-export [--markdown]` — dump the full task DAG as a table (default) or markdown-KV with `--markdown`
 - `task plan-status` — print summary line: `N open, N active, N done, N blocked, N deleted`
 
 ### Build Phase Commands
@@ -25,7 +24,7 @@ Bash command-line interface for agents and the ralph planner to interact with th
 
 ### Shared Commands
 
-- `task list [--status open,active] [--markdown]` — show tasks filtered by status; default is compact table, `--markdown` outputs markdown-KV
+- `task list [--status open,active] [--all] [--markdown]` — show tasks filtered by status; default excludes deleted, `--all` shows all statuses including deleted (replaces `plan-export`), `--markdown` outputs markdown-KV; `--all` and `--status` are mutually exclusive
 - `task show <id> [--with-deps]` — full detail for one task; `--with-deps` includes blocker task results
 - `task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]` — create a task with a given ID and title, print its ID
 - `task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]` — update fields on a non-done task
@@ -47,13 +46,13 @@ Bash command-line interface for agents and the ralph planner to interact with th
 
 Commands that pass task state to LLMs use markdown-KV format (defined in `specs/task-output-format.md`):
 - `task peek`, `task claim` always output markdown-KV
-- `task list --markdown` and `task plan-export --markdown` output markdown-KV when the flag is set
+- `task list --markdown` and `task list --all --markdown` output markdown-KV when the flag is set
 - Keys use full names: `id`, `title`, `priority`, `status`, `category`, `spec`, `ref`, `assignee`, `deps`, `steps`
 - `task claim` additionally includes `lease_expires_at`, `retry_count`, and `blocker_results`
 
 ### Table Format
 
-Default for `task list` and `task plan-export` — aligned columns, compact:
+Default for `task list` and `task list --all` — aligned columns, compact:
 ```
 ID              P S      CAT  TITLE                              AGENT
 task-cli/01     0 active feat Implement CLI skeleton              a7f2

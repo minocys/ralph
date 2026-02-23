@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # If task script or agent ID aren't available, exit silently
-if [[ -z "${RALPH_TASK_SCRIPT:-}" ]] || [[ -z "${RALPH_AGENT_ID:-}" ]]; then
+if [[ -z "${RALPH_TASK_SCRIPT:-}" ]] || [[ -z "${RALPH_AGENT_ID:-}" ]] || [[ -z "${RALPH_SCOPE_REPO:-}" ]] || [[ -z "${RALPH_SCOPE_BRANCH:-}" ]]; then
     exit 0
 fi
 
