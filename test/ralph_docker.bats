@@ -133,7 +133,7 @@ STUB
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
 if [ "$1" = "inspect" ]; then
-    echo "Error: No such object: ralph-task-dev" >&2
+    echo "Error: No such object: ralph-task-db" >&2
     exit 1
 fi
 exit 0
@@ -145,14 +145,14 @@ STUB
     assert_failure
 }
 
-@test "is_container_running passes ralph-task-dev as container name to docker inspect" {
+@test "is_container_running passes ralph-task-db as container name to docker inspect" {
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
 if [ "$1" = "inspect" ]; then
     # Log all args so we can verify the container name
     echo "DOCKER_ARGS: $*" >&2
-    # Check the last argument is ralph-task-dev
-    if [ "${@: -1}" = "ralph-task-dev" ]; then
+    # Check the last argument is ralph-task-db
+    if [ "${@: -1}" = "ralph-task-db" ]; then
         echo "true"
         exit 0
     fi
@@ -269,12 +269,12 @@ STUB
     assert_output --partial "within 3s"
 }
 
-@test "wait_for_healthy checks docker health status format for ralph-task-dev" {
+@test "wait_for_healthy checks docker health status format for ralph-task-db" {
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
 if [ "$1" = "inspect" ] && [ "$2" = "--format" ]; then
     # Verify format string and container name
-    if [ "$3" = "{{.State.Health.Status}}" ] && [ "$4" = "ralph-task-dev" ]; then
+    if [ "$3" = "{{.State.Health.Status}}" ] && [ "$4" = "ralph-task-db" ]; then
         echo "healthy"
         exit 0
     fi
