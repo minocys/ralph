@@ -297,3 +297,49 @@ teardown() {
     run cat "$stderr_file"
     assert_output --partial "Warning: plan-export is deprecated"
 }
+
+# ---------------------------------------------------------------------------
+# Output parity: list --all matches plan-export stdout
+# ---------------------------------------------------------------------------
+@test "list --all table output matches plan-export table stdout" {
+    "$SCRIPT_DIR/task" create "parity-open" "Open task" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/task" create "parity-done" "Done task" -p 2 -c "test" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'parity-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    "$SCRIPT_DIR/task" create "parity-del" "Deleted task" -p 3 > /dev/null
+    "$SCRIPT_DIR/task" delete "parity-del" > /dev/null
+
+    # Capture stdout only from both commands
+    local pe_stdout la_stdout
+    pe_stdout=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+    la_stdout=$("$SCRIPT_DIR/task" list --all 2>/dev/null)
+
+    # Outputs must be byte-identical
+    [ "$pe_stdout" = "$la_stdout" ]
+}
+
+@test "list --all --markdown output matches plan-export --markdown stdout" {
+    "$SCRIPT_DIR/task" create "mdpar-open" "Open task" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-done" "Done task" -p 2 -c "test" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'mdpar-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-del" "Deleted task" -p 3 > /dev/null
+    "$SCRIPT_DIR/task" delete "mdpar-del" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-blocker" "Blocker" > /dev/null
+    "$SCRIPT_DIR/task" create "mdpar-blocked" "Blocked task" -p 0 --deps "mdpar-blocker" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Step one','Step two']::TEXT[] WHERE slug = 'mdpar-blocked' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+
+    # Capture stdout only from both commands
+    local pe_stdout la_stdout
+    pe_stdout=$("$SCRIPT_DIR/task" plan-export --markdown 2>/dev/null)
+    la_stdout=$("$SCRIPT_DIR/task" list --all --markdown 2>/dev/null)
+
+    # Outputs must be byte-identical
+    [ "$pe_stdout" = "$la_stdout" ]
+}
+
+@test "list --all matches plan-export stdout when database is empty" {
+    local pe_stdout la_stdout
+    pe_stdout=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+    la_stdout=$("$SCRIPT_DIR/task" list --all 2>/dev/null)
+
+    [ "$pe_stdout" = "$la_stdout" ]
+}
