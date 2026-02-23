@@ -390,3 +390,62 @@ task_in_scope_b() {
     run task_in_scope_b show "show-only-a"
     assert_failure 2
 }
+
+# ===========================================================================
+# task agent list — scope isolation
+# ===========================================================================
+
+@test "agent list only shows agents from current scope" {
+    # Register agent in scope A
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    # Register agent in scope B
+    run task_in_scope_b agent register
+    assert_success
+    local agent_b="$output"
+
+    # List in scope A — should see only agent_a
+    run task_in_scope_a agent list
+    assert_success
+    assert_output --partial "$agent_a"
+    refute_output --partial "$agent_b"
+
+    # List in scope B — should see only agent_b
+    run task_in_scope_b agent list
+    assert_success
+    assert_output --partial "$agent_b"
+    refute_output --partial "$agent_a"
+}
+
+@test "agent list returns empty when no agents in current scope" {
+    # Register agent only in scope A
+    run task_in_scope_a agent register
+    assert_success
+
+    # List in scope B — should be empty
+    run task_in_scope_b agent list
+    assert_success
+    [[ -z "$output" ]]
+}
+
+@test "agent list excludes stopped agents in same scope" {
+    # Register two agents in scope A
+    run task_in_scope_a agent register
+    assert_success
+    local agent1="$output"
+
+    run task_in_scope_a agent register
+    assert_success
+    local agent2="$output"
+
+    # Stop agent1
+    task_in_scope_a agent deregister "$agent1"
+
+    # List in scope A — should only see agent2
+    run task_in_scope_a agent list
+    assert_success
+    assert_output --partial "$agent2"
+    refute_output --partial "$agent1"
+}
