@@ -1,10 +1,10 @@
 # Plan-Sync Input Validation
 
-The `task plan-sync` command validates JSONL input before processing and fails fast on malformed data, giving the calling agent a clear error to adjust and retry.
+The `ralph task plan-sync` command validates JSONL input before processing and fails fast on malformed data, giving the calling agent a clear error to adjust and retry.
 
 ## Requirements
 
-- Before processing any tasks, `task plan-sync` must pre-validate every stdin line
+- Before processing any tasks, `ralph task plan-sync` must pre-validate every stdin line
 - Each line must be valid JSON — if `jq` fails to parse a line, the command must exit immediately with code 1 and print a descriptive error to stderr identifying the line number and content
 - Each JSON object must contain a non-empty `id` field (string) — missing or empty `id` must be rejected with a descriptive error to stderr
 - Each JSON object must contain a non-empty `t` (title) field (string) — missing or empty `t` must be rejected with a descriptive error to stderr

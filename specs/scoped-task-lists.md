@@ -22,22 +22,22 @@ Scoped task lists add `scope_repo` and `scope_branch` columns to the database. E
   - `blocked_by UUID REFERENCES tasks(id) ON DELETE CASCADE`
 - Add `scope_repo TEXT NOT NULL` and `scope_branch TEXT NOT NULL` columns to the `agents` table
 - Add an index on `tasks (scope_repo, scope_branch, status, priority, created_at)` for efficient scoped queries
-- `ensure_schema()` in the `task` CLI must handle the migration idempotently (add columns if they don't exist)
+- `ensure_schema()` in `lib/task` must handle the migration idempotently (add columns if they don't exist)
 - `db/init/001-schema.sql` must be updated to reflect the new schema for fresh installs
 
 ### Scope Derivation
 
-- The `task` CLI must determine scope from environment variables or git, in this order:
+- The task CLI (`lib/task`) must determine scope from environment variables or git, in this order:
   1. `RALPH_SCOPE_REPO` environment variable (if set)
   2. Derived from `git remote get-url origin` — extract `owner/repo` (strip `.git` suffix, handle both SSH and HTTPS URL formats)
-- The `task` CLI must determine branch scope in this order:
+- The task CLI must determine branch scope in this order:
   1. `RALPH_SCOPE_BRANCH` environment variable (if set)
   2. Derived from `git branch --show-current`
-- The `task` CLI must error if scope cannot be determined:
+- The task CLI must error if scope cannot be determined:
   - Not inside a git repository → `Error: not inside a git repository. Run: git init`
   - No remote named `origin` → `Error: no git remote "origin" found. Run: git remote add origin <url>`
   - Detached HEAD state (`git branch --show-current` returns empty) → `Error: detached HEAD state. Run: git checkout <branch>`
-- `ralph.sh` / `lib/loop.sh` should set `RALPH_SCOPE_REPO` and `RALPH_SCOPE_BRANCH` environment variables explicitly before invoking `task` or `claude`, so that subprocesses inherit the scope
+- `lib/plan_loop.sh` and `lib/build_loop.sh` should set `RALPH_SCOPE_REPO` and `RALPH_SCOPE_BRANCH` environment variables explicitly before invoking `ralph task` or `claude`, so that subprocesses inherit the scope
 
 ### CLI Behavior
 
@@ -45,12 +45,12 @@ Scoped task lists add `scope_repo` and `scope_branch` columns to the database. E
 - The slug is resolved to an internal UUID within the current scope: `WHERE scope_repo = $REPO AND scope_branch = $BRANCH AND slug = $SLUG`
 - The UUID is internal only — never exposed to users, planners, or builders
 - Commands affected: `claim`, `done`, `fail`, `renew`, `show`, `update`, `delete`, `deps`, `block`, `unblock`
-- `task create` must accept the slug as the first positional argument (same ergonomics as today's `id`), and generate the UUID automatically
-- `task list` (including `--all`), `task peek`, `task plan-status` must filter results by the current scope
-- `task plan-sync` must match incoming tasks to existing DB rows using `(scope_repo, scope_branch, slug)` — the incoming JSONL `id` field maps to the `slug` column
-- `task plan-sync` orphan deletion must be scoped: only soft-delete tasks within the current scope's `spec_ref` group
-- `task agent register` must record `scope_repo` and `scope_branch` on the agent row
-- `task agent list` must filter by the current scope
+- `ralph task create` must accept the slug as the first positional argument (same ergonomics as today's `id`), and generate the UUID automatically
+- `ralph task list` (including `--all`), `ralph task peek`, `ralph task plan-status` must filter results by the current scope
+- `ralph task plan-sync` must match incoming tasks to existing DB rows using `(scope_repo, scope_branch, slug)` — the incoming JSONL `id` field maps to the `slug` column
+- `ralph task plan-sync` orphan deletion must be scoped: only soft-delete tasks within the current scope's `spec_ref` group
+- `ralph task agent register` must record `scope_repo` and `scope_branch` on the agent row
+- `ralph task agent list` must filter by the current scope
 
 ### Output Format
 
@@ -73,6 +73,6 @@ Scoped task lists add `scope_repo` and `scope_branch` columns to the database. E
 
 - Cross-scope visibility (e.g. `--all-scopes` flag to see tasks from all repos/branches)
 - Migration tooling for existing task data (existing unscoped tasks are orphaned; fresh `plan-sync` repopulates)
-- Scope management commands (e.g. `task scope list`, `task scope prune`)
+- Scope management commands (e.g. `ralph task scope list`, `ralph task scope prune`)
 - Web UI or dashboard for multi-scope monitoring
 - Scope derived from anything other than git (e.g. arbitrary project names)

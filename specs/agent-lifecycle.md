@@ -4,7 +4,7 @@ Agent identification and registration for multi-agent task orchestration across 
 
 ## Requirements
 
-- When a ralph build loop starts, it must register an agent via `task agent register` before entering the build loop
+- When a ralph build loop starts, it must register an agent via `ralph task agent register` before entering the build loop
 - Registration must:
   - Generate a unique 4-character hex ID (e.g. `a7f2`)
   - Record the shell process PID (`$$`)
@@ -12,8 +12,8 @@ Agent identification and registration for multi-agent task orchestration across 
   - Set `started_at` to current timestamp
   - Print the agent ID to stdout for capture by the calling script
 - The agent ID must be passed to Claude Code so agents can identify themselves when claiming tasks
-- `task agent list` must show all active agents with their ID, PID, hostname, and started_at
-- `task agent deregister <id>` must set agent status to `stopped`
+- `ralph task agent list` must show all active agents with their ID, PID, hostname, and started_at
+- `ralph task agent deregister <id>` must set agent status to `stopped`
 - On ralph loop exit (normal completion or signal), deregister the agent
 - Crash recovery is handled by the lease mechanism (see Task Scheduling spec) — no agent-level recovery command is needed
 
