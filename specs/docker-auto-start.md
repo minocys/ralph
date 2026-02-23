@@ -11,7 +11,7 @@ Ralph plan and build both require a running PostgreSQL server, but currently use
 - If the container is already running, `ralph.sh` skips the startup step.
 - After startup (or when already running), `ralph.sh` waits for the container to be healthy using both `docker inspect` health status AND `pg_isready` (belt-and-suspenders).
 - The health check polls with a configurable timeout (default 30 seconds, overridable via `DOCKER_HEALTH_TIMEOUT` for tests). If the timeout expires, `ralph.sh` exits 1 with a timeout error.
-- The PostgreSQL container listens on host port **5432** (not the default 5432) to avoid conflicts with any local PostgreSQL instance.
+- The PostgreSQL container listens on host port **5499** (not the default 5432) to avoid conflicts with any local PostgreSQL instance.
 - The Docker service is named `ralph-task-dev` with `container_name: ralph-task-dev`.
 - The data volume is named `ralph-task-data-dev` and persists between runs (not ephemeral).
 - The `docker-compose.yml` mounts `./db/init/` to `/docker-entrypoint-initdb.d/:ro` for schema initialization on first boot.
