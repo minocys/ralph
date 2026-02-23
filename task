@@ -1593,7 +1593,8 @@ cmd_agent_register() {
         # Try to insert; ON CONFLICT means collision — retry
         local result
         result=$(psql "$RALPH_DB_URL" -tAX -v ON_ERROR_STOP=1 -c "
-            INSERT INTO agents (id, pid, hostname) VALUES ('$(sql_esc "$agent_id")', $pid, '$(sql_esc "$host")')
+            INSERT INTO agents (id, pid, hostname, scope_repo, scope_branch)
+            VALUES ('$(sql_esc "$agent_id")', $pid, '$(sql_esc "$host")', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}')
             ON CONFLICT (id) DO NOTHING
             RETURNING id;
         " 2>&1)

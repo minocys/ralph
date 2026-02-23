@@ -106,6 +106,37 @@ teardown() {
     assert_output "t"
 }
 
+@test "agent register records scope_repo from env" {
+    run "$SCRIPT_DIR/task" agent register
+    assert_success
+    local agent_id="$output"
+
+    run psql "$RALPH_DB_URL" -tAX -c "SELECT scope_repo FROM agents WHERE id = '$agent_id';"
+    assert_success
+    assert_output "test/repo"
+}
+
+@test "agent register records scope_branch from env" {
+    run "$SCRIPT_DIR/task" agent register
+    assert_success
+    local agent_id="$output"
+
+    run psql "$RALPH_DB_URL" -tAX -c "SELECT scope_branch FROM agents WHERE id = '$agent_id';"
+    assert_success
+    assert_output "main"
+}
+
+@test "agent register records custom scope values" {
+    RALPH_SCOPE_REPO="custom/repo" RALPH_SCOPE_BRANCH="feature-branch" \
+        run "$SCRIPT_DIR/task" agent register
+    assert_success
+    local agent_id="$output"
+
+    run psql "$RALPH_DB_URL" -tAX -c "SELECT scope_repo || '|' || scope_branch FROM agents WHERE id = '$agent_id';"
+    assert_success
+    assert_output "custom/repo|feature-branch"
+}
+
 # ---------------------------------------------------------------------------
 # Uniqueness
 # ---------------------------------------------------------------------------
