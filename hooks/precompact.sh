@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # If task script or agent ID aren't available, output minimal JSON and exit
-if [[ -z "${RALPH_TASK_SCRIPT:-}" ]] || [[ -z "${RALPH_AGENT_ID:-}" ]]; then
+if [[ -z "${RALPH_TASK_SCRIPT:-}" ]] || [[ -z "${RALPH_AGENT_ID:-}" ]] || [[ -z "${RALPH_SCOPE_REPO:-}" ]] || [[ -z "${RALPH_SCOPE_BRANCH:-}" ]]; then
     echo '{"continue":true}'
     exit 0
 fi
