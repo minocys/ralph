@@ -40,7 +40,7 @@ teardown() {
 # Empty database
 # ---------------------------------------------------------------------------
 @test "plan-export returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" plan-export
+    run bash -c "'$SCRIPT_DIR/task' plan-export 2>/dev/null"
     assert_success
     assert_output ""
 }
@@ -205,7 +205,7 @@ teardown() {
 }
 
 @test "plan-export --markdown returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" plan-export --markdown
+    run bash -c "'$SCRIPT_DIR/task' plan-export --markdown 2>/dev/null"
     assert_success
     assert_output ""
 }
@@ -243,4 +243,20 @@ teardown() {
     run "$SCRIPT_DIR/task" plan-export --json
     assert_failure
     assert_output --partial "unknown flag"
+}
+
+# ---------------------------------------------------------------------------
+# Deprecation warning
+# ---------------------------------------------------------------------------
+@test "plan-export prints deprecation warning to stderr" {
+    run "$SCRIPT_DIR/task" plan-export
+    assert_success
+    assert_output --partial "Warning: plan-export is deprecated"
+    assert_output --partial "task list --all"
+}
+
+@test "plan-export deprecation warning does not appear on stdout" {
+    local stdout_output
+    stdout_output=$("$SCRIPT_DIR/task" plan-export 2>/dev/null)
+    [[ "$stdout_output" != *"deprecated"* ]]
 }

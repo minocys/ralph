@@ -499,6 +499,7 @@ COMMIT;"
     echo "inserted: ${inserted}, updated: ${updated}, deleted: ${deleted}, skipped (done): ${skipped}"
 }
 cmd_plan_export() {
+    echo "Warning: plan-export is deprecated, use 'task list --all [--markdown]' instead" >&2
     local markdown_output=0
 
     while [[ $# -gt 0 ]]; do
