@@ -1615,6 +1615,8 @@ cmd_agent_list() {
         SELECT id, pid, hostname, started_at, status
         FROM agents
         WHERE status = 'active'
+          AND scope_repo = '${ESC_SCOPE_REPO}'
+          AND scope_branch = '${ESC_SCOPE_BRANCH}'
         ORDER BY started_at DESC;
     ")
 
