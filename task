@@ -1020,9 +1020,11 @@ cmd_list() {
     local status_filter=""
     local assignee_filter=""
     local markdown_output=0
+    local all_tasks=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --all)      all_tasks=1; shift ;;
             --status)   status_filter="$2"; shift 2 ;;
             --assignee) assignee_filter="$2"; shift 2 ;;
             --markdown) markdown_output=1; shift ;;
@@ -1030,9 +1032,17 @@ cmd_list() {
         esac
     done
 
+    # --all and --status are mutually exclusive
+    if [[ "$all_tasks" -eq 1 ]] && [[ -n "$status_filter" ]]; then
+        echo "Error: --all and --status are mutually exclusive" >&2
+        exit 1
+    fi
+
     # Build WHERE clause (always scoped)
     local where_clause
-    if [[ -n "$status_filter" ]]; then
+    if [[ "$all_tasks" -eq 1 ]]; then
+        where_clause="WHERE $(scope_filter "t")"
+    elif [[ -n "$status_filter" ]]; then
         local in_list=""
         IFS=',' read -ra statuses <<< "$status_filter"
         for s in "${statuses[@]}"; do

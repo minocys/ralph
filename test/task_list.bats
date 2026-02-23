@@ -298,3 +298,56 @@ teardown() {
     assert_output --partial "## Task asn-06"
     refute_output --partial "asn-07"
 }
+
+# ---------------------------------------------------------------------------
+# --all flag
+# ---------------------------------------------------------------------------
+@test "task list --all includes deleted tasks" {
+    "$SCRIPT_DIR/task" create "all-alive" "Alive task" > /dev/null
+    "$SCRIPT_DIR/task" create "all-dead" "Dead task" > /dev/null
+    "$SCRIPT_DIR/task" delete "all-dead" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --all
+    assert_success
+    assert_output --partial "all-alive"
+    assert_output --partial "all-dead"
+    assert_output --partial "deleted"
+}
+
+@test "task list --all with --markdown includes deleted tasks" {
+    "$SCRIPT_DIR/task" create "allmd-alive" "Alive" -p 1 > /dev/null
+    "$SCRIPT_DIR/task" create "allmd-dead" "Dead" -p 2 > /dev/null
+    "$SCRIPT_DIR/task" delete "allmd-dead" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --all --markdown
+    assert_success
+    assert_output --partial "## Task allmd-alive"
+    assert_output --partial "## Task allmd-dead"
+    assert_output --partial "status: deleted"
+}
+
+@test "task list --all and --status are mutually exclusive" {
+    run "$SCRIPT_DIR/task" list --all --status "open"
+    assert_failure
+    assert_output --partial "mutually exclusive"
+}
+
+@test "task list --all returns empty output with no tasks" {
+    run "$SCRIPT_DIR/task" list --all
+    assert_success
+    assert_output ""
+}
+
+@test "task list --all shows all statuses" {
+    "$SCRIPT_DIR/task" create "multi-open" "Open" > /dev/null
+    "$SCRIPT_DIR/task" create "multi-done" "Done" > /dev/null
+    "$SCRIPT_DIR/task" create "multi-del" "Deleted" > /dev/null
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'multi-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
+    "$SCRIPT_DIR/task" delete "multi-del" > /dev/null
+
+    run "$SCRIPT_DIR/task" list --all
+    assert_success
+    assert_output --partial "multi-open"
+    assert_output --partial "multi-done"
+    assert_output --partial "multi-del"
+}

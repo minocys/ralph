@@ -17,10 +17,11 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
 fi
 export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5499/ralph}"
 
-# Default scope for tests — set at load time so individual setup() overrides
-# still inherit these values. Overridable per-test by re-exporting.
-export RALPH_SCOPE_REPO="${RALPH_SCOPE_REPO:-test/repo}"
-export RALPH_SCOPE_BRANCH="${RALPH_SCOPE_BRANCH:-main}"
+# Default scope for tests — set unconditionally at load time so that env vars
+# from the caller's shell (e.g. RALPH_SCOPE_REPO derived from git) are always
+# overridden. Individual tests can re-export per-test if needed.
+export RALPH_SCOPE_REPO="test/repo"
+export RALPH_SCOPE_BRANCH="main"
 
 setup() {
     # Create a temp working directory so tests don't touch the real project
