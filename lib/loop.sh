@@ -110,15 +110,14 @@ run_loop() {
 
         # Crash-safety fallback: fail active tasks assigned to this agent
         if [ "$MODE" = "build" ] && [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
-            local ACTIVE_TASKS
-            # Table format: ID is $1, AGENT is $NF (last column).
-            # Relies on agent IDs not appearing as last word of multi-word titles.
-            ACTIVE_TASKS=$("$TASK_SCRIPT" list --status active 2>/dev/null | awk -v agent="$AGENT_ID" '$NF == agent { print $1 }') || true
+            local active_output
+            active_output=$("$TASK_SCRIPT" list --status active --assignee "$AGENT_ID" --markdown 2>/dev/null || true)
+            # Extract task slug from the first "id: <slug>" line in the markdown-KV output.
             local ACTIVE_ID
-            while IFS= read -r ACTIVE_ID; do
-                [ -z "$ACTIVE_ID" ] && continue
+            ACTIVE_ID=$(echo "$active_output" | awk '/^id: /{print substr($0,5); exit}')
+            if [ -n "$ACTIVE_ID" ]; then
                 "$TASK_SCRIPT" fail "$ACTIVE_ID" --reason 'session exited without completing task' 2>/dev/null || true
-            done <<< "$ACTIVE_TASKS"
+            fi
         fi
 
         if [ "$MODE" = "plan" ]; then
