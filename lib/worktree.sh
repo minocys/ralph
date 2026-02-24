@@ -2,7 +2,8 @@
 # lib/worktree.sh — git worktree isolation for concurrent ralph loops
 #
 # Provides:
-#   create_worktree()  — create a git worktree for isolated loop execution
+#   create_worktree()   — create a git worktree for isolated loop execution
+#   cleanup_worktree()  — remove a git worktree (best-effort, preserves branch)
 #
 # Globals used: none (pure function, uses parameters only)
 
@@ -34,5 +35,29 @@ create_worktree() {
 
     echo "worktree: created $worktree_dir on branch $branch_name" >&2
     echo "$worktree_dir"
+    return 0
+}
+
+# cleanup_worktree: remove a git worktree (best-effort, preserves branch)
+#
+# Usage: cleanup_worktree <worktree-path>
+#
+# Removes the worktree at the given path using git worktree remove --force.
+# The branch is NOT deleted — it is preserved for user review and manual merge.
+# Logs removal to stderr. Returns 0 even if removal fails (best-effort).
+cleanup_worktree() {
+    local worktree_path="$1"
+
+    if [ -z "$worktree_path" ]; then
+        echo "Error: cleanup_worktree requires <worktree-path>" >&2
+        return 0
+    fi
+
+    if git worktree remove --force "$worktree_path" 2>&2; then
+        echo "worktree: removed $worktree_path" >&2
+    else
+        echo "worktree: failed to remove $worktree_path (best-effort, continuing)" >&2
+    fi
+
     return 0
 }
