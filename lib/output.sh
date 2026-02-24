@@ -7,7 +7,8 @@
 #
 # Globals used (must be set before calling print_banner):
 #   MODE, COMMAND, CURRENT_BRANCH, DANGER, ACTIVE_BACKEND,
-#   AGENT_ID, MODEL_ALIAS, RESOLVED_MODEL, MAX_ITERATIONS
+#   AGENT_ID, MODEL_ALIAS, RESOLVED_MODEL, MAX_ITERATIONS,
+#   RALPH_EXEC_MODE
 
 # jq filter: extract human-readable text from stream-json events
 JQ_FILTER='
@@ -45,6 +46,7 @@ print_banner() {
     echo "Safe:   $( $DANGER && echo 'NO (--dangerously-skip-permissions)' || echo 'yes' )"
     echo "Backend: $ACTIVE_BACKEND"
     [ -n "$AGENT_ID" ] && echo "Agent:  $AGENT_ID"
+    echo "Exec:   ${RALPH_EXEC_MODE:-local}"
     [ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
     [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
