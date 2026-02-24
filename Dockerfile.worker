@@ -10,4 +10,11 @@ RUN mkdir -p /workspace && chown ralph:ralph /workspace
 COPY ralph.sh lib/ skills/ hooks/ task install.sh models.json .env.example db/ /opt/ralph/
 RUN chown -R ralph:ralph /opt/ralph
 
+COPY docker/entrypoint.sh /opt/ralph/docker/entrypoint.sh
+RUN chmod +x /opt/ralph/docker/entrypoint.sh && chown ralph:ralph /opt/ralph/docker/entrypoint.sh
+
 WORKDIR /workspace
+
+USER ralph
+
+ENTRYPOINT ["/opt/ralph/docker/entrypoint.sh"]

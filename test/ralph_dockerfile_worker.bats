@@ -82,3 +82,34 @@ load test_helper
     run grep -E '^WORKDIR /workspace' "$SCRIPT_DIR/Dockerfile.worker"
     assert_success
 }
+
+@test "Dockerfile.worker copies docker/entrypoint.sh to /opt/ralph/docker/" {
+    run grep -E '^COPY docker/entrypoint\.sh /opt/ralph/docker/entrypoint\.sh' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
+
+@test "Dockerfile.worker sets USER to ralph" {
+    run grep -E '^USER ralph' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
+
+@test "Dockerfile.worker sets ENTRYPOINT to /opt/ralph/docker/entrypoint.sh" {
+    run grep -E '^ENTRYPOINT \["/opt/ralph/docker/entrypoint\.sh"\]' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
+
+@test "Dockerfile.worker sets USER before ENTRYPOINT" {
+    local user_line
+    local entrypoint_line
+    user_line=$(grep -n '^USER ralph' "$SCRIPT_DIR/Dockerfile.worker" | head -1 | cut -d: -f1)
+    entrypoint_line=$(grep -n '^ENTRYPOINT' "$SCRIPT_DIR/Dockerfile.worker" | head -1 | cut -d: -f1)
+    [ "$user_line" -lt "$entrypoint_line" ]
+}
+
+@test "Dockerfile.worker sets USER after WORKDIR" {
+    local workdir_line
+    local user_line
+    workdir_line=$(grep -n '^WORKDIR /workspace' "$SCRIPT_DIR/Dockerfile.worker" | head -1 | cut -d: -f1)
+    user_line=$(grep -n '^USER ralph' "$SCRIPT_DIR/Dockerfile.worker" | head -1 | cut -d: -f1)
+    [ "$workdir_line" -lt "$user_line" ]
+}
