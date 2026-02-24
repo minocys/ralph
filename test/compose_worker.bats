@@ -105,6 +105,19 @@ COMPOSE_FILE="$_SCRIPT_DIR/docker-compose.yml"
     assert_success
 }
 
+# --- ~/.claude bind mount ---
+
+@test "ralph-worker mounts ~/.claude to /mnt/claude-host read-only" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial '/mnt/claude-host:ro'
+}
+
+@test "ralph-worker ~/.claude mount uses home directory tilde" {
+    run grep '~/.claude:/mnt/claude-host:ro' "$COMPOSE_FILE"
+    assert_success
+}
+
 # --- existing service unchanged ---
 
 @test "ralph-task-db service still exists" {

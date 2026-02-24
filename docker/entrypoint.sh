@@ -43,6 +43,19 @@ if [ -z "${RALPH_DB_URL:-}" ] && \
 fi
 
 # ---------------------------------------------------------------------------
+# Host ~/.claude import (read-only bind mount at /mnt/claude-host)
+# ---------------------------------------------------------------------------
+
+# Copy host Claude Code configuration into the container-local ~/.claude
+# so the entrypoint can freely modify settings.json and skills/ without
+# requiring write access to the host mount.
+if [ -d /mnt/claude-host ]; then
+    mkdir -p "$HOME/.claude"
+    cp -a /mnt/claude-host/. "$HOME/.claude/"
+    echo "entrypoint: imported host ~/.claude from /mnt/claude-host (read-only)" >&2
+fi
+
+# ---------------------------------------------------------------------------
 # Skill symlinks
 # ---------------------------------------------------------------------------
 
