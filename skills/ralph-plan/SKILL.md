@@ -19,7 +19,6 @@ argument-hint: [current-task-dag]
     - deps: Dependencies between tasks must be expressed via the `deps` field when task B requires task A's output
     - steps: Text[] of steps
 3. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
-4. When complete, reply with: <promise>Tastes Like Burning.</promise>
 
 **IMPORTANT**: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with a subagent first. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
 
