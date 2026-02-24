@@ -2,8 +2,8 @@
 # test/ralph_build_loop.bats — build-mode loop control tests for ralph.sh
 #
 # These tests verify that build mode uses `task plan-status` to decide
-# when all tasks are complete, while plan mode continues to rely on the
-# <promise>Tastes Like Burning.</promise> grep check.
+# when all tasks are complete, and that plan mode uses a deterministic
+# for-loop (no sentinel check).
 
 load test_helper
 

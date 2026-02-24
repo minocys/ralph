@@ -77,7 +77,7 @@ setup() {
     cat > "$STUB_DIR/claude" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$@" > "$TEST_WORK_DIR/claude_args.txt"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
 echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
 exit 0
 STUB

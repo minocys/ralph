@@ -146,7 +146,7 @@ STUB
 #!/bin/bash
 echo "repo=\$RALPH_SCOPE_REPO" > "$ENVFILE"
 echo "branch=\$RALPH_SCOPE_BRANCH" >> "$ENVFILE"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
 echo '{"type":"result","subtype":"success","total_cost_usd":0.001,"num_turns":1}'
 exit 0
 STUB
