@@ -128,7 +128,7 @@ id: t-01
 title: Test task
 status: open'
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # Verify task stub was called with list --all --markdown
@@ -146,7 +146,7 @@ id: t-01
 title: Test task
 status: open'
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # The -p value should be "/ralph-plan {markdown-KV}" as a single argument
@@ -159,7 +159,7 @@ status: open'
 @test "plan mode handles empty list --all output" {
     create_task_stub ""
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # Claude should still be called with just /ralph-plan (no task data appended)

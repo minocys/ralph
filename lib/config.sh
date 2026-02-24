@@ -3,13 +3,12 @@
 #
 # Provides:
 #   parse_flags()      — parse per-subcommand flags (--max-iterations, --model, --danger, --help)
-#   parse_args()       — (backward compat) parse CLI flags including --plan/-p
 #   detect_backend()   — determine active backend (anthropic or bedrock) from env/settings
 #   resolve_model()    — resolve model alias via models.json
 #   subcommand_usage() — print per-subcommand help text
 #
-# Globals set by parse_flags / parse_args:
-#   MODE, COMMAND, MAX_ITERATIONS, DANGER, MODEL_ALIAS
+# Globals set by parse_flags:
+#   MAX_ITERATIONS, DANGER, MODEL_ALIAS
 # Globals set by detect_backend:
 #   ACTIVE_BACKEND
 # Globals set by resolve_model:
@@ -82,55 +81,6 @@ parse_flags() {
     done
 }
 
-# parse_args: (backward compat) parse CLI flags and set global mode/option variables
-# Usage: parse_args "$@"
-parse_args() {
-    # Defaults
-    MODE="build"
-    COMMAND="/ralph-build"
-    MAX_ITERATIONS=0
-    DANGER=false
-    MODEL_ALIAS=""
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --plan|-p)
-                MODE="plan"
-                COMMAND="/ralph-plan"
-                shift
-                ;;
-            --max-iterations|-n)
-                if [[ -z "$2" || "$2" = -* ]]; then
-                    echo "Error: --max-iterations requires a number"
-                    exit 1
-                fi
-                MAX_ITERATIONS="$2"
-                shift 2
-                ;;
-            --model|-m)
-                if [[ -z "$2" || "$2" = -* ]]; then
-                    echo "Error: --model requires an alias (e.g. opus-4.5, sonnet, haiku)"
-                    exit 1
-                fi
-                MODEL_ALIAS="$2"
-                shift 2
-                ;;
-            --danger)
-                DANGER=true
-                shift
-                ;;
-            --help|-h)
-                sed -n '2,/^$/s/^# //p' "$0"
-                exit 0
-                ;;
-            *)
-                echo "Error: Unknown option '$1'"
-                echo "Run './ralph --help' for usage"
-                exit 1
-                ;;
-        esac
-    done
-}
 
 # detect_backend: determine active backend from env vars and settings files
 # Priority: env var > settings.local.json > settings.json > ~/.claude/settings.json

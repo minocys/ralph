@@ -160,14 +160,16 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
-# Backward compat: --plan/-p flags still work during transition
+# Removed flags: --plan/-p are no longer recognized
 # ---------------------------------------------------------------------------
-@test "--plan flag still works as backward compat" {
-    run "$SCRIPT_DIR/ralph.sh" --plan -n 1
-    assert_output --partial "Mode:   plan"
+@test "--plan flag is rejected as unknown command" {
+    run "$SCRIPT_DIR/ralph.sh" --plan
+    assert_failure
+    assert_output --partial "unknown command '--plan'"
 }
 
-@test "-p flag still works as backward compat" {
-    run "$SCRIPT_DIR/ralph.sh" -p -n 1
-    assert_output --partial "Mode:   plan"
+@test "-p flag is rejected as unknown command" {
+    run "$SCRIPT_DIR/ralph.sh" -p
+    assert_failure
+    assert_output --partial "unknown command '-p'"
 }

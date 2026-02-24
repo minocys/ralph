@@ -118,44 +118,6 @@ case "$SUBCMD" in
         run_loop
         ;;
 
-    # Backward compat: --plan/-p as top-level flags (transition period)
-    --plan|-p)
-        shift
-        # shellcheck source=lib/config.sh
-        . "$SCRIPT_DIR/lib/config.sh"
-        # shellcheck source=lib/docker.sh
-        . "$SCRIPT_DIR/lib/docker.sh"
-        # shellcheck source=lib/signals.sh
-        . "$SCRIPT_DIR/lib/signals.sh"
-        # shellcheck source=lib/output.sh
-        . "$SCRIPT_DIR/lib/output.sh"
-        # shellcheck source=lib/loop.sh
-        . "$SCRIPT_DIR/lib/loop.sh"
-
-        MODE="plan"
-        COMMAND="/ralph-plan"
-        parse_flags "$@"
-
-        if [ "$MAX_ITERATIONS" -eq -1 ]; then
-            MAX_ITERATIONS=1
-        fi
-        if [ "$MAX_ITERATIONS" -eq 0 ]; then
-            echo "Error: plan mode requires at least 1 iteration (-n 0 is not allowed)" >&2
-            exit 1
-        fi
-
-        detect_backend
-        resolve_model
-        preflight
-        load_env
-        ensure_postgres
-        setup_session
-        setup_cleanup_trap
-        setup_signal_handlers
-        print_banner
-        run_loop
-        ;;
-
     # Help
     --help|-h)
         usage
