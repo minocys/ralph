@@ -245,7 +245,7 @@ test/
   install.bats        # Installer tests
   task_*.bats         # Task CLI tests (create, list, show, update, delete,
                       #   block, deps, claim, renew, step_done, done, fail,
-                      #   plan_sync, plan_export, plan_status, agent_*)
+                      #   plan_sync, plan_status, agent_*)
 ```
 
 ## Development Database
