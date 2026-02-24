@@ -89,7 +89,7 @@ echo "entrypoint: configured hooks in $_settings_file" >&2
 
 # Warn if /workspace is empty (no project mounted)
 if [ -z "$(ls -A /workspace 2>/dev/null)" ]; then
-    echo "Warning: /workspace is empty — mount a project directory to get started."
+    echo "Warning: /workspace is empty — mount a project directory to get started." >&2
 fi
 
 # Keep the container running for docker exec sessions
