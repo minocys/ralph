@@ -11,13 +11,13 @@ load test_helper
 # step-done is rejected as an unknown command
 # ---------------------------------------------------------------------------
 @test "task step-done with valid-looking arguments exits 1" {
-    run "$SCRIPT_DIR/task" step-done "my-task/01" "1"
+    run "$SCRIPT_DIR/lib/task" step-done "my-task/01" "1"
     assert_failure
     assert_output --partial "Error: unknown command 'step-done'"
 }
 
 @test "task step-done with no arguments exits 1" {
-    run "$SCRIPT_DIR/task" step-done
+    run "$SCRIPT_DIR/lib/task" step-done
     assert_failure
     assert_output --partial "Error: unknown command 'step-done'"
 }
@@ -26,7 +26,7 @@ load test_helper
 # help output does not mention step-done
 # ---------------------------------------------------------------------------
 @test "task --help does not mention step-done" {
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
     refute_output --partial "step-done"
 }

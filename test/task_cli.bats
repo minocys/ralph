@@ -7,31 +7,31 @@ load test_helper
 # Help output
 # ---------------------------------------------------------------------------
 @test "task --help prints usage and exits 0" {
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
-    assert_output --partial "Usage: task <command>"
+    assert_output --partial "Usage: ralph task <command>"
 }
 
 @test "task -h is an alias for --help" {
-    run "$SCRIPT_DIR/task" -h
+    run "$SCRIPT_DIR/lib/task" -h
     assert_success
-    assert_output --partial "Usage: task <command>"
+    assert_output --partial "Usage: ralph task <command>"
 }
 
 @test "task --help lists plan-sync command" {
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
     assert_output --partial "plan-sync"
 }
 
 @test "task --help lists claim command" {
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
     assert_output --partial "claim"
 }
 
 @test "task --help lists agent commands" {
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
     assert_output --partial "agent register"
     assert_output --partial "agent list"
@@ -39,7 +39,7 @@ load test_helper
 }
 
 @test "task --help lists RALPH_DB_URL requirement" {
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
     assert_output --partial "RALPH_DB_URL"
 }
@@ -48,10 +48,10 @@ load test_helper
 # Missing subcommand
 # ---------------------------------------------------------------------------
 @test "task with no subcommand prints help to stderr and exits 1" {
-    run "$SCRIPT_DIR/task"
+    run "$SCRIPT_DIR/lib/task"
     assert_failure
     assert_output --partial "Error: missing command"
-    assert_output --partial "Usage: task <command>"
+    assert_output --partial "Usage: ralph task <command>"
 }
 
 # ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task with unknown subcommand exits 1" {
     # Unknown commands don't need RALPH_DB_URL since they fail before db_check
-    run "$SCRIPT_DIR/task" bogus-command
+    run "$SCRIPT_DIR/lib/task" bogus-command
     assert_failure
     assert_output --partial "Error: unknown command 'bogus-command'"
 }
@@ -68,7 +68,7 @@ load test_helper
 # Missing RALPH_DB_URL (copy task to temp dir without .env so fallback doesn't activate)
 # ---------------------------------------------------------------------------
 @test "task create without RALPH_DB_URL exits 1 with error" {
-    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
     run "$TEST_WORK_DIR/task" create
@@ -77,7 +77,7 @@ load test_helper
 }
 
 @test "task list without RALPH_DB_URL exits 1 with error" {
-    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
     run "$TEST_WORK_DIR/task" list
@@ -86,7 +86,7 @@ load test_helper
 }
 
 @test "task claim without RALPH_DB_URL exits 1 with error" {
-    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
     run "$TEST_WORK_DIR/task" claim
@@ -98,7 +98,7 @@ load test_helper
 # Agent subcommand routing (copy task to temp dir without .env)
 # ---------------------------------------------------------------------------
 @test "task agent without RALPH_DB_URL exits 1" {
-    cp "$SCRIPT_DIR/task" "$TEST_WORK_DIR/task"
+    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
     unset RALPH_DB_URL 2>/dev/null || true
     run "$TEST_WORK_DIR/task" agent
@@ -111,7 +111,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task --help works without RALPH_DB_URL" {
     unset RALPH_DB_URL 2>/dev/null || true
-    run "$SCRIPT_DIR/task" --help
+    run "$SCRIPT_DIR/lib/task" --help
     assert_success
-    assert_output --partial "Usage: task <command>"
+    assert_output --partial "Usage: ralph task <command>"
 }

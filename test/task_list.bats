@@ -40,8 +40,8 @@ teardown() {
 # Default list (excludes deleted)
 # ---------------------------------------------------------------------------
 @test "task list shows header when tasks exist" {
-    "$SCRIPT_DIR/task" create "list-01" "First task" -p 1 -c "feat" > /dev/null
-    run "$SCRIPT_DIR/task" list
+    "$SCRIPT_DIR/lib/task" create "list-01" "First task" -p 1 -c "feat" > /dev/null
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     assert_output --partial "ID"
     assert_output --partial "TITLE"
@@ -49,9 +49,9 @@ teardown() {
 }
 
 @test "task list shows created tasks" {
-    "$SCRIPT_DIR/task" create "list-01" "First task" -p 1 -c "feat" > /dev/null
-    "$SCRIPT_DIR/task" create "list-02" "Second task" -p 2 -c "bug" > /dev/null
-    run "$SCRIPT_DIR/task" list
+    "$SCRIPT_DIR/lib/task" create "list-01" "First task" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "list-02" "Second task" -p 2 -c "bug" > /dev/null
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     assert_output --partial "list-01"
     assert_output --partial "First task"
@@ -60,19 +60,19 @@ teardown() {
 }
 
 @test "task list excludes deleted tasks by default" {
-    "$SCRIPT_DIR/task" create "alive-01" "Alive task" > /dev/null
-    "$SCRIPT_DIR/task" create "dead-01" "Dead task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "alive-01" "Alive task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "dead-01" "Dead task" > /dev/null
     # Soft delete by updating status directly
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'deleted', deleted_at = now() WHERE slug = 'dead-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     assert_output --partial "alive-01"
     refute_output --partial "dead-01"
 }
 
 @test "task list returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     # No header printed when no tasks
     assert_output ""
@@ -82,24 +82,24 @@ teardown() {
 # --status filter
 # ---------------------------------------------------------------------------
 @test "task list --status filters by single status" {
-    "$SCRIPT_DIR/task" create "open-01" "Open task" > /dev/null
-    "$SCRIPT_DIR/task" create "active-01" "Active task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "open-01" "Open task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "active-01" "Active task" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active' WHERE slug = 'active-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --status "open"
+    run "$SCRIPT_DIR/lib/task" list --status "open"
     assert_success
     assert_output --partial "open-01"
     refute_output --partial "active-01"
 }
 
 @test "task list --status filters by comma-separated statuses" {
-    "$SCRIPT_DIR/task" create "s-open" "Open task" > /dev/null
-    "$SCRIPT_DIR/task" create "s-active" "Active task" > /dev/null
-    "$SCRIPT_DIR/task" create "s-done" "Done task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "s-open" "Open task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "s-active" "Active task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "s-done" "Done task" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active' WHERE slug = 's-active' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 's-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --status "open,active"
+    run "$SCRIPT_DIR/lib/task" list --status "open,active"
     assert_success
     assert_output --partial "s-open"
     assert_output --partial "s-active"
@@ -107,10 +107,10 @@ teardown() {
 }
 
 @test "task list --status deleted shows deleted tasks" {
-    "$SCRIPT_DIR/task" create "del-01" "Deleted task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "del-01" "Deleted task" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'deleted', deleted_at = now() WHERE slug = 'del-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --status "deleted"
+    run "$SCRIPT_DIR/lib/task" list --status "deleted"
     assert_success
     assert_output --partial "del-01"
 }
@@ -119,11 +119,11 @@ teardown() {
 # Priority ordering
 # ---------------------------------------------------------------------------
 @test "task list orders by priority ascending then created_at" {
-    "$SCRIPT_DIR/task" create "low-01" "Low priority" -p 3 > /dev/null
-    "$SCRIPT_DIR/task" create "high-01" "High priority" -p 0 > /dev/null
-    "$SCRIPT_DIR/task" create "mid-01" "Mid priority" -p 1 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "low-01" "Low priority" -p 3 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "high-01" "High priority" -p 0 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "mid-01" "Mid priority" -p 1 > /dev/null
 
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     # high-01 (p=0) should appear before mid-01 (p=1) before low-01 (p=3)
     local high_line mid_line low_line
@@ -138,9 +138,9 @@ teardown() {
 # --markdown output
 # ---------------------------------------------------------------------------
 @test "task list --markdown outputs markdown-KV format" {
-    "$SCRIPT_DIR/task" create "json-01" "JSON task" -p 1 -c "feat" -d "A description" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "json-01" "JSON task" -p 1 -c "feat" -d "A description" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     assert_output --partial "## Task json-01"
     assert_output --partial "id: json-01"
@@ -151,9 +151,9 @@ teardown() {
 }
 
 @test "task list --markdown includes full-name keys" {
-    "$SCRIPT_DIR/task" create "json-02" "JSON keys test" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "json-02" "JSON keys test" -p 1 -c "feat" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     assert_output --partial "id: json-02"
     assert_output --partial "title: JSON keys test"
@@ -163,11 +163,11 @@ teardown() {
 }
 
 @test "task list --markdown includes steps and deps" {
-    "$SCRIPT_DIR/task" create "blocker-x" "Blocker" > /dev/null
-    "$SCRIPT_DIR/task" create "json-03" "Task with steps and deps" --deps "blocker-x" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "blocker-x" "Blocker" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "json-03" "Task with steps and deps" --deps "blocker-x" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Do thing']::TEXT[] WHERE slug = 'json-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
 
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     assert_output --partial "deps: blocker-x"
     assert_output --partial "steps:"
@@ -175,11 +175,11 @@ teardown() {
 }
 
 @test "task list --markdown with --status combines both flags" {
-    "$SCRIPT_DIR/task" create "combo-01" "Open" > /dev/null
-    "$SCRIPT_DIR/task" create "combo-02" "Done" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "combo-01" "Open" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "combo-02" "Done" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'combo-02' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --status "done" --markdown
+    run "$SCRIPT_DIR/lib/task" list --status "done" --markdown
     assert_success
     refute_output --partial "combo-01"
     assert_output --partial "## Task combo-02"
@@ -187,10 +187,10 @@ teardown() {
 }
 
 @test "task list --markdown separates multiple tasks with blank lines" {
-    "$SCRIPT_DIR/task" create "sep-01" "First" -p 0 > /dev/null
-    "$SCRIPT_DIR/task" create "sep-02" "Second" -p 1 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "sep-01" "First" -p 0 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "sep-02" "Second" -p 1 > /dev/null
 
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     assert_output --partial "## Task sep-01"
     assert_output --partial "## Task sep-02"
@@ -199,7 +199,7 @@ teardown() {
 }
 
 @test "task list --markdown returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     assert_output ""
 }
@@ -208,9 +208,9 @@ teardown() {
 # Table vs markdown-KV format contrast
 # ---------------------------------------------------------------------------
 @test "task list table format does not contain markdown-KV markers" {
-    "$SCRIPT_DIR/task" create "fmt-01" "Format test" -p 1 -c "feat" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "fmt-01" "Format test" -p 1 -c "feat" > /dev/null
 
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     # Table format must NOT contain markdown-KV section headers or key: value lines
     refute_output --partial "## Task"
@@ -223,9 +223,9 @@ teardown() {
 }
 
 @test "task list --markdown omits null fields" {
-    "$SCRIPT_DIR/task" create "null-01" "Minimal task" -p 2 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "null-01" "Minimal task" -p 2 > /dev/null
 
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     assert_output --partial "## Task null-01"
     assert_output --partial "title: Minimal task"
@@ -244,10 +244,10 @@ teardown() {
 # Table format: assignee column
 # ---------------------------------------------------------------------------
 @test "task list table shows assignee when set" {
-    "$SCRIPT_DIR/task" create "agent-01" "Assigned task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "agent-01" "Assigned task" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a7f2' WHERE slug = 'agent-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     assert_output --partial "a7f2"
 }
@@ -256,44 +256,44 @@ teardown() {
 # --assignee filter
 # ---------------------------------------------------------------------------
 @test "task list --assignee filters by assignee" {
-    "$SCRIPT_DIR/task" create "asn-01" "My task" > /dev/null
-    "$SCRIPT_DIR/task" create "asn-02" "Other task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-01" "My task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-02" "Other task" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a1b2' WHERE slug = 'asn-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'z9y8' WHERE slug = 'asn-02' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --assignee "a1b2"
+    run "$SCRIPT_DIR/lib/task" list --assignee "a1b2"
     assert_success
     assert_output --partial "asn-01"
     refute_output --partial "asn-02"
 }
 
 @test "task list --assignee with --status combines both filters" {
-    "$SCRIPT_DIR/task" create "asn-03" "Active mine" > /dev/null
-    "$SCRIPT_DIR/task" create "asn-04" "Open mine" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-03" "Active mine" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-04" "Open mine" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'a1b2' WHERE slug = 'asn-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a1b2' WHERE slug = 'asn-04' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --status "active" --assignee "a1b2"
+    run "$SCRIPT_DIR/lib/task" list --status "active" --assignee "a1b2"
     assert_success
     assert_output --partial "asn-03"
     refute_output --partial "asn-04"
 }
 
 @test "task list --assignee returns empty when no tasks match" {
-    "$SCRIPT_DIR/task" create "asn-05" "Unassigned task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-05" "Unassigned task" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --assignee "nobody"
+    run "$SCRIPT_DIR/lib/task" list --assignee "nobody"
     assert_success
     assert_output ""
 }
 
 @test "task list --assignee works with --markdown" {
-    "$SCRIPT_DIR/task" create "asn-06" "Markdown assignee" -p 1 > /dev/null
-    "$SCRIPT_DIR/task" create "asn-07" "Other agent" -p 1 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-06" "Markdown assignee" -p 1 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "asn-07" "Other agent" -p 1 > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'a1b2' WHERE slug = 'asn-06' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET assignee = 'z9y8' WHERE slug = 'asn-07' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --assignee "a1b2" --markdown
+    run "$SCRIPT_DIR/lib/task" list --assignee "a1b2" --markdown
     assert_success
     assert_output --partial "## Task asn-06"
     refute_output --partial "asn-07"
@@ -303,11 +303,11 @@ teardown() {
 # --all flag
 # ---------------------------------------------------------------------------
 @test "task list --all includes deleted tasks" {
-    "$SCRIPT_DIR/task" create "all-alive" "Alive task" > /dev/null
-    "$SCRIPT_DIR/task" create "all-dead" "Dead task" > /dev/null
-    "$SCRIPT_DIR/task" delete "all-dead" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "all-alive" "Alive task" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "all-dead" "Dead task" > /dev/null
+    "$SCRIPT_DIR/lib/task" delete "all-dead" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --all
+    run "$SCRIPT_DIR/lib/task" list --all
     assert_success
     assert_output --partial "all-alive"
     assert_output --partial "all-dead"
@@ -315,11 +315,11 @@ teardown() {
 }
 
 @test "task list --all with --markdown includes deleted tasks" {
-    "$SCRIPT_DIR/task" create "allmd-alive" "Alive" -p 1 > /dev/null
-    "$SCRIPT_DIR/task" create "allmd-dead" "Dead" -p 2 > /dev/null
-    "$SCRIPT_DIR/task" delete "allmd-dead" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "allmd-alive" "Alive" -p 1 > /dev/null
+    "$SCRIPT_DIR/lib/task" create "allmd-dead" "Dead" -p 2 > /dev/null
+    "$SCRIPT_DIR/lib/task" delete "allmd-dead" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --all --markdown
+    run "$SCRIPT_DIR/lib/task" list --all --markdown
     assert_success
     assert_output --partial "## Task allmd-alive"
     assert_output --partial "## Task allmd-dead"
@@ -327,25 +327,25 @@ teardown() {
 }
 
 @test "task list --all and --status are mutually exclusive" {
-    run "$SCRIPT_DIR/task" list --all --status "open"
+    run "$SCRIPT_DIR/lib/task" list --all --status "open"
     assert_failure
     assert_output --partial "mutually exclusive"
 }
 
 @test "task list --all returns empty output with no tasks" {
-    run "$SCRIPT_DIR/task" list --all
+    run "$SCRIPT_DIR/lib/task" list --all
     assert_success
     assert_output ""
 }
 
 @test "task list --all shows all statuses" {
-    "$SCRIPT_DIR/task" create "multi-open" "Open" > /dev/null
-    "$SCRIPT_DIR/task" create "multi-done" "Done" > /dev/null
-    "$SCRIPT_DIR/task" create "multi-del" "Deleted" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "multi-open" "Open" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "multi-done" "Done" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "multi-del" "Deleted" > /dev/null
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'multi-done' AND scope_repo = 'test/repo' AND scope_branch = 'main'" > /dev/null
-    "$SCRIPT_DIR/task" delete "multi-del" > /dev/null
+    "$SCRIPT_DIR/lib/task" delete "multi-del" > /dev/null
 
-    run "$SCRIPT_DIR/task" list --all
+    run "$SCRIPT_DIR/lib/task" list --all
     assert_success
     assert_output --partial "multi-open"
     assert_output --partial "multi-done"

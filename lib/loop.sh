@@ -23,7 +23,7 @@ setup_session() {
     TMPFILE=$(mktemp)
     AGENT_ID=""
 
-    TASK_SCRIPT="$SCRIPT_DIR/task"
+    TASK_SCRIPT="$SCRIPT_DIR/lib/task"
     export RALPH_TASK_SCRIPT="$TASK_SCRIPT"
 
     # Derive and export scope so all subprocesses (task, claude) inherit it.

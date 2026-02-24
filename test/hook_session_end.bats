@@ -28,11 +28,11 @@ setup() {
     export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
 
     # Set up hook environment variables
-    export RALPH_TASK_SCRIPT="$SCRIPT_DIR/task"
+    export RALPH_TASK_SCRIPT="$SCRIPT_DIR/lib/task"
     export RALPH_AGENT_ID="a1b2"
 
     # Ensure schema is initialized by running a benign task command
-    "$SCRIPT_DIR/task" create "se-setup" "schema init" >/dev/null 2>&1
+    "$SCRIPT_DIR/lib/task" create "se-setup" "schema init" >/dev/null 2>&1
     psql "$RALPH_DB_URL" -tAX -c "DELETE FROM tasks WHERE slug='se-setup' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null 2>&1
 }
 
@@ -48,7 +48,7 @@ teardown() {
 # SessionEnd hook: active task exists for this agent
 # ---------------------------------------------------------------------------
 @test "session end hook calls task fail on active task" {
-    "$SCRIPT_DIR/task" create "se-01" "Active task for agent"
+    "$SCRIPT_DIR/lib/task" create "se-01" "Active task for agent"
     psql "$RALPH_DB_URL" -tAX -c \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='se-01' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
@@ -65,7 +65,7 @@ teardown() {
 # SessionEnd hook: ignores active tasks assigned to other agents
 # ---------------------------------------------------------------------------
 @test "session end hook ignores active tasks assigned to other agents" {
-    "$SCRIPT_DIR/task" create "se-03" "Task for other agent"
+    "$SCRIPT_DIR/lib/task" create "se-03" "Task for other agent"
     psql "$RALPH_DB_URL" -tAX -c \
         "UPDATE tasks SET status='active', assignee='zz99' WHERE slug='se-03' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
@@ -102,7 +102,7 @@ teardown() {
 # SessionEnd hook: retry_count is incremented
 # ---------------------------------------------------------------------------
 @test "session end hook increments retry_count" {
-    "$SCRIPT_DIR/task" create "se-02" "Task to check retry_count"
+    "$SCRIPT_DIR/lib/task" create "se-02" "Task to check retry_count"
     psql "$RALPH_DB_URL" -tAX -c \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 

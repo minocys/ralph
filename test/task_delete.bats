@@ -40,7 +40,7 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task delete without ID exits 1 with error" {
-    run "$SCRIPT_DIR/task" delete
+    run "$SCRIPT_DIR/lib/task" delete
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
@@ -49,7 +49,7 @@ teardown() {
 # Not found
 # ---------------------------------------------------------------------------
 @test "task delete on nonexistent task exits 2" {
-    run "$SCRIPT_DIR/task" delete "nonexistent/01"
+    run "$SCRIPT_DIR/lib/task" delete "nonexistent/01"
     assert_failure
     [ "$status" -eq 2 ]
     assert_output --partial "not found"
@@ -59,8 +59,8 @@ teardown() {
 # Successful soft delete
 # ---------------------------------------------------------------------------
 @test "task delete sets status to deleted" {
-    "$SCRIPT_DIR/task" create "test/01" "A task to delete"
-    run "$SCRIPT_DIR/task" delete "test/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task to delete"
+    run "$SCRIPT_DIR/lib/task" delete "test/01"
     assert_success
     assert_output "deleted test/01"
 
@@ -70,8 +70,8 @@ teardown() {
 }
 
 @test "task delete sets deleted_at timestamp" {
-    "$SCRIPT_DIR/task" create "test/01" "A task to delete"
-    "$SCRIPT_DIR/task" delete "test/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task to delete"
+    "$SCRIPT_DIR/lib/task" delete "test/01"
 
     local deleted_at
     deleted_at=$(psql "$RALPH_DB_URL" -tAX -c "SELECT deleted_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
@@ -79,10 +79,10 @@ teardown() {
 }
 
 @test "task delete sets updated_at timestamp" {
-    "$SCRIPT_DIR/task" create "test/01" "A task to delete"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task to delete"
     # Clear updated_at to verify it gets set
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
-    "$SCRIPT_DIR/task" delete "test/01"
+    "$SCRIPT_DIR/lib/task" delete "test/01"
 
     local updated_at
     updated_at=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
@@ -93,21 +93,21 @@ teardown() {
 # Integration with list
 # ---------------------------------------------------------------------------
 @test "deleted task is excluded from default list" {
-    "$SCRIPT_DIR/task" create "test/01" "Visible task"
-    "$SCRIPT_DIR/task" create "test/02" "Task to delete"
-    "$SCRIPT_DIR/task" delete "test/02"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Visible task"
+    "$SCRIPT_DIR/lib/task" create "test/02" "Task to delete"
+    "$SCRIPT_DIR/lib/task" delete "test/02"
 
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
     assert_output --partial "test/01"
     refute_output --partial "test/02"
 }
 
 @test "deleted task appears with --status deleted filter" {
-    "$SCRIPT_DIR/task" create "test/01" "Task to delete"
-    "$SCRIPT_DIR/task" delete "test/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task to delete"
+    "$SCRIPT_DIR/lib/task" delete "test/01"
 
-    run "$SCRIPT_DIR/task" list --status deleted
+    run "$SCRIPT_DIR/lib/task" list --status deleted
     assert_success
     assert_output --partial "test/01"
 }
@@ -116,8 +116,8 @@ teardown() {
 # Special characters
 # ---------------------------------------------------------------------------
 @test "task delete handles ID with single quotes" {
-    "$SCRIPT_DIR/task" create "test/it's" "Quoted task"
-    run "$SCRIPT_DIR/task" delete "test/it's"
+    "$SCRIPT_DIR/lib/task" create "test/it's" "Quoted task"
+    run "$SCRIPT_DIR/lib/task" delete "test/it's"
     assert_success
     assert_output "deleted test/it's"
 
@@ -130,8 +130,8 @@ teardown() {
 # Task record preserved
 # ---------------------------------------------------------------------------
 @test "task delete preserves the task record (soft delete)" {
-    "$SCRIPT_DIR/task" create "test/01" "Soft deleted task" -d "Should still exist"
-    "$SCRIPT_DIR/task" delete "test/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Soft deleted task" -d "Should still exist"
+    "$SCRIPT_DIR/lib/task" delete "test/01"
 
     # Task should still exist in the database
     local count
@@ -145,10 +145,10 @@ teardown() {
 }
 
 @test "deleted task visible via task show" {
-    "$SCRIPT_DIR/task" create "test/01" "A task"
-    "$SCRIPT_DIR/task" delete "test/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task"
+    "$SCRIPT_DIR/lib/task" delete "test/01"
 
-    run "$SCRIPT_DIR/task" show "test/01"
+    run "$SCRIPT_DIR/lib/task" show "test/01"
     assert_success
     assert_output --partial "Status:      deleted"
     assert_output --partial "Deleted:"

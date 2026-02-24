@@ -28,7 +28,7 @@ setup() {
     export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
 
     # Seed a dummy task so task-peek returns data (prevents early loop exit)
-    "$SCRIPT_DIR/task" create dummy-001 "Dummy test task" >/dev/null 2>&1
+    "$SCRIPT_DIR/lib/task" create dummy-001 "Dummy test task" >/dev/null 2>&1
 
     # Create a fake claude stub that exits immediately
     cat > "$STUB_DIR/claude" <<'STUB'

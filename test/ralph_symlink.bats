@@ -48,9 +48,12 @@ load test_helper
     TEST_WORK_DIR="$(cd -P "$TEST_WORK_DIR" && pwd)"
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
-    cat > "$TEST_WORK_DIR/task" <<'TASKSTUB'
+    cat > "$TEST_WORK_DIR/lib/task" <<'TASKSTUB'
 #!/bin/bash
 case "$1" in
     agent) case "$2" in register) echo "t001" ;; esac; exit 0 ;;
@@ -58,7 +61,7 @@ case "$1" in
     *) exit 0 ;;
 esac
 TASKSTUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 
     # Replace the claude stub with one that writes SCRIPT_DIR to a file
     local marker="$TEST_WORK_DIR/script_dir_marker"

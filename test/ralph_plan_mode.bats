@@ -19,7 +19,7 @@ create_task_stub() {
     # Write list --all output to a data file (avoids quoting issues with JSONL in heredoc)
     printf '%s' "$list_all_output" > "$TEST_WORK_DIR/.list_all_data"
 
-    cat > "$TEST_WORK_DIR/task" <<STUB
+    cat > "$TEST_WORK_DIR/lib/task" <<STUB
 #!/bin/bash
 # Log every invocation
 echo "\$*" >> "${TEST_WORK_DIR}/task_calls.log"
@@ -51,7 +51,7 @@ case "\$1" in
         ;;
 esac
 STUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 }
 
 # Override default setup: copy ralph.sh so SCRIPT_DIR resolves to TEST_WORK_DIR
@@ -64,7 +64,10 @@ setup() {
     # Copy ralph.sh and lib/ into the test work directory
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
     # Minimal specs/ directory so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"

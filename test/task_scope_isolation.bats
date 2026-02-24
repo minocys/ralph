@@ -49,7 +49,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 task_in_scope_a() {
     RALPH_SCOPE_REPO="$SCOPE_A_REPO" RALPH_SCOPE_BRANCH="$SCOPE_A_BRANCH" \
-        "$SCRIPT_DIR/task" "$@"
+        "$SCRIPT_DIR/lib/task" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ task_in_scope_a() {
 # ---------------------------------------------------------------------------
 task_in_scope_b() {
     RALPH_SCOPE_REPO="$SCOPE_B_REPO" RALPH_SCOPE_BRANCH="$SCOPE_B_BRANCH" \
-        "$SCRIPT_DIR/task" "$@"
+        "$SCRIPT_DIR/lib/task" "$@"
 }
 
 # ===========================================================================
@@ -325,7 +325,7 @@ task_in_scope_b() {
 
     # Re-sync scope A with only 1 task — orp-a2 should be deleted
     local input_a2='{"id":"orp-a1","t":"Orphan Alpha 1","p":1,"spec":"orphan.md"}'
-    run bash -c 'printf "%s\n" "$1" | RALPH_SCOPE_REPO="$2" RALPH_SCOPE_BRANCH="$3" "$SCRIPT_DIR/task" plan-sync' \
+    run bash -c 'printf "%s\n" "$1" | RALPH_SCOPE_REPO="$2" RALPH_SCOPE_BRANCH="$3" "$SCRIPT_DIR/lib/task" plan-sync' \
         -- "$input_a2" "$SCOPE_A_REPO" "$SCOPE_A_BRANCH"
     assert_success
     assert_output --partial "deleted: 1"

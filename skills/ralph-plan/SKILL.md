@@ -10,7 +10,7 @@ argument-hint: [current-task-dag]
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
-2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
+2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `ralph task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
     - All JSONL output uses short keys for token efficiency:
         - `id`, `t` (title), `d` (description), `p` (priority), `s` (status), `cat` (category), `spec` (spec_ref), `ref`, `deps` (array of blocker IDs), `steps` (array of steps)
     - id: Task IDs must use `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` matches the spec filename without `.md`
@@ -23,7 +23,7 @@ argument-hint: [current-task-dag]
 
 **IMPORTANT**: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with a subagent first. Prefer consolidated, idiomatic implementations there over ad-hoc copies.
 
-Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at `specs/FILENAME.md`. Spec filenames must be short kebab-case slugs (e.g., `task-cli.md`, `build-loop-control.md`) because they become `spec_ref` values and task ID prefixes (`{spec-slug}/{seq}`). If you create a new element then emit the plan as JSONL to `task plan-sync` using a subagent.
+Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at `specs/FILENAME.md`. Spec filenames must be short kebab-case slugs (e.g., `task-cli.md`, `build-loop-control.md`) because they become `spec_ref` values and task ID prefixes (`{spec-slug}/{seq}`). If you create a new element then emit the plan as JSONL to `ralph task plan-sync` using a subagent.
 
 ## Context
 

@@ -36,6 +36,12 @@ export SCRIPT_DIR
 # shellcheck source=lib/loop.sh
 . "$SCRIPT_DIR/lib/loop.sh"
 
+# Route subcommands that bypass the main orchestration loop
+if [ "${1:-}" = "task" ]; then
+    shift
+    exec "$SCRIPT_DIR/lib/task" "$@"
+fi
+
 # Orchestrate: parse → configure → preflight → postgres → session → traps → run
 parse_args "$@"
 detect_backend

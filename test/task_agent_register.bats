@@ -40,14 +40,14 @@ teardown() {
 # Basic registration
 # ---------------------------------------------------------------------------
 @test "agent register returns 4-char hex ID" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     # Output should be exactly a 4-char hex string
     [[ "${output}" =~ ^[0-9a-f]{4}$ ]]
 }
 
 @test "agent register exits 0 on success" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
 }
 
@@ -55,7 +55,7 @@ teardown() {
 # Database record
 # ---------------------------------------------------------------------------
 @test "agent register creates record in agents table" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -65,7 +65,7 @@ teardown() {
 }
 
 @test "agent register records PID" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -76,7 +76,7 @@ teardown() {
 }
 
 @test "agent register records hostname" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -87,7 +87,7 @@ teardown() {
 }
 
 @test "agent register sets status to active" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -97,7 +97,7 @@ teardown() {
 }
 
 @test "agent register sets started_at" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -107,7 +107,7 @@ teardown() {
 }
 
 @test "agent register records scope_repo from env" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -117,7 +117,7 @@ teardown() {
 }
 
 @test "agent register records scope_branch from env" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -128,7 +128,7 @@ teardown() {
 
 @test "agent register records custom scope values" {
     RALPH_SCOPE_REPO="custom/repo" RALPH_SCOPE_BRANCH="feature-branch" \
-        run "$SCRIPT_DIR/task" agent register
+        run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
@@ -143,7 +143,7 @@ teardown() {
 @test "agent register produces unique IDs across multiple registrations" {
     local ids=()
     for i in $(seq 1 5); do
-        run "$SCRIPT_DIR/task" agent register
+        run "$SCRIPT_DIR/lib/task" agent register
         assert_success
         ids+=("$output")
     done
@@ -158,11 +158,11 @@ teardown() {
 # Multiple agents
 # ---------------------------------------------------------------------------
 @test "agent register creates separate records for multiple agents" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local id1="$output"
 
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local id2="$output"
 
@@ -176,13 +176,13 @@ teardown() {
 # Agent subcommand routing
 # ---------------------------------------------------------------------------
 @test "agent with missing subcommand exits 1" {
-    run "$SCRIPT_DIR/task" agent
+    run "$SCRIPT_DIR/lib/task" agent
     assert_failure
     assert_output --partial "Error: missing agent subcommand"
 }
 
 @test "agent with unknown subcommand exits 1" {
-    run "$SCRIPT_DIR/task" agent bogus
+    run "$SCRIPT_DIR/lib/task" agent bogus
     assert_failure
     assert_output --partial "Error: unknown agent subcommand"
 }

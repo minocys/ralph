@@ -40,7 +40,7 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task renew with no args exits 1" {
-    run "$SCRIPT_DIR/task" renew
+    run "$SCRIPT_DIR/lib/task" renew
     assert_failure 1
     assert_output --partial "missing task ID"
 }
@@ -50,10 +50,10 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task renew on nonexistent task exits 2" {
     # Ensure schema exists
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
 
-    run "$SCRIPT_DIR/task" renew "nonexistent-task"
+    run "$SCRIPT_DIR/lib/task" renew "nonexistent-task"
     assert_failure 2
     assert_output --partial "not found"
 }
@@ -62,20 +62,20 @@ teardown() {
 # Task not active
 # ---------------------------------------------------------------------------
 @test "task renew on open task exits 1" {
-    "$SCRIPT_DIR/task" create "renew-open-01" "Open Task"
+    "$SCRIPT_DIR/lib/task" create "renew-open-01" "Open Task"
 
-    run "$SCRIPT_DIR/task" renew "renew-open-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-open-01"
     assert_failure 1
     assert_output --partial "not active"
 }
 
 @test "task renew on done task exits 1" {
-    "$SCRIPT_DIR/task" create "renew-done-01" "Done Task"
+    "$SCRIPT_DIR/lib/task" create "renew-done-01" "Done Task"
     # Manually set status to active then done
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent1' WHERE slug = 'renew-done-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'renew-done-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
-    run "$SCRIPT_DIR/task" renew "renew-done-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-done-01"
     assert_failure 1
     assert_output --partial "not active"
 }
@@ -84,21 +84,21 @@ teardown() {
 # Assignee verification
 # ---------------------------------------------------------------------------
 @test "task renew fails for non-assignee" {
-    "$SCRIPT_DIR/task" create "renew-assign-01" "Assigned Task"
+    "$SCRIPT_DIR/lib/task" create "renew-assign-01" "Assigned Task"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent-A' WHERE slug = 'renew-assign-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent-B"
-    run "$SCRIPT_DIR/task" renew "renew-assign-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-assign-01"
     assert_failure 1
     assert_output --partial "not the assignee"
 }
 
 @test "task renew fails when no agent ID provided and task has assignee" {
-    "$SCRIPT_DIR/task" create "renew-noagent-01" "Task With Agent"
+    "$SCRIPT_DIR/lib/task" create "renew-noagent-01" "Task With Agent"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent-X' WHERE slug = 'renew-noagent-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     unset RALPH_AGENT_ID
-    run "$SCRIPT_DIR/task" renew "renew-noagent-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-noagent-01"
     assert_failure 1
     assert_output --partial "not the assignee"
 }
@@ -107,11 +107,11 @@ teardown() {
 # Successful renew
 # ---------------------------------------------------------------------------
 @test "task renew extends lease on active task" {
-    "$SCRIPT_DIR/task" create "renew-ok-01" "Renewable Task"
+    "$SCRIPT_DIR/lib/task" create "renew-ok-01" "Renewable Task"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = now() + interval '60 seconds' WHERE slug = 'renew-ok-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
-    run "$SCRIPT_DIR/task" renew "renew-ok-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-ok-01"
     assert_success
     assert_output "renewed renew-ok-01"
 
@@ -122,11 +122,11 @@ teardown() {
 }
 
 @test "task renew with custom lease duration" {
-    "$SCRIPT_DIR/task" create "renew-custom-01" "Custom Lease Task"
+    "$SCRIPT_DIR/lib/task" create "renew-custom-01" "Custom Lease Task"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = now() + interval '60 seconds' WHERE slug = 'renew-custom-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
-    run "$SCRIPT_DIR/task" renew "renew-custom-01" --lease 300
+    run "$SCRIPT_DIR/lib/task" renew "renew-custom-01" --lease 300
     assert_success
     assert_output "renewed renew-custom-01"
 
@@ -138,11 +138,11 @@ teardown() {
 }
 
 @test "task renew updates updated_at timestamp" {
-    "$SCRIPT_DIR/task" create "renew-ts-01" "Timestamp Task"
+    "$SCRIPT_DIR/lib/task" create "renew-ts-01" "Timestamp Task"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = now() + interval '60 seconds', updated_at = '2020-01-01 00:00:00+00' WHERE slug = 'renew-ts-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
-    run "$SCRIPT_DIR/task" renew "renew-ts-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-ts-01"
     assert_success
 
     # Verify updated_at was refreshed (should be recent, not 2020)
@@ -152,23 +152,23 @@ teardown() {
 }
 
 @test "task renew with --agent flag overrides env var" {
-    "$SCRIPT_DIR/task" create "renew-flag-01" "Agent Flag Task"
+    "$SCRIPT_DIR/lib/task" create "renew-flag-01" "Agent Flag Task"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agentX', lease_expires_at = now() + interval '60 seconds' WHERE slug = 'renew-flag-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="wrong-agent"
-    run "$SCRIPT_DIR/task" renew "renew-flag-01" --agent "agentX"
+    run "$SCRIPT_DIR/lib/task" renew "renew-flag-01" --agent "agentX"
     assert_success
     assert_output "renewed renew-flag-01"
 }
 
 @test "task renew via claim and renew workflow" {
-    "$SCRIPT_DIR/task" create "renew-flow-01" "Flow Task" -p 0
+    "$SCRIPT_DIR/lib/task" create "renew-flow-01" "Flow Task" -p 0
 
     export RALPH_AGENT_ID="flow-agent"
     local claim_output
-    claim_output=$("$SCRIPT_DIR/task" claim --agent "flow-agent")
+    claim_output=$("$SCRIPT_DIR/lib/task" claim --agent "flow-agent")
 
-    run "$SCRIPT_DIR/task" renew "renew-flow-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew-flow-01"
     assert_success
     assert_output "renewed renew-flow-01"
 }
@@ -177,11 +177,11 @@ teardown() {
 # Special characters
 # ---------------------------------------------------------------------------
 @test "task renew handles special characters in task ID" {
-    "$SCRIPT_DIR/task" create "renew/special-01" "Special ID Task"
+    "$SCRIPT_DIR/lib/task" create "renew/special-01" "Special ID Task"
     psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = now() + interval '60 seconds' WHERE slug = 'renew/special-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
-    run "$SCRIPT_DIR/task" renew "renew/special-01"
+    run "$SCRIPT_DIR/lib/task" renew "renew/special-01"
     assert_success
     assert_output "renewed renew/special-01"
 }

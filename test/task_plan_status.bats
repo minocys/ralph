@@ -40,7 +40,7 @@ teardown() {
 # Empty database
 # ---------------------------------------------------------------------------
 @test "plan-status: empty database shows all zeros" {
-    run "$SCRIPT_DIR/task" plan-status
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"0 open"* ]]
     [[ "$output" == *"0 active"* ]]
@@ -53,9 +53,9 @@ teardown() {
 # Single open task
 # ---------------------------------------------------------------------------
 @test "plan-status: counts open tasks" {
-    "$SCRIPT_DIR/task" create ps-open-1 "Open task 1"
-    "$SCRIPT_DIR/task" create ps-open-2 "Open task 2"
-    run "$SCRIPT_DIR/task" plan-status
+    "$SCRIPT_DIR/lib/task" create ps-open-1 "Open task 1"
+    "$SCRIPT_DIR/lib/task" create ps-open-2 "Open task 2"
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"2 open"* ]]
     [[ "$output" == *"0 active"* ]]
@@ -68,9 +68,9 @@ teardown() {
 # Active tasks
 # ---------------------------------------------------------------------------
 @test "plan-status: counts active tasks" {
-    "$SCRIPT_DIR/task" create ps-act-1 "Active task" -p 0
-    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/task" claim --lease 600 >/dev/null
-    run "$SCRIPT_DIR/task" plan-status
+    "$SCRIPT_DIR/lib/task" create ps-act-1 "Active task" -p 0
+    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/lib/task" claim --lease 600 >/dev/null
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"0 open"* ]]
     [[ "$output" == *"1 active"* ]]
@@ -80,10 +80,10 @@ teardown() {
 # Done tasks
 # ---------------------------------------------------------------------------
 @test "plan-status: counts done tasks" {
-    "$SCRIPT_DIR/task" create ps-done-1 "Done task" -p 0
-    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/task" claim --lease 600 >/dev/null
-    "$SCRIPT_DIR/task" done ps-done-1
-    run "$SCRIPT_DIR/task" plan-status
+    "$SCRIPT_DIR/lib/task" create ps-done-1 "Done task" -p 0
+    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/lib/task" claim --lease 600 >/dev/null
+    "$SCRIPT_DIR/lib/task" done ps-done-1
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"1 done"* ]]
     [[ "$output" == *"0 open"* ]]
@@ -93,9 +93,9 @@ teardown() {
 # Deleted tasks
 # ---------------------------------------------------------------------------
 @test "plan-status: counts deleted tasks" {
-    "$SCRIPT_DIR/task" create ps-del-1 "Delete me"
-    "$SCRIPT_DIR/task" delete ps-del-1
-    run "$SCRIPT_DIR/task" plan-status
+    "$SCRIPT_DIR/lib/task" create ps-del-1 "Delete me"
+    "$SCRIPT_DIR/lib/task" delete ps-del-1
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"1 deleted"* ]]
     [[ "$output" == *"0 open"* ]]
@@ -105,10 +105,10 @@ teardown() {
 # Blocked tasks (have unresolved blockers)
 # ---------------------------------------------------------------------------
 @test "plan-status: counts blocked tasks" {
-    "$SCRIPT_DIR/task" create ps-blocker "Blocker task"
-    "$SCRIPT_DIR/task" create ps-blocked "Blocked task"
-    "$SCRIPT_DIR/task" block ps-blocked --by ps-blocker
-    run "$SCRIPT_DIR/task" plan-status
+    "$SCRIPT_DIR/lib/task" create ps-blocker "Blocker task"
+    "$SCRIPT_DIR/lib/task" create ps-blocked "Blocked task"
+    "$SCRIPT_DIR/lib/task" block ps-blocked --by ps-blocker
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     # ps-blocker is open (unblocked), ps-blocked is open but blocked
     [[ "$output" == *"1 open"* ]]
@@ -119,13 +119,13 @@ teardown() {
 # Resolved blockers don't count as blocked
 # ---------------------------------------------------------------------------
 @test "plan-status: resolved blocker removes blocked count" {
-    "$SCRIPT_DIR/task" create ps-blk-r "Blocker" -p 0
-    "$SCRIPT_DIR/task" create ps-blkd-r "Blocked"
-    "$SCRIPT_DIR/task" block ps-blkd-r --by ps-blk-r
+    "$SCRIPT_DIR/lib/task" create ps-blk-r "Blocker" -p 0
+    "$SCRIPT_DIR/lib/task" create ps-blkd-r "Blocked"
+    "$SCRIPT_DIR/lib/task" block ps-blkd-r --by ps-blk-r
     # Blocker is done -> blocked task becomes unblocked
-    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/task" claim --lease 600 >/dev/null
-    "$SCRIPT_DIR/task" done ps-blk-r
-    run "$SCRIPT_DIR/task" plan-status
+    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/lib/task" claim --lease 600 >/dev/null
+    "$SCRIPT_DIR/lib/task" done ps-blk-r
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"0 blocked"* ]]
     [[ "$output" == *"1 open"* ]]
@@ -136,11 +136,11 @@ teardown() {
 # Deleted blocker also resolves blocked status
 # ---------------------------------------------------------------------------
 @test "plan-status: deleted blocker resolves blocked status" {
-    "$SCRIPT_DIR/task" create ps-blk-d "Blocker to delete"
-    "$SCRIPT_DIR/task" create ps-blkd-d "Blocked by deletable"
-    "$SCRIPT_DIR/task" block ps-blkd-d --by ps-blk-d
-    "$SCRIPT_DIR/task" delete ps-blk-d
-    run "$SCRIPT_DIR/task" plan-status
+    "$SCRIPT_DIR/lib/task" create ps-blk-d "Blocker to delete"
+    "$SCRIPT_DIR/lib/task" create ps-blkd-d "Blocked by deletable"
+    "$SCRIPT_DIR/lib/task" block ps-blkd-d --by ps-blk-d
+    "$SCRIPT_DIR/lib/task" delete ps-blk-d
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"0 blocked"* ]]
     [[ "$output" == *"1 open"* ]]
@@ -152,23 +152,23 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "plan-status: mixed statuses counted correctly" {
     # 1 open
-    "$SCRIPT_DIR/task" create ps-mix-open "Open task"
+    "$SCRIPT_DIR/lib/task" create ps-mix-open "Open task"
     # 1 active
-    "$SCRIPT_DIR/task" create ps-mix-act "Active task" -p 0
-    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/task" claim --lease 600 >/dev/null
+    "$SCRIPT_DIR/lib/task" create ps-mix-act "Active task" -p 0
+    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/lib/task" claim --lease 600 >/dev/null
     # 1 done
-    "$SCRIPT_DIR/task" create ps-mix-done "Done task" -p 0
-    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/task" claim --lease 600 >/dev/null
-    "$SCRIPT_DIR/task" done ps-mix-done
+    "$SCRIPT_DIR/lib/task" create ps-mix-done "Done task" -p 0
+    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/lib/task" claim --lease 600 >/dev/null
+    "$SCRIPT_DIR/lib/task" done ps-mix-done
     # 1 deleted
-    "$SCRIPT_DIR/task" create ps-mix-del "Deleted task"
-    "$SCRIPT_DIR/task" delete ps-mix-del
+    "$SCRIPT_DIR/lib/task" create ps-mix-del "Deleted task"
+    "$SCRIPT_DIR/lib/task" delete ps-mix-del
     # 1 blocked (open + unresolved blocker)
-    "$SCRIPT_DIR/task" create ps-mix-blk "Blocker"
-    "$SCRIPT_DIR/task" create ps-mix-blkd "Blocked"
-    "$SCRIPT_DIR/task" block ps-mix-blkd --by ps-mix-blk
+    "$SCRIPT_DIR/lib/task" create ps-mix-blk "Blocker"
+    "$SCRIPT_DIR/lib/task" create ps-mix-blkd "Blocked"
+    "$SCRIPT_DIR/lib/task" block ps-mix-blkd --by ps-mix-blk
 
-    run "$SCRIPT_DIR/task" plan-status
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     [[ "$output" == *"2 open"* ]]
     [[ "$output" == *"1 active"* ]]
@@ -181,7 +181,7 @@ teardown() {
 # Output format: single line with comma-separated counts
 # ---------------------------------------------------------------------------
 @test "plan-status: output is a single line" {
-    run "$SCRIPT_DIR/task" plan-status
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     local line_count
     line_count=$(echo "$output" | wc -l)
@@ -192,14 +192,14 @@ teardown() {
 # Blocked task that is also active counts as blocked, not active
 # ---------------------------------------------------------------------------
 @test "plan-status: active task with unresolved blocker counts as blocked" {
-    "$SCRIPT_DIR/task" create ps-blk-a "Blocker"
-    "$SCRIPT_DIR/task" create ps-blkd-a "Will be active but blocked" -p 0
+    "$SCRIPT_DIR/lib/task" create ps-blk-a "Blocker"
+    "$SCRIPT_DIR/lib/task" create ps-blkd-a "Will be active but blocked" -p 0
     # First claim the task (before blocking it)
-    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/task" claim --lease 600 >/dev/null
+    RALPH_AGENT_ID=test-agent "$SCRIPT_DIR/lib/task" claim --lease 600 >/dev/null
     # Then add a blocker after it's already active
-    "$SCRIPT_DIR/task" block ps-blkd-a --by ps-blk-a
+    "$SCRIPT_DIR/lib/task" block ps-blkd-a --by ps-blk-a
 
-    run "$SCRIPT_DIR/task" plan-status
+    run "$SCRIPT_DIR/lib/task" plan-status
     [ "$status" -eq 0 ]
     # The active+blocked task should count as blocked
     [[ "$output" == *"1 blocked"* ]]
@@ -209,6 +209,6 @@ teardown() {
 # Unknown flags rejected
 # ---------------------------------------------------------------------------
 @test "plan-status: unknown flag rejected" {
-    run "$SCRIPT_DIR/task" plan-status --bogus
+    run "$SCRIPT_DIR/lib/task" plan-status --bogus
     [ "$status" -ne 0 ]
 }

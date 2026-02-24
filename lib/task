@@ -18,10 +18,11 @@ db_check() {
         local _script_dir
         _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
 
-        # Source .env as fallback if available
-        if [[ -f "$_script_dir/.env" ]]; then
+        # Source .env as fallback if available (lib/task is one level below repo root)
+        local _repo_dir="$_script_dir/.."
+        if [[ -f "$_repo_dir/.env" ]]; then
             # shellcheck disable=SC1091
-            . "$_script_dir/.env"
+            . "$_repo_dir/.env"
         fi
     fi
     if [[ -z "${RALPH_DB_URL:-}" ]]; then
@@ -238,7 +239,7 @@ ensure_schema() {
 # ---------------------------------------------------------------------------
 usage() {
     cat <<'EOF'
-Usage: task <command> [options]
+Usage: ralph task <command> [options]
 
 Plan Phase Commands:
   plan-sync             Read JSONL from stdin, upsert tasks into the database
@@ -854,7 +855,7 @@ cmd_renew() {
 
     if [[ -z "$task_id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task renew <id> [--lease N]" >&2
+        echo "Usage: ralph task renew <id> [--lease N]" >&2
         exit 1
     fi
 
@@ -899,7 +900,7 @@ cmd_done() {
 
     if [[ -z "$task_id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task done <id> [--result '<json>']" >&2
+        echo "Usage: ralph task done <id> [--result '<json>']" >&2
         exit 1
     fi
 
@@ -963,7 +964,7 @@ cmd_fail() {
 
     if [[ -z "$task_id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task fail <id> [--reason \"<text>\"]" >&2
+        echo "Usage: ralph task fail <id> [--reason \"<text>\"]" >&2
         exit 1
     fi
 
@@ -1127,7 +1128,7 @@ cmd_show() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task show <id> [--with-deps]" >&2
+        echo "Usage: ralph task show <id> [--with-deps]" >&2
         exit 1
     fi
 
@@ -1236,13 +1237,13 @@ cmd_create() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]" >&2
+        echo "Usage: ralph task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]" >&2
         exit 1
     fi
 
     if [[ -z "$title" ]]; then
         echo "Error: missing task title" >&2
-        echo "Usage: task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]" >&2
+        echo "Usage: ralph task create <id> <title> [-p PRIORITY] [-c CATEGORY] [-d DESCRIPTION] [-s STEPS_JSON] [-r SPEC_REF] [--ref REF] [--deps DEP_IDS]" >&2
         exit 1
     fi
 
@@ -1335,7 +1336,7 @@ cmd_update() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]" >&2
+        echo "Usage: ralph task update <id> [--title T] [--priority N] [--description D] [--steps S] [--status S]" >&2
         exit 1
     fi
 
@@ -1422,7 +1423,7 @@ cmd_delete() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task delete <id>" >&2
+        echo "Usage: ralph task delete <id>" >&2
         exit 1
     fi
 
@@ -1453,7 +1454,7 @@ cmd_deps() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task deps <id>" >&2
+        echo "Usage: ralph task deps <id>" >&2
         exit 1
     fi
 
@@ -1507,7 +1508,7 @@ cmd_block() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task block <id> --by <blocker-id>" >&2
+        echo "Usage: ralph task block <id> --by <blocker-id>" >&2
         exit 1
     fi
 
@@ -1521,7 +1522,7 @@ cmd_block() {
 
     if [[ -z "$blocker_id" ]]; then
         echo "Error: missing --by <blocker-id>" >&2
-        echo "Usage: task block <id> --by <blocker-id>" >&2
+        echo "Usage: ralph task block <id> --by <blocker-id>" >&2
         exit 1
     fi
 
@@ -1560,7 +1561,7 @@ cmd_unblock() {
 
     if [[ -z "$id" ]]; then
         echo "Error: missing task ID" >&2
-        echo "Usage: task unblock <id> --by <blocker-id>" >&2
+        echo "Usage: ralph task unblock <id> --by <blocker-id>" >&2
         exit 1
     fi
 
@@ -1574,7 +1575,7 @@ cmd_unblock() {
 
     if [[ -z "$blocker_id" ]]; then
         echo "Error: missing --by <blocker-id>" >&2
-        echo "Usage: task unblock <id> --by <blocker-id>" >&2
+        echo "Usage: ralph task unblock <id> --by <blocker-id>" >&2
         exit 1
     fi
 
@@ -1652,7 +1653,7 @@ cmd_agent_deregister() {
     local id="${1:-}"
     if [[ -z "$id" ]]; then
         echo "Error: missing agent ID" >&2
-        echo "Usage: task agent deregister <id>" >&2
+        echo "Usage: ralph task agent deregister <id>" >&2
         exit 1
     fi
 
@@ -1683,7 +1684,7 @@ cmd_agent() {
         deregister) cmd_agent_deregister "$@" ;;
         "")
             echo "Error: missing agent subcommand" >&2
-            echo "Usage: task agent <register|list|deregister>" >&2
+            echo "Usage: ralph task agent <register|list|deregister>" >&2
             exit 1
             ;;
         *)
