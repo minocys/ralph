@@ -29,6 +29,16 @@ services:
     networks:
       - ralph-net
 
+  ralph-worker:
+    image: ralph-worker:latest
+    container_name: ralph-worker
+    env_file: .env
+    depends_on:
+      ralph-task-db:
+        condition: service_healthy
+    networks:
+      - ralph-net
+
 networks:
   ralph-net:
     driver: bridge

@@ -1,0 +1,81 @@
+#!/usr/bin/env bats
+# test/compose_worker.bats — ralph-worker service tests for docker-compose.yml
+#
+# Validates the docker-compose.yml structure using grep-based checks.
+# Does NOT start containers.
+
+_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+_SCRIPT_DIR="$(cd "$_TEST_DIR/.." && pwd)"
+
+load "$_TEST_DIR/libs/bats-support/load"
+load "$_TEST_DIR/libs/bats-assert/load"
+
+COMPOSE_FILE="$_SCRIPT_DIR/docker-compose.yml"
+
+# --- ralph-worker service exists ---
+
+@test "docker-compose.yml defines ralph-worker service" {
+    run grep -E '^\s+ralph-worker:' "$COMPOSE_FILE"
+    assert_success
+}
+
+# --- image ---
+
+@test "ralph-worker uses image ralph-worker:latest" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "image: ralph-worker:latest"
+}
+
+# --- container_name ---
+
+@test "ralph-worker has container_name ralph-worker" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "container_name: ralph-worker"
+}
+
+# --- env_file ---
+
+@test "ralph-worker uses env_file .env" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "env_file: .env"
+}
+
+# --- depends_on ---
+
+@test "ralph-worker depends_on ralph-task-db" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "depends_on:"
+    assert_output --partial "ralph-task-db:"
+}
+
+@test "ralph-worker depends_on ralph-task-db with service_healthy condition" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "condition: service_healthy"
+}
+
+# --- networks ---
+
+@test "ralph-worker is attached to ralph-net network" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "ralph-net"
+}
+
+# --- existing service unchanged ---
+
+@test "ralph-task-db service still exists" {
+    run grep -E '^\s+ralph-task-db:' "$COMPOSE_FILE"
+    assert_success
+}
+
+@test "ralph-net network still defined" {
+    run grep -E '^networks:' "$COMPOSE_FILE"
+    assert_success
+    run grep -E '^\s+ralph-net:' "$COMPOSE_FILE"
+    assert_success
+}
