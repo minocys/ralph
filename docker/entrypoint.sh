@@ -43,13 +43,18 @@ if [ -z "${RALPH_DB_URL:-}" ] && \
 fi
 
 # ---------------------------------------------------------------------------
-# Symlinks
+# Skill symlinks
 # ---------------------------------------------------------------------------
 
-# Run install.sh to set up skills and binary symlinks (idempotent)
-if [ -x "$RALPH_DIR/install.sh" ]; then
-    "$RALPH_DIR/install.sh"
-fi
+mkdir -p ~/.claude/skills/
+_skill_count=0
+for skill_dir in "$RALPH_DIR"/skills/*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name="$(basename "$skill_dir")"
+    ln -sfn "$skill_dir" ~/.claude/skills/"$skill_name"
+    _skill_count=$((_skill_count + 1))
+done
+echo "entrypoint: linked $_skill_count skill(s) into ~/.claude/skills/" >&2
 
 # ---------------------------------------------------------------------------
 # Hooks
