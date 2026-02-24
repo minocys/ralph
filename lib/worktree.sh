@@ -2,10 +2,45 @@
 # lib/worktree.sh — git worktree isolation for concurrent ralph loops
 #
 # Provides:
+#   setup_worktree()    — attempt worktree creation with fallback to project dir
 #   create_worktree()   — create a git worktree for isolated loop execution
 #   cleanup_worktree()  — remove a git worktree (best-effort, preserves branch)
 #
-# Globals used: none (pure function, uses parameters only)
+# Globals set by setup_worktree:
+#   RALPH_WORK_DIR — worktree path on success, or original project dir on fallback
+
+# setup_worktree: attempt worktree creation with fallback to project directory
+#
+# Usage: setup_worktree <project-dir> <session-id> <agent-id>
+#
+# Checks if project-dir is a git repository. If so, attempts to create a
+# worktree via create_worktree. On any failure (not a git repo, worktree
+# creation error), falls back to the original project directory with a warning.
+# Sets RALPH_WORK_DIR to the resulting path. Always returns 0.
+setup_worktree() {
+    local project_dir="$1"
+    local session_id="$2"
+    local agent_id="$3"
+
+    # Default to project directory (fallback)
+    RALPH_WORK_DIR="$project_dir"
+
+    # Check if project directory is a git repository
+    if ! git -C "$project_dir" rev-parse --git-dir >/dev/null 2>&1; then
+        echo "Warning: $project_dir is not a git repository, skipping worktree" >&2
+        return 0
+    fi
+
+    # Attempt worktree creation
+    local worktree_path
+    if worktree_path=$(cd "$project_dir" && create_worktree "$session_id" "$agent_id"); then
+        RALPH_WORK_DIR="${project_dir}/${worktree_path}"
+    else
+        echo "Warning: worktree creation failed, using project directory" >&2
+    fi
+
+    return 0
+}
 
 # create_worktree: create a git worktree for an isolated ralph loop session
 #
@@ -28,7 +63,7 @@ create_worktree() {
 
     mkdir -p .ralph/worktrees/
 
-    if ! git worktree add "$worktree_dir" -b "$branch_name" 2>&2; then
+    if ! git worktree add "$worktree_dir" -b "$branch_name" >&2 2>&1; then
         echo "Error: failed to create worktree at $worktree_dir" >&2
         return 1
     fi
