@@ -2,6 +2,7 @@
 # lib/docker.sh — Docker lifecycle and PostgreSQL readiness for ralph.sh
 #
 # Provides:
+#   detect_docker_executor()  — set RALPH_EXEC_MODE based on DOCKER_EXECUTOR
 #   check_docker_installed()  — verify docker CLI and compose V2 plugin
 #   is_container_running()    — check if ralph-task-db container is running
 #   wait_for_healthy()        — poll until container healthy + pg_isready
@@ -13,6 +14,22 @@
 #   SCRIPT_DIR (must be set before sourcing)
 #   DOCKER_HEALTH_TIMEOUT (optional, default 30s)
 #   POSTGRES_PORT (optional, default 5499)
+
+# detect_docker_executor: set RALPH_EXEC_MODE based on DOCKER_EXECUTOR env var
+# When DOCKER_EXECUTOR is "true" (case-insensitive), sets RALPH_EXEC_MODE=docker.
+# Otherwise sets RALPH_EXEC_MODE=local. Always returns 0.
+detect_docker_executor() {
+    local val="${DOCKER_EXECUTOR:-}"
+    # Case-insensitive comparison
+    val="$(echo "$val" | tr '[:upper:]' '[:lower:]')"
+    if [ "$val" = "true" ]; then
+        RALPH_EXEC_MODE="docker"
+    else
+        RALPH_EXEC_MODE="local"
+    fi
+    export RALPH_EXEC_MODE
+    return 0
+}
 
 # check_docker_installed: verify docker CLI and compose V2 are available
 check_docker_installed() {
