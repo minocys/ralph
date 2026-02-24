@@ -6,4 +6,8 @@ RUN npm install -g @anthropic-ai/claude-code
 
 RUN adduser -D -u 1000 ralph
 RUN mkdir -p /workspace && chown ralph:ralph /workspace
+
+COPY ralph.sh lib/ skills/ hooks/ task install.sh models.json .env.example db/ /opt/ralph/
+RUN chown -R ralph:ralph /opt/ralph
+
 WORKDIR /workspace
