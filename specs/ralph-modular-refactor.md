@@ -2,35 +2,36 @@
 
 ## Overview
 
-`ralph.sh` has grown to 258 lines covering argument parsing, backend detection, model resolution, signal handling, output formatting, and the main loop. As new features are added (Docker auto-start, environment configuration), maintaining a single file becomes unwieldy. This spec splits `ralph.sh` into sourced `lib/` modules organized by concern, reducing the main script to a thin orchestrator.
+`ralph.sh` was originally a monolith covering argument parsing, backend detection, model resolution, signal handling, output formatting, and the main loop. The first refactor split it into sourced `lib/` modules organized by concern, reducing the main script to a thin orchestrator. The second refactor (see `cli-subcommand-dispatch.md`) restructures the orchestrator into a subcommand dispatcher where `plan`, `build`, and `task` are peer subcommands, each sourcing only the modules they need.
 
 ## Requirements
 
-- `ralph.sh` is refactored into a thin orchestrator (~50 lines) that sources five `lib/` modules and calls their functions in sequence.
+- `ralph.sh` is a thin subcommand dispatcher that routes to `plan`, `build`, or `task` based on the first positional argument (see `cli-subcommand-dispatch.md`)
 - The `lib/` directory contains:
-  - `lib/config.sh` — `parse_args()`, `detect_backend()`, `resolve_model()`. Extracted from current ralph.sh lines 20-111.
-  - `lib/docker.sh` — `ensure_postgres()` and supporting functions (`check_docker_installed`, `ensure_env_file`, `is_container_running`, `wait_for_healthy`). New code per docker-auto-start spec.
-  - `lib/signals.sh` — `setup_cleanup_trap()`, `setup_signal_handlers()`, `handle_int()`, `handle_term()`. Extracted from current ralph.sh lines 138-177.
-  - `lib/output.sh` — `JQ_FILTER` variable and `print_banner()`. Extracted from current ralph.sh lines 179-215.
-  - `lib/loop.sh` — `run_loop()`. Extracted from current ralph.sh lines 217-257.
+  - `lib/config.sh` — `parse_args()`, `detect_backend()`, `resolve_model()`, `preflight()`. Sourced by plan and build subcommands.
+  - `lib/docker.sh` — `ensure_postgres()` and supporting functions (`check_docker_installed`, `ensure_env_file`, `is_container_running`, `wait_for_healthy`). Sourced by plan and build subcommands.
+  - `lib/signals.sh` — `setup_cleanup_trap()`, `setup_signal_handlers()`, `handle_int()`, `handle_term()`. Sourced by plan and build subcommands.
+  - `lib/output.sh` — `JQ_FILTER` variable and `print_banner()`. Sourced by plan and build subcommands.
+  - `lib/plan_loop.sh` — `setup_session()` (shared) and `run_plan_loop()`. Sourced by plan subcommand only.
+  - `lib/build_loop.sh` — `run_build_loop()`. Sourced by build subcommand only.
+  - `lib/task` — the task CLI script, exec'd directly by `ralph task` (see `task-cli-relocation.md`).
 - `ralph.sh` resolves `SCRIPT_DIR` using a portable symlink-following loop (`while [ -L "$SOURCE" ]`) instead of the current `dirname "$0"` pattern. This fixes a pre-existing bug where invocation via the `~/.local/bin/ralph` symlink would resolve `SCRIPT_DIR` to `~/.local/bin/` instead of the repo directory.
 - `SCRIPT_DIR` is exported so all `lib/` modules and child processes can reference it.
-- All `lib/` files share the same global namespace (sourced, not subshelled). Global variables use `UPPER_CASE`; function-local variables use the `local` keyword.
-- The `--help` flag continues to work by reading from `$0` (which is `ralph.sh`, the orchestrator that retains the comment header).
-- The orchestrator executes phases in order: (1) parse args, (2) detect backend / resolve model, (3) preflight checks (specs, plan file), (4) ensure postgres, (5) session setup (iteration counter, branch, tmpfile, agent registration), (6) setup traps, (7) print banner, (8) run loop.
+- All sourced `lib/` files share the same global namespace. Global variables use `UPPER_CASE`; function-local variables use the `local` keyword.
+- `lib/task` is not sourced — it is exec'd as a separate process by the `ralph task` subcommand.
+- The plan and build subcommands execute phases in order: (1) parse args, (2) detect backend / resolve model, (3) preflight checks, (4) ensure postgres, (5) session setup, (6) setup traps, (7) print banner, (8) run loop.
 - Existing BATS tests pass without modification; the shared `test_helper.bash` setup already prepends PATH-stub `docker` and `pg_isready` scripts so `ensure_postgres()` succeeds without a running Docker daemon.
-- A new `test/ralph_docker.bats` file tests Docker functions using stubbed `docker` commands (same PATH-stub pattern as existing tests).
 
 ## Constraints
 
-- All `lib/` files are `source`d, not executed as subprocesses. They share globals and can reference each other's variables.
-- No changes to the public interface: `ralph.sh` accepts the same flags (`--plan`, `-n`, `--model`, `--danger`, `--help`) and produces the same output.
-- The `install.sh` script requires no changes — it symlinks `ralph.sh` which now follows the symlink chain internally.
+- All `lib/*.sh` files are `source`d, not executed as subprocesses. They share globals and can reference each other's variables.
+- `lib/task` is the exception — it is exec'd as a standalone script.
+- The public interface changes from flag-based (`ralph --plan`) to subcommand-based (`ralph plan`) — see `cli-subcommand-dispatch.md`.
+- `install.sh` symlinks `ralph.sh` to `~/.local/bin/ralph` — the `task` symlink is removed (see `task-cli-relocation.md`).
 - Bash 3.2+ compatibility must be maintained (macOS default).
 
 ## Out of Scope
 
-- Refactoring the `task` script into modules (it remains a single file).
-- Adding new CLI flags beyond what exists today.
+- Adding new subcommands beyond plan, build, task.
 - Changing the output format or jq filter behavior.
 - Restructuring the test directory or test framework.

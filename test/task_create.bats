@@ -40,13 +40,13 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task create without ID exits 1 with error" {
-    run "$SCRIPT_DIR/task" create
+    run "$SCRIPT_DIR/lib/task" create
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
 
 @test "task create without title exits 1 with error" {
-    run "$SCRIPT_DIR/task" create "test-01"
+    run "$SCRIPT_DIR/lib/task" create "test-01"
     assert_failure
     assert_output --partial "Error: missing task title"
 }
@@ -55,7 +55,7 @@ teardown() {
 # Minimal create
 # ---------------------------------------------------------------------------
 @test "task create with minimal args inserts task and prints ID" {
-    run "$SCRIPT_DIR/task" create "test-01" "My first task"
+    run "$SCRIPT_DIR/lib/task" create "test-01" "My first task"
     assert_success
     assert_output "test-01"
 
@@ -68,7 +68,7 @@ teardown() {
 }
 
 @test "task create sets updated_at on insert" {
-    run "$SCRIPT_DIR/task" create "test-ts" "Timestamp test"
+    run "$SCRIPT_DIR/lib/task" create "test-ts" "Timestamp test"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -82,7 +82,7 @@ teardown() {
 # Create with all flags
 # ---------------------------------------------------------------------------
 @test "task create with all flags stores correct values" {
-    run "$SCRIPT_DIR/task" create "feat-01" "Full task" \
+    run "$SCRIPT_DIR/lib/task" create "feat-01" "Full task" \
         -p 1 \
         -c "feat" \
         -d "A detailed description" \
@@ -103,7 +103,7 @@ teardown() {
 # Steps
 # ---------------------------------------------------------------------------
 @test "task create with steps stores steps in TEXT[] column" {
-    run "$SCRIPT_DIR/task" create "step-01" "Task with steps" \
+    run "$SCRIPT_DIR/lib/task" create "step-01" "Task with steps" \
         -s '["First step","Second step","Third step"]'
     assert_success
 
@@ -121,10 +121,10 @@ Third step"
 # ---------------------------------------------------------------------------
 @test "task create with deps inserts into task_deps" {
     # Create blocker tasks first
-    "$SCRIPT_DIR/task" create "blocker-a" "Blocker A" > /dev/null
-    "$SCRIPT_DIR/task" create "blocker-b" "Blocker B" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "blocker-a" "Blocker A" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "blocker-b" "Blocker B" > /dev/null
 
-    run "$SCRIPT_DIR/task" create "dep-01" "Dependent task" --deps "blocker-a,blocker-b"
+    run "$SCRIPT_DIR/lib/task" create "dep-01" "Dependent task" --deps "blocker-a,blocker-b"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -139,7 +139,7 @@ blocker-b"
 # Defaults
 # ---------------------------------------------------------------------------
 @test "task create defaults priority to 2, status to open" {
-    run "$SCRIPT_DIR/task" create "def-01" "Default check"
+    run "$SCRIPT_DIR/lib/task" create "def-01" "Default check"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -150,7 +150,7 @@ blocker-b"
 }
 
 @test "task create with NULL description and category" {
-    run "$SCRIPT_DIR/task" create "null-01" "Null fields test"
+    run "$SCRIPT_DIR/lib/task" create "null-01" "Null fields test"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -167,8 +167,8 @@ blocker-b"
 # Duplicate ID
 # ---------------------------------------------------------------------------
 @test "task create with duplicate ID fails" {
-    "$SCRIPT_DIR/task" create "dup-01" "First" > /dev/null
-    run "$SCRIPT_DIR/task" create "dup-01" "Second"
+    "$SCRIPT_DIR/lib/task" create "dup-01" "First" > /dev/null
+    run "$SCRIPT_DIR/lib/task" create "dup-01" "Second"
     assert_failure
 }
 
@@ -176,7 +176,7 @@ blocker-b"
 # Special characters in title
 # ---------------------------------------------------------------------------
 @test "task create handles single quotes in title" {
-    run "$SCRIPT_DIR/task" create "quote-01" "It's a task"
+    run "$SCRIPT_DIR/lib/task" create "quote-01" "It's a task"
     assert_success
     assert_output "quote-01"
 

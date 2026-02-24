@@ -19,7 +19,7 @@ create_task_stub() {
     # Write list --all output to a data file (avoids quoting issues with JSONL in heredoc)
     printf '%s' "$list_all_output" > "$TEST_WORK_DIR/.list_all_data"
 
-    cat > "$TEST_WORK_DIR/task" <<STUB
+    cat > "$TEST_WORK_DIR/lib/task" <<STUB
 #!/bin/bash
 # Log every invocation
 echo "\$*" >> "${TEST_WORK_DIR}/task_calls.log"
@@ -51,7 +51,7 @@ case "\$1" in
         ;;
 esac
 STUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 }
 
 # Override default setup: copy ralph.sh so SCRIPT_DIR resolves to TEST_WORK_DIR
@@ -64,7 +64,10 @@ setup() {
     # Copy ralph.sh and lib/ into the test work directory
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
     # Minimal specs/ directory so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
@@ -74,7 +77,7 @@ setup() {
     cat > "$STUB_DIR/claude" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$@" > "$TEST_WORK_DIR/claude_args.txt"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
 echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
 exit 0
 STUB
@@ -125,7 +128,7 @@ id: t-01
 title: Test task
 status: open'
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # Verify task stub was called with list --all --markdown
@@ -143,7 +146,7 @@ id: t-01
 title: Test task
 status: open'
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # The -p value should be "/ralph-plan {markdown-KV}" as a single argument
@@ -156,7 +159,7 @@ status: open'
 @test "plan mode handles empty list --all output" {
     create_task_stub ""
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # Claude should still be called with just /ralph-plan (no task data appended)

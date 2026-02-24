@@ -2,7 +2,7 @@
 
 ## Overview
 
-`ralph.sh` does not reliably exit when the user presses Ctrl+C. The root cause is that bash defers trap handlers until a foreground pipeline completes, and the `claude` CLI catches SIGINT for its own cleanup, creating a deadlock where the shell waits for `claude` and the trap never fires.
+The ralph build/plan loops do not reliably exit when the user presses Ctrl+C. The root cause is that bash defers trap handlers until a foreground pipeline completes, and the `claude` CLI catches SIGINT for its own cleanup, creating a deadlock where the shell waits for `claude` and the trap never fires.
 
 This spec replaces the current signal handling with a background-pipeline + `wait` pattern that supports two-stage interrupt: first Ctrl+C lets `claude` clean up gracefully, second Ctrl+C force-kills everything.
 

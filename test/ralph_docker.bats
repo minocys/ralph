@@ -66,7 +66,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/docker"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_failure
     assert_output --partial "docker compose V2 plugin not found"
     assert_output --partial "https://docs.docker.com/compose/install/"
@@ -84,7 +84,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/docker"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     # Should not contain docker errors
     refute_output --partial "docker CLI not found"
     refute_output --partial "docker compose V2 plugin not found"

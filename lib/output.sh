@@ -46,6 +46,12 @@ print_banner() {
     echo "Backend: $ACTIVE_BACKEND"
     [ -n "$AGENT_ID" ] && echo "Agent:  $AGENT_ID"
     [ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
-    [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
+    if [ $MAX_ITERATIONS -gt 0 ]; then
+        if [ $MAX_ITERATIONS -eq 1 ]; then
+            echo "Max:    1 iteration"
+        else
+            echo "Max:    $MAX_ITERATIONS iterations"
+        fi
+    fi
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }

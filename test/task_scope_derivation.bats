@@ -120,7 +120,7 @@ teardown() {
 @test "RALPH_SCOPE_REPO overrides git-derived repo" {
     create_git_stub "https://github.com/fallback/should-not-use.git" "main"
     export RALPH_SCOPE_REPO="override/repo"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:override/repo"
     assert_line "branch:main"
@@ -129,7 +129,7 @@ teardown() {
 @test "RALPH_SCOPE_BRANCH overrides git-derived branch" {
     create_git_stub "https://github.com/owner/repo.git" "should-not-use"
     export RALPH_SCOPE_BRANCH="override-branch"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
     assert_line "branch:override-branch"
@@ -140,7 +140,7 @@ teardown() {
     create_git_stub_not_repo
     export RALPH_SCOPE_REPO="env/repo"
     export RALPH_SCOPE_BRANCH="env-branch"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:env/repo"
     assert_line "branch:env-branch"
@@ -152,21 +152,21 @@ teardown() {
 
 @test "HTTPS URL with .git suffix extracts owner/repo" {
     create_git_stub "https://github.com/owner/repo.git" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
 }
 
 @test "HTTPS URL without .git suffix extracts owner/repo" {
     create_git_stub "https://github.com/owner/repo" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
 }
 
 @test "HTTPS URL with different host extracts owner/repo" {
     create_git_stub "https://gitlab.com/myorg/myproject.git" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:myorg/myproject"
 }
@@ -177,28 +177,28 @@ teardown() {
 
 @test "SSH SCP-style URL with .git suffix extracts owner/repo" {
     create_git_stub "git@github.com:owner/repo.git" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
 }
 
 @test "SSH SCP-style URL without .git suffix extracts owner/repo" {
     create_git_stub "git@github.com:owner/repo" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
 }
 
 @test "SSH scheme URL with .git suffix extracts owner/repo" {
     create_git_stub "ssh://git@github.com/owner/repo.git" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
 }
 
 @test "SSH scheme URL without .git suffix extracts owner/repo" {
     create_git_stub "ssh://git@github.com/owner/repo" "main"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "repo:owner/repo"
 }
@@ -209,14 +209,14 @@ teardown() {
 
 @test "branch derived from git branch --show-current" {
     create_git_stub "https://github.com/owner/repo.git" "feature/my-branch"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "branch:feature/my-branch"
 }
 
 @test "branch with slashes preserved" {
     create_git_stub "https://github.com/owner/repo.git" "ryan/oto-226-scoped-tasks"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_success
     assert_line "branch:ryan/oto-226-scoped-tasks"
 }
@@ -227,21 +227,21 @@ teardown() {
 
 @test "error: not in a git repository" {
     create_git_stub_not_repo
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_failure
     assert_output --partial 'Error: not inside a git repository. Run: git init'
 }
 
 @test "error: no origin remote" {
     create_git_stub_no_origin
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_failure
     assert_output --partial 'Error: no git remote "origin" found. Run: git remote add origin <url>'
 }
 
 @test "error: detached HEAD state" {
     create_git_stub_detached "https://github.com/owner/repo.git"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_failure
     assert_output --partial 'Error: detached HEAD state. Run: git checkout <branch>'
 }
@@ -249,7 +249,7 @@ teardown() {
 @test "error: RALPH_SCOPE_REPO set but not in git repo for branch" {
     create_git_stub_not_repo
     export RALPH_SCOPE_REPO="env/repo"
-    run "$SCRIPT_DIR/task" _get-scope
+    run "$SCRIPT_DIR/lib/task" _get-scope
     assert_failure
     assert_output --partial 'Error: not inside a git repository. Run: git init'
 }

@@ -52,7 +52,7 @@ teardown() {
 @test "ensure_schema creates all three tables" {
     # Run any command that triggers ensure_schema — list will call it
     # list triggers ensure_schema on startup
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     # Verify tables exist
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -68,10 +68,10 @@ teardown() {
 
 @test "ensure_schema is idempotent (second run succeeds)" {
     # First run — creates tables
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     # Second run — should not fail
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     # Tables should still exist and be intact
     run psql "$RALPH_DB_URL" -tAX -c "
@@ -84,7 +84,7 @@ teardown() {
 }
 
 @test "tasks table has correct columns" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_name FROM information_schema.columns
@@ -115,7 +115,7 @@ teardown() {
 }
 
 @test "task_steps table does not exist" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT count(*) FROM information_schema.tables
@@ -126,7 +126,7 @@ teardown() {
 }
 
 @test "task_deps table has correct columns" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_name FROM information_schema.columns
@@ -139,7 +139,7 @@ teardown() {
 }
 
 @test "agents table has correct columns" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_name FROM information_schema.columns
@@ -157,7 +157,7 @@ teardown() {
 }
 
 @test "tasks.steps column is a TEXT array" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT data_type FROM information_schema.columns
@@ -168,7 +168,7 @@ teardown() {
 }
 
 @test "task_deps has foreign key to tasks with cascade delete" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     # Insert two tasks, add a dep, delete the blocker — dep should cascade
     psql "$RALPH_DB_URL" -tAX -c "
@@ -189,7 +189,7 @@ teardown() {
 }
 
 @test "tasks table defaults are correct" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
 
     psql "$RALPH_DB_URL" -tAX -c "
         INSERT INTO tasks (slug, scope_repo, scope_branch, title)

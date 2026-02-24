@@ -37,55 +37,33 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# task symlink
+# legacy task symlink cleanup
 # ---------------------------------------------------------------------------
-@test "install.sh creates task symlink in ~/.local/bin" {
+@test "install.sh removes legacy task symlink from ~/.local/bin" {
+    mkdir -p "$HOME/.local/bin"
+    ln -s "/some/old/path/task" "$HOME/.local/bin/task"
+
     run "$SCRIPT_DIR/install.sh"
     assert_success
-    assert [ -L "$HOME/.local/bin/task" ]
-    # Symlink points to task
-    local target
-    target=$(readlink "$HOME/.local/bin/task")
-    assert_equal "$target" "$SCRIPT_DIR/task"
+    assert [ ! -L "$HOME/.local/bin/task" ]
+    assert_output --partial "Removing legacy symlink"
 }
 
-@test "install.sh task symlink is executable via the link" {
+@test "install.sh does not create task symlink" {
     run "$SCRIPT_DIR/install.sh"
     assert_success
-    # The task script itself must be executable
-    assert [ -x "$SCRIPT_DIR/task" ]
-    # The symlink should resolve to an executable
-    assert [ -x "$HOME/.local/bin/task" ]
+    assert [ ! -e "$HOME/.local/bin/task" ]
 }
 
-@test "install.sh updates existing task symlink" {
-    # First install
-    run "$SCRIPT_DIR/install.sh"
-    assert_success
-
-    # Second install should succeed (update the symlink)
-    run "$SCRIPT_DIR/install.sh"
-    assert_success
-    assert [ -L "$HOME/.local/bin/task" ]
-    assert_output --partial "Updating symlink"
-}
-
-@test "install.sh skips task if non-symlink file exists" {
+@test "install.sh ignores non-symlink task file in ~/.local/bin" {
     mkdir -p "$HOME/.local/bin"
     echo "existing file" > "$HOME/.local/bin/task"
 
     run "$SCRIPT_DIR/install.sh"
     assert_success
-    assert_output --partial "Warning"
-    assert_output --partial "not a symlink"
-    # File should still be the original, not a symlink
+    # Non-symlink file should be left alone
     assert [ ! -L "$HOME/.local/bin/task" ]
-}
-
-@test "install.sh prints task link message" {
-    run "$SCRIPT_DIR/install.sh"
-    assert_success
-    assert_output --partial "Linked script: task"
+    assert [ -f "$HOME/.local/bin/task" ]
 }
 
 # ---------------------------------------------------------------------------

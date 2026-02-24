@@ -27,14 +27,17 @@ setup() {
     # resolves to TEST_WORK_DIR (avoids using the real task script/DB)
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
     # Minimal specs/ directory with a dummy spec so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
 
     # Task stub so the build loop doesn't exit early on empty peek
-    cat > "$TEST_WORK_DIR/task" <<'TASKSTUB'
+    cat > "$TEST_WORK_DIR/lib/task" <<'TASKSTUB'
 #!/bin/bash
 case "$1" in
     agent)
@@ -60,7 +63,7 @@ case "$1" in
         ;;
 esac
 TASKSTUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 
     # Stub directory for claude and other commands
     STUB_DIR="$(mktemp -d)"
@@ -221,7 +224,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -256,7 +259,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -290,7 +293,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -340,7 +343,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -381,7 +384,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline

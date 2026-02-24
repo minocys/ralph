@@ -6,9 +6,9 @@ New CLI flags for `ralph.sh` that let the user choose a model and backend when l
 
 ## Requirements
 
-### New flags
+### Flags
 
-- `--model <alias>` / `-m <alias>` — select a model by shorthand alias.
+- `--model <alias>` / `-m <alias>` — select a model by shorthand alias. Applies to both `ralph plan` and `ralph build` subcommands.
 
 ### Backend resolution
 
@@ -40,14 +40,15 @@ The active backend is displayed in the startup banner.
 
 ### Help text
 
-- The `--help` output must document `--model`, `-m`.
-- The help text should mention that available aliases are listed in `models.json`.
+- `ralph plan --help` and `ralph build --help` must document `--model`, `-m`
+- The help text should mention that available aliases are listed in `models.json`
 
 ## Constraints
 
-- `ralph.sh` must remain a pure bash script with no dependencies beyond `jq` (already required).
-- Model resolution reads `models.json` relative to the script's own directory, not the working directory.
-- Settings files (`./.claude/settings.json`, `./.claude/settings.local.json`, `~/.claude/settings.json`) are read-only — `ralph.sh` never writes to them.
+- `ralph.sh` must remain a pure bash script with no dependencies beyond `jq` (already required)
+- Model resolution reads `models.json` relative to the script's own directory, not the working directory
+- Settings files (`./.claude/settings.json`, `./.claude/settings.local.json`, `~/.claude/settings.json`) are read-only — `ralph.sh` never writes to them
+- Model and backend resolution applies to both `ralph plan` and `ralph build` subcommands
 
 ## Testing
 
@@ -92,12 +93,12 @@ test/
 |---|------|-----|
 | 1 | `--help` prints usage and exits 0 | `run ./ralph.sh --help` → `assert_success` + `assert_output --partial "Usage"` |
 | 2 | `-h` is an alias for `--help` | Same as above with `-h` |
-| 3 | Unknown flag exits 1 with error | `run ./ralph.sh --bogus` → `assert_failure` + `assert_output --partial "Unknown option"` |
-| 4 | `--max-iterations` without value exits 1 | `run ./ralph.sh -n` → `assert_failure` + `assert_output --partial "requires a number"` |
-| 5 | `--plan` sets plan mode | `run ./ralph.sh --plan ...` and verify mode is reflected in banner output |
-| 6 | `-p` is an alias for `--plan` | Same as above with `-p` |
+| 3 | Unknown subcommand exits 1 with error | `run ./ralph.sh bogus` → `assert_failure` + `assert_output --partial "Unknown command"` |
+| 4 | `--max-iterations` without value exits 1 | `run ./ralph.sh build -n` → `assert_failure` + `assert_output --partial "requires a number"` |
+| 5 | `ralph plan` sets plan mode | `run ./ralph.sh plan ...` and verify mode is reflected in banner output |
+| 6 | `ralph build` sets build mode | `run ./ralph.sh build ...` and verify mode is reflected in banner output |
 | 7 | `--danger` flag is accepted | Verify banner shows `NO (--dangerously-skip-permissions)` |
-| 8 | Multiple flags combine correctly | `run ./ralph.sh --plan -n 2 --danger` → banner includes plan mode, iteration cap, and danger notice |
+| 8 | Multiple flags combine correctly | `run ./ralph.sh plan -n 2 --danger` → banner includes plan mode, iteration cap, and danger notice |
 
 #### `ralph_preflight.bats` — preflight checks
 
@@ -110,12 +111,12 @@ test/
 
 | # | Test | How |
 |---|------|-----|
-| 1 | `--model opus-4.5` resolves to bedrock ID when bedrock backend | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `--model opus-4.5` → assert banner contains the bedrock model ID |
-| 2 | `--model opus-4.5` passes through on anthropic backend | Mock anthropic backend → run with `--model opus-4.5` → assert banner contains `opus-4.5` (no mapping exists for anthropic) |
-| 3 | Unknown alias passes through as model ID | `run ./ralph.sh --model nonexistent` → `assert_success` + `assert_output --partial "nonexistent"` (raw value used as model ID) |
+| 1 | `--model opus-4.5` resolves to bedrock ID when bedrock backend | Mock settings with `CLAUDE_CODE_USE_BEDROCK: "1"` → run with `ralph build --model opus-4.5` → assert banner contains the bedrock model ID |
+| 2 | `--model opus-4.5` passes through on anthropic backend | Mock anthropic backend → run with `ralph build --model opus-4.5` → assert banner contains `opus-4.5` (no mapping exists for anthropic) |
+| 3 | Unknown alias passes through as model ID | `run ./ralph.sh build --model nonexistent` → `assert_success` + `assert_output --partial "nonexistent"` (raw value used as model ID) |
 | 4 | No `--model` flag omits `--model` from claude args | Run without `--model` → verify `--model` is NOT in the constructed claude command |
 | 5 | `--model` with each alias in `models.json` succeeds | Loop over all keys in `models.json` and assert each resolves without error |
-| 6 | `-m` is an alias for `--model` | `run ./ralph.sh -m opus-4.5` → same result as `--model opus-4.5` |
+| 6 | `-m` is an alias for `--model` | `run ./ralph.sh build -m opus-4.5` → same result as `--model opus-4.5` |
 | 7 | Environment variable `CLAUDE_CODE_USE_BEDROCK=1` selects bedrock | Set env var before running → assert bedrock backend in banner |
 | 8 | Inline env var takes precedence over all settings files | Mock all settings with anthropic → run with `CLAUDE_CODE_USE_BEDROCK=1 ./ralph.sh` → assert bedrock |
 | 9 | `./.claude/settings.local.json` takes precedence over `./.claude/settings.json` | Set different backends in each → assert local.json wins |

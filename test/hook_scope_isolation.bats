@@ -30,7 +30,7 @@ setup() {
     export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
 
     # Hook environment variables
-    export RALPH_TASK_SCRIPT="$SCRIPT_DIR/task"
+    export RALPH_TASK_SCRIPT="$SCRIPT_DIR/lib/task"
     export RALPH_AGENT_ID="a1b2"
 
     # Two distinct scopes
@@ -40,7 +40,7 @@ setup() {
     export SCOPE_B_BRANCH="main"
 
     # Ensure schema is initialized
-    "$SCRIPT_DIR/task" create "hs-setup" "schema init" >/dev/null 2>&1
+    "$SCRIPT_DIR/lib/task" create "hs-setup" "schema init" >/dev/null 2>&1
     psql "$RALPH_DB_URL" -tAX -c "DELETE FROM tasks WHERE slug='hs-setup';" >/dev/null 2>&1
 }
 
@@ -57,12 +57,12 @@ teardown() {
 # ---------------------------------------------------------------------------
 task_in_scope_a() {
     RALPH_SCOPE_REPO="$SCOPE_A_REPO" RALPH_SCOPE_BRANCH="$SCOPE_A_BRANCH" \
-        "$SCRIPT_DIR/task" "$@"
+        "$SCRIPT_DIR/lib/task" "$@"
 }
 
 task_in_scope_b() {
     RALPH_SCOPE_REPO="$SCOPE_B_REPO" RALPH_SCOPE_BRANCH="$SCOPE_B_BRANCH" \
-        "$SCRIPT_DIR/task" "$@"
+        "$SCRIPT_DIR/lib/task" "$@"
 }
 
 hook_precompact_in_scope_a() {

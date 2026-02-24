@@ -41,13 +41,13 @@ teardown() {
 # ===========================================================================
 
 @test "task deps without ID exits 1" {
-    run "$SCRIPT_DIR/task" deps
+    run "$SCRIPT_DIR/lib/task" deps
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
 
 @test "task deps with nonexistent task exits 2" {
-    run "$SCRIPT_DIR/task" deps "nonexistent/01"
+    run "$SCRIPT_DIR/lib/task" deps "nonexistent/01"
     assert_failure
     [ "$status" -eq 2 ]
     assert_output --partial "not found"
@@ -58,9 +58,9 @@ teardown() {
 # ===========================================================================
 
 @test "task deps with no blockers prints no dependencies" {
-    "$SCRIPT_DIR/task" create "test/01" "Task with no deps"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task with no deps"
 
-    run "$SCRIPT_DIR/task" deps "test/01"
+    run "$SCRIPT_DIR/lib/task" deps "test/01"
     assert_success
     assert_output "(no dependencies)"
 }
@@ -70,13 +70,13 @@ teardown() {
 # ===========================================================================
 
 @test "task deps shows direct blockers" {
-    "$SCRIPT_DIR/task" create "test/01" "Main task"
-    "$SCRIPT_DIR/task" create "blocker/01" "First blocker"
-    "$SCRIPT_DIR/task" create "blocker/02" "Second blocker"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/02"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Main task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "First blocker"
+    "$SCRIPT_DIR/lib/task" create "blocker/02" "Second blocker"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/02"
 
-    run "$SCRIPT_DIR/task" deps "test/01"
+    run "$SCRIPT_DIR/lib/task" deps "test/01"
     assert_success
     assert_output --partial "blocker/01"
     assert_output --partial "blocker/02"
@@ -84,23 +84,23 @@ teardown() {
 }
 
 @test "task deps shows blocker status" {
-    "$SCRIPT_DIR/task" create "test/01" "Main task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Done blocker"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
-    "$SCRIPT_DIR/task" update "blocker/01" --status done
+    "$SCRIPT_DIR/lib/task" create "test/01" "Main task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Done blocker"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" update "blocker/01" --status done
 
-    run "$SCRIPT_DIR/task" deps "test/01"
+    run "$SCRIPT_DIR/lib/task" deps "test/01"
     assert_success
     assert_output --partial "blocker/01"
     assert_output --partial "[done]"
 }
 
 @test "task deps shows blocker title" {
-    "$SCRIPT_DIR/task" create "test/01" "Main task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Important Blocker Title"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Main task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Important Blocker Title"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
 
-    run "$SCRIPT_DIR/task" deps "test/01"
+    run "$SCRIPT_DIR/lib/task" deps "test/01"
     assert_success
     assert_output --partial "Important Blocker Title"
 }
@@ -110,26 +110,26 @@ teardown() {
 # ===========================================================================
 
 @test "task deps shows transitive dependency chain" {
-    "$SCRIPT_DIR/task" create "test/01" "Top task"
-    "$SCRIPT_DIR/task" create "mid/01" "Middle task"
-    "$SCRIPT_DIR/task" create "leaf/01" "Leaf task"
-    "$SCRIPT_DIR/task" block "test/01" --by "mid/01"
-    "$SCRIPT_DIR/task" block "mid/01" --by "leaf/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Top task"
+    "$SCRIPT_DIR/lib/task" create "mid/01" "Middle task"
+    "$SCRIPT_DIR/lib/task" create "leaf/01" "Leaf task"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "mid/01"
+    "$SCRIPT_DIR/lib/task" block "mid/01" --by "leaf/01"
 
-    run "$SCRIPT_DIR/task" deps "test/01"
+    run "$SCRIPT_DIR/lib/task" deps "test/01"
     assert_success
     assert_output --partial "mid/01"
     assert_output --partial "leaf/01"
 }
 
 @test "task deps indents transitive deps deeper than direct deps" {
-    "$SCRIPT_DIR/task" create "test/01" "Top task"
-    "$SCRIPT_DIR/task" create "mid/01" "Middle task"
-    "$SCRIPT_DIR/task" create "leaf/01" "Leaf task"
-    "$SCRIPT_DIR/task" block "test/01" --by "mid/01"
-    "$SCRIPT_DIR/task" block "mid/01" --by "leaf/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Top task"
+    "$SCRIPT_DIR/lib/task" create "mid/01" "Middle task"
+    "$SCRIPT_DIR/lib/task" create "leaf/01" "Leaf task"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "mid/01"
+    "$SCRIPT_DIR/lib/task" block "mid/01" --by "leaf/01"
 
-    run "$SCRIPT_DIR/task" deps "test/01"
+    run "$SCRIPT_DIR/lib/task" deps "test/01"
     assert_success
     # Direct dep (depth 1) has no indent
     echo "$output" | grep -q '^mid/01'
@@ -138,15 +138,15 @@ teardown() {
 }
 
 @test "task deps shows deep chain (3 levels)" {
-    "$SCRIPT_DIR/task" create "a" "Task A"
-    "$SCRIPT_DIR/task" create "b" "Task B"
-    "$SCRIPT_DIR/task" create "c" "Task C"
-    "$SCRIPT_DIR/task" create "d" "Task D"
-    "$SCRIPT_DIR/task" block "a" --by "b"
-    "$SCRIPT_DIR/task" block "b" --by "c"
-    "$SCRIPT_DIR/task" block "c" --by "d"
+    "$SCRIPT_DIR/lib/task" create "a" "Task A"
+    "$SCRIPT_DIR/lib/task" create "b" "Task B"
+    "$SCRIPT_DIR/lib/task" create "c" "Task C"
+    "$SCRIPT_DIR/lib/task" create "d" "Task D"
+    "$SCRIPT_DIR/lib/task" block "a" --by "b"
+    "$SCRIPT_DIR/lib/task" block "b" --by "c"
+    "$SCRIPT_DIR/lib/task" block "c" --by "d"
 
-    run "$SCRIPT_DIR/task" deps "a"
+    run "$SCRIPT_DIR/lib/task" deps "a"
     assert_success
     assert_output --partial "b"
     assert_output --partial "c"
@@ -162,16 +162,16 @@ teardown() {
 # ===========================================================================
 
 @test "task deps handles diamond dependency pattern" {
-    "$SCRIPT_DIR/task" create "top" "Top"
-    "$SCRIPT_DIR/task" create "left" "Left"
-    "$SCRIPT_DIR/task" create "right" "Right"
-    "$SCRIPT_DIR/task" create "bottom" "Bottom"
-    "$SCRIPT_DIR/task" block "top" --by "left"
-    "$SCRIPT_DIR/task" block "top" --by "right"
-    "$SCRIPT_DIR/task" block "left" --by "bottom"
-    "$SCRIPT_DIR/task" block "right" --by "bottom"
+    "$SCRIPT_DIR/lib/task" create "top" "Top"
+    "$SCRIPT_DIR/lib/task" create "left" "Left"
+    "$SCRIPT_DIR/lib/task" create "right" "Right"
+    "$SCRIPT_DIR/lib/task" create "bottom" "Bottom"
+    "$SCRIPT_DIR/lib/task" block "top" --by "left"
+    "$SCRIPT_DIR/lib/task" block "top" --by "right"
+    "$SCRIPT_DIR/lib/task" block "left" --by "bottom"
+    "$SCRIPT_DIR/lib/task" block "right" --by "bottom"
 
-    run "$SCRIPT_DIR/task" deps "top"
+    run "$SCRIPT_DIR/lib/task" deps "top"
     assert_success
     # All deps should appear
     assert_output --partial "left"
@@ -184,11 +184,11 @@ teardown() {
 # ===========================================================================
 
 @test "task deps handles IDs with single quotes" {
-    "$SCRIPT_DIR/task" create "test/it's" "Quoted task"
-    "$SCRIPT_DIR/task" create "block/it's" "Quoted blocker"
-    "$SCRIPT_DIR/task" block "test/it's" --by "block/it's"
+    "$SCRIPT_DIR/lib/task" create "test/it's" "Quoted task"
+    "$SCRIPT_DIR/lib/task" create "block/it's" "Quoted blocker"
+    "$SCRIPT_DIR/lib/task" block "test/it's" --by "block/it's"
 
-    run "$SCRIPT_DIR/task" deps "test/it's"
+    run "$SCRIPT_DIR/lib/task" deps "test/it's"
     assert_success
     assert_output --partial "block/it's"
 }

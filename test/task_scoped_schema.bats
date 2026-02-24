@@ -41,7 +41,7 @@ teardown() {
 # tasks table: new columns exist
 # ---------------------------------------------------------------------------
 @test "tasks table has slug column" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'slug';
@@ -51,7 +51,7 @@ teardown() {
 }
 
 @test "tasks table has scope_repo column" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'scope_repo';
@@ -61,7 +61,7 @@ teardown() {
 }
 
 @test "tasks table has scope_branch column" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'scope_branch';
@@ -74,7 +74,7 @@ teardown() {
 # tasks.id column type is UUID
 # ---------------------------------------------------------------------------
 @test "tasks.id column is UUID type" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT data_type FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'id';
@@ -84,7 +84,7 @@ teardown() {
 }
 
 @test "tasks.id has a default (gen_random_uuid)" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT column_default FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'id';
@@ -97,7 +97,7 @@ teardown() {
 # NOT NULL constraints on slug, scope_repo, scope_branch
 # ---------------------------------------------------------------------------
 @test "tasks.slug is NOT NULL" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT is_nullable FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'slug';
@@ -107,7 +107,7 @@ teardown() {
 }
 
 @test "tasks.scope_repo is NOT NULL" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT is_nullable FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'scope_repo';
@@ -117,7 +117,7 @@ teardown() {
 }
 
 @test "tasks.scope_branch is NOT NULL" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT is_nullable FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'tasks' AND column_name = 'scope_branch';
@@ -130,7 +130,7 @@ teardown() {
 # UNIQUE constraint on (scope_repo, scope_branch, slug)
 # ---------------------------------------------------------------------------
 @test "UNIQUE constraint exists on (scope_repo, scope_branch, slug)" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     # Query pg_constraint for a unique constraint covering slug, scope_repo, scope_branch
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT count(*) FROM pg_constraint c
@@ -149,7 +149,7 @@ teardown() {
 }
 
 @test "UNIQUE constraint rejects duplicate slug within same scope" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     # Insert first row
     psql "$RALPH_DB_URL" -tAX -c "
         INSERT INTO tasks (slug, scope_repo, scope_branch, title)
@@ -164,7 +164,7 @@ teardown() {
 }
 
 @test "UNIQUE constraint allows same slug in different scope" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     psql "$RALPH_DB_URL" -tAX -c "
         INSERT INTO tasks (slug, scope_repo, scope_branch, title)
         VALUES ('task-01', 'owner/repo', 'main', 'First');
@@ -181,7 +181,7 @@ teardown() {
 # Index on (scope_repo, scope_branch, status, priority, created_at)
 # ---------------------------------------------------------------------------
 @test "index idx_tasks_scope_status exists" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT indexname FROM pg_indexes
         WHERE schemaname = '$TEST_SCHEMA'
@@ -193,7 +193,7 @@ teardown() {
 }
 
 @test "idx_tasks_scope_status covers correct columns" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT indexdef FROM pg_indexes
         WHERE schemaname = '$TEST_SCHEMA'
@@ -211,7 +211,7 @@ teardown() {
 # task_deps columns are UUID type
 # ---------------------------------------------------------------------------
 @test "task_deps.task_id is UUID type" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT data_type FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'task_deps' AND column_name = 'task_id';
@@ -221,7 +221,7 @@ teardown() {
 }
 
 @test "task_deps.blocked_by is UUID type" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT data_type FROM information_schema.columns
         WHERE table_schema = '$TEST_SCHEMA' AND table_name = 'task_deps' AND column_name = 'blocked_by';
@@ -234,7 +234,7 @@ teardown() {
 # task_deps cascade delete still works with UUID
 # ---------------------------------------------------------------------------
 @test "task_deps cascade delete works with UUID ids" {
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     psql "$RALPH_DB_URL" -tAX -c "
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440001', 'dep-1', 'owner/repo', 'main', 'Dep Test 1');

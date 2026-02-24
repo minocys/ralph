@@ -36,7 +36,7 @@ load test_helper
     ln -s "$SCRIPT_DIR/ralph.sh" "$link_dir/ralph"
 
     # If SCRIPT_DIR resolves correctly, model lookup should work
-    run "$link_dir/ralph" --model opus-4.5 -n 1
+    run "$link_dir/ralph" build --model opus-4.5 -n 1
     assert_success
     assert_output --partial "Model:  opus-4.5"
 }
@@ -48,9 +48,12 @@ load test_helper
     TEST_WORK_DIR="$(cd -P "$TEST_WORK_DIR" && pwd)"
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
-    cat > "$TEST_WORK_DIR/task" <<'TASKSTUB'
+    cat > "$TEST_WORK_DIR/lib/task" <<'TASKSTUB'
 #!/bin/bash
 case "$1" in
     agent) case "$2" in register) echo "t001" ;; esac; exit 0 ;;
@@ -58,7 +61,7 @@ case "$1" in
     *) exit 0 ;;
 esac
 TASKSTUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 
     # Replace the claude stub with one that writes SCRIPT_DIR to a file
     local marker="$TEST_WORK_DIR/script_dir_marker"
@@ -69,7 +72,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
     assert_file_exists "$marker"
     run cat "$marker"

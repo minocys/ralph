@@ -28,7 +28,7 @@ setup() {
     export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
 
     # Seed a dummy task so task-peek returns data (prevents early loop exit)
-    "$SCRIPT_DIR/task" create dummy-001 "Dummy test task" >/dev/null 2>&1
+    "$SCRIPT_DIR/lib/task" create dummy-001 "Dummy test task" >/dev/null 2>&1
 
     # Create a fake claude stub that exits immediately
     cat > "$STUB_DIR/claude" <<'STUB'
@@ -83,13 +83,13 @@ teardown() {
 }
 
 @test "build mode registers agent and displays agent ID in banner" {
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     assert_output --partial "Agent:"
 }
 
 @test "build mode deregisters agent on normal exit" {
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 
     # Extract agent ID from banner output
@@ -112,7 +112,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     # Verify the env file was written with a 4-char hex ID
     [ -f "$ENVFILE" ]
@@ -131,7 +131,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$ENVFILE" ]
@@ -146,13 +146,13 @@ STUB
 #!/bin/bash
 echo "repo=\$RALPH_SCOPE_REPO" > "$ENVFILE"
 echo "branch=\$RALPH_SCOPE_BRANCH" >> "$ENVFILE"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
 echo '{"type":"result","subtype":"success","total_cost_usd":0.001,"num_turns":1}'
 exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" --plan -n 1
+    run "$SCRIPT_DIR/ralph.sh" plan -n 1
     assert_success
 
     [ -f "$ENVFILE" ]
@@ -162,7 +162,7 @@ STUB
 }
 
 @test "plan mode does not register agent" {
-    run "$SCRIPT_DIR/ralph.sh" --plan -n 1
+    run "$SCRIPT_DIR/ralph.sh" plan -n 1
     assert_success
     refute_output --partial "Agent:"
 }
@@ -171,13 +171,13 @@ STUB
     # Ensure task script is not found by removing it from PATH/SCRIPT_DIR context
     # ralph.sh uses SCRIPT_DIR/task, so we test by running from a dir without task
     # The task script check uses -x so a missing file is handled gracefully
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 }
 
 @test "agent is registered with active status in database" {
     # Run ralph briefly
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 
     # Agent should exist (status will be stopped after cleanup)

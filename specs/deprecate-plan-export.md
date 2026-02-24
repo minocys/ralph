@@ -1,49 +1,38 @@
-# Deprecate plan-export
+# Remove plan-export
 
-Consolidate `task plan-export` into `task list --all` to eliminate a redundant command. The two commands produce identical output — the only difference is that `plan-export` includes deleted tasks while `list` excludes them by default.
+Complete removal of the `ralph task plan-export` command, which was deprecated in favor of `ralph task list --all`.
+
+## Overview
+
+`ralph task plan-export` was deprecated after `ralph task list --all` was introduced as a functionally identical replacement. The deprecation phase added a stderr warning while keeping the command functional. This spec completes the removal by deleting the command entirely.
 
 ## Requirements
 
-### Add `--all` flag to `task list`
+### Remove from task CLI
 
-- `task list --all` must remove the status filter entirely — return all tasks including deleted, matching the current `plan-export` behavior
-- `--all` and `--status` are mutually exclusive — if both are provided, print an error to stderr and exit 1
-- `--all` must work with `--markdown` — `task list --all --markdown` replaces `task plan-export --markdown`
-- Sort order is unchanged: `priority ASC, created_at ASC`
+- Delete the `cmd_plan_export()` function from lib/task
+- Remove the `plan-export)` case from the main dispatch in lib/task
+- Remove any `plan-export` entry from the usage text (already removed in the deprecation phase)
+- If `ralph task plan-export` is invoked, it must print an error to stderr: `Error: unknown command 'plan-export'. Use 'ralph task list --all' instead.` and exit 1
 
-### Deprecate `task plan-export`
+### Remove tests
 
-- `task plan-export` must remain functional — do not remove the command
-- On every invocation, `plan-export` must print a deprecation warning to stderr: `Warning: plan-export is deprecated, use 'task list --all [--markdown]' instead`
-- The deprecation warning must not interfere with stdout output — callers that capture stdout continue to work
-- The main dispatch must continue to route `plan-export` to `cmd_plan_export`
+- Delete `test/task_plan_export.bats` entirely
+- Ensure `ralph task list --all` coverage exists in `test/task_list.bats` (the parity tests from the deprecation phase validated equivalence)
 
-### Migrate callers
+### Remove spec references
 
-- `lib/loop.sh`: change `plan-export --markdown` to `list --all --markdown`
-- `task` script usage text: remove `plan-export` from the Plan Phase Commands section, add `--all` to the `list` entry under Shared Commands
-- Test files: `test/task_plan_export.bats` must be updated to exercise `task list --all` and verify the deprecation warning on `plan-export`
-
-### Update specs
-
-- `specs/task-cli.md`: remove `plan-export` from Plan Phase Commands, update `list` to document `--all`, update the table format section to reference `list` only
-- `specs/task-output-format.md`: replace the `plan-export` section with `list --all`, update the title/overview to reference `list --all` instead of `plan-export`, update the Loop Integration section
-- `specs/plan-skill-integration.md`: change `task plan-export --markdown` to `task list --all --markdown` in all requirements
-- `specs/build-skill-integration.md`: update the Out of Scope reference from `task plan-export` to `task list --all`
-- `specs/scoped-task-lists.md`: replace `task plan-export` with `task list --all` in the CLI Behavior requirements
-- `specs/task-steps-simplification.md`: replace the "Update plan-export" section with "Update list --all" referencing `task list --all`
-- `specs/README.md`: update the `task-output-format.md` description to reference `list --all` instead of `plan-export`
+- Specs that previously referenced `plan-export` have already been updated to reference `list --all` during the deprecation phase
+- Any remaining `plan-export` references in specs must be removed
 
 ## Constraints
 
-- `task plan-status` is not affected — it remains a separate command with distinct output (summary counts vs. task rows)
-- The deprecation is stderr-only — stdout output of `plan-export` must remain byte-identical to the equivalent `list --all` invocation
-- `cmd_plan_export` implementation can be simplified to delegate to `cmd_list` internally (with `--all` injected), but this is an implementation choice, not a requirement
+- `ralph task plan-status` is not affected — it remains a separate command with distinct output (summary counts vs. task rows)
+- `ralph task list --all` is the sole replacement — its behavior must match what `plan-export` provided
+- `ralph task plan-sync` is not affected
 
 ## Out of Scope
 
-- Removing `plan-export` entirely (it stays as a deprecated alias)
-- Changes to `plan-sync` input format or behavior
-- Changes to `plan-status`
-- Adding `--all` semantics to `peek` or other commands
-- Scope filtering changes (covered by `scoped-task-lists.md`)
+- Changes to `ralph task list --all` behavior
+- Changes to `ralph task plan-sync` input format
+- Changes to `ralph task plan-status`
