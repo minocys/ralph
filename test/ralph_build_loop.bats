@@ -290,11 +290,34 @@ STUB
 }
 
 # ---------------------------------------------------------------------------
-# Plan-mode promise check is retained
+# Plan-mode for-loop iteration control
 # ---------------------------------------------------------------------------
 
-@test "plan mode still uses promise grep check" {
-    # Override claude stub to emit the promise sentinel in valid stream-JSON
+@test "plan mode runs exactly N iterations" {
+    # Override claude stub to count invocations
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "claude-call" >> "$TEST_WORK_DIR/call_count.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 3
+    assert_success
+    assert_output --partial "Reached max iterations: 3"
+
+    # Verify claude was called exactly 3 times
+    [ -f "$TEST_WORK_DIR/call_count.log" ]
+    local count
+    count=$(wc -l < "$TEST_WORK_DIR/call_count.log")
+    [ "$count" -eq 3 ]
+}
+
+@test "plan mode does not check for sentinel" {
+    # Claude emits the old sentinel text — plan mode should ignore it and
+    # continue to the next iteration (no early exit)
     cat > "$STUB_DIR/claude" <<'STUB'
 #!/bin/bash
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
@@ -305,5 +328,7 @@ STUB
 
     run "$TEST_WORK_DIR/ralph.sh" plan -n 2
     assert_success
-    assert_output --partial "Ralph completed successfully"
+    # Should run all iterations, not exit early on sentinel
+    assert_output --partial "Reached max iterations: 2"
+    refute_output --partial "Ralph completed successfully"
 }

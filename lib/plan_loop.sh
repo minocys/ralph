@@ -45,12 +45,7 @@ setup_session() {
 # Runs exactly MAX_ITERATIONS times (default 1). No crash-safety fallback
 # needed — the planner does not claim tasks.
 run_plan_loop() {
-    while true; do
-        if [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
-            echo "Reached max iterations: $MAX_ITERATIONS"
-            break
-        fi
-
+    for (( i=1; i<=MAX_ITERATIONS; i++ )); do
         # Pre-fetch: get current task DAG for planner
         local LIST_ALL_MD=""
         if [ -x "$TASK_SCRIPT" ]; then
@@ -86,15 +81,8 @@ run_plan_loop() {
             exit 130
         fi
 
-        # Plan-mode completion check: sentinel in last assistant message
-        if jq -s '[.[] | select(.type == "assistant")] | last | .message.content[]? | select(.type == "text") | .text' "$TMPFILE" 2>/dev/null \
-          | grep -q '<promise>Tastes Like Burning.</promise>'; then
-            echo "Ralph completed successfully. Exiting loop."
-            echo "Completed at iteration $ITERATION of $MAX_ITERATIONS"
-            exit 0
-        fi
-
         ITERATION=$((ITERATION + 1))
         printf "\n\n======================== LOOP %d ========================\n" "$ITERATION"
     done
+    echo "Reached max iterations: $MAX_ITERATIONS"
 }
