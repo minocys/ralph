@@ -13,8 +13,11 @@ RALPH_DIR="/opt/ralph"
 # Environment validation
 # ---------------------------------------------------------------------------
 
-# Source .env defaults from ralph installation directory
-if [ -f "$RALPH_DIR/.env.example" ]; then
+# Source .env defaults — prefer .env, fall back to .env.example
+if [ -f "$RALPH_DIR/.env" ]; then
+    # shellcheck disable=SC1091
+    . "$RALPH_DIR/.env"
+elif [ -f "$RALPH_DIR/.env.example" ]; then
     # shellcheck disable=SC1091
     . "$RALPH_DIR/.env.example"
 fi
@@ -23,9 +26,19 @@ fi
 export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@ralph-task-db:5432/ralph}"
 
 # Validate required database connection
-if [ -z "${RALPH_DB_URL:-}" ] && [ -z "${POSTGRES_USER:-}" ]; then
-    echo "Error: RALPH_DB_URL or POSTGRES_* variables must be set."
-    echo "Set RALPH_DB_URL or provide POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT."
+if [ -z "${RALPH_DB_URL:-}" ] && \
+   { [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ]; }; then
+    echo "Error: Database connection is not configured." >&2
+    echo "" >&2
+    echo "Fix: set RALPH_DB_URL or provide all of POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB." >&2
+    echo "" >&2
+    echo "  Option 1 — set RALPH_DB_URL directly:" >&2
+    echo "    export RALPH_DB_URL=\"postgres://user:pass@host:5432/dbname\"" >&2
+    echo "" >&2
+    echo "  Option 2 — set individual POSTGRES_* variables:" >&2
+    echo "    export POSTGRES_USER=ralph" >&2
+    echo "    export POSTGRES_PASSWORD=ralph" >&2
+    echo "    export POSTGRES_DB=ralph" >&2
     exit 1
 fi
 
