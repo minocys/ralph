@@ -66,6 +66,20 @@ COMPOSE_FILE="$_SCRIPT_DIR/docker-compose.yml"
     assert_output --partial "ralph-net"
 }
 
+# --- environment: RALPH_DB_URL ---
+
+@test "ralph-worker sets RALPH_DB_URL to internal network address" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "RALPH_DB_URL: postgres://ralph:ralph@ralph-task-db:5432/ralph"
+}
+
+@test "ralph-worker environment section exists" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "environment:"
+}
+
 # --- existing service unchanged ---
 
 @test "ralph-task-db service still exists" {

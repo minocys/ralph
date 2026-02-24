@@ -33,6 +33,10 @@ services:
     image: ralph-worker:latest
     container_name: ralph-worker
     env_file: .env
+    environment:
+      # Internal network address — overrides any RALPH_DB_URL from .env
+      # Host-side tools continue using localhost:5499 via .env
+      RALPH_DB_URL: postgres://ralph:ralph@ralph-task-db:5432/ralph
     depends_on:
       ralph-task-db:
         condition: service_healthy
