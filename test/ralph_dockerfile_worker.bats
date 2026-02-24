@@ -36,3 +36,18 @@ load test_helper
     run grep -E 'apk add --no-cache' "$SCRIPT_DIR/Dockerfile.worker"
     assert_success
 }
+
+@test "Dockerfile.worker creates non-root ralph user with UID 1000" {
+    run grep -E 'adduser -D -u 1000 ralph' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
+
+@test "Dockerfile.worker creates /workspace directory owned by ralph" {
+    run grep -E 'mkdir -p /workspace.*chown ralph:ralph /workspace' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
+
+@test "Dockerfile.worker sets WORKDIR to /workspace" {
+    run grep -E '^WORKDIR /workspace' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
