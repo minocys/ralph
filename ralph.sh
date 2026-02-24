@@ -53,8 +53,8 @@ case "$SUBCMD" in
         . "$SCRIPT_DIR/lib/signals.sh"
         # shellcheck source=lib/output.sh
         . "$SCRIPT_DIR/lib/output.sh"
-        # shellcheck source=lib/loop.sh
-        . "$SCRIPT_DIR/lib/loop.sh"
+        # shellcheck source=lib/plan_loop.sh
+        . "$SCRIPT_DIR/lib/plan_loop.sh"
 
         MODE="plan"
         COMMAND="/ralph-plan"
@@ -80,7 +80,7 @@ case "$SUBCMD" in
         setup_cleanup_trap
         setup_signal_handlers
         print_banner
-        run_loop
+        run_plan_loop
         ;;
 
     # Build subcommand: source shared libs + loop, parse flags, run
@@ -94,8 +94,8 @@ case "$SUBCMD" in
         . "$SCRIPT_DIR/lib/signals.sh"
         # shellcheck source=lib/output.sh
         . "$SCRIPT_DIR/lib/output.sh"
-        # shellcheck source=lib/loop.sh
-        . "$SCRIPT_DIR/lib/loop.sh"
+        # shellcheck source=lib/build_loop.sh
+        . "$SCRIPT_DIR/lib/build_loop.sh"
 
         MODE="build"
         COMMAND="/ralph-build"
@@ -115,7 +115,7 @@ case "$SUBCMD" in
         setup_cleanup_trap
         setup_signal_handlers
         print_banner
-        run_loop
+        run_build_loop
         ;;
 
     # Help
