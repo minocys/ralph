@@ -144,6 +144,15 @@ teardown() {
     assert_output --partial ".ralph/worktrees/"
 }
 
+@test "ralph banner shows worktree branch name when active" {
+    _init_git_repo
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+    assert_output --partial "WBranch:"
+    assert_output --partial "ralph/a1b2"
+}
+
 @test "ralph cleans up worktree on normal exit" {
     _init_git_repo
 
@@ -153,6 +162,16 @@ teardown() {
     # Worktree directory should be removed after exit
     run ls "$TEST_WORK_DIR/.ralph/worktrees/"
     refute_output --partial "a1b2"
+}
+
+@test "ralph cleanup log includes branch name" {
+    _init_git_repo
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+
+    # Cleanup logs to stderr, which bats captures in $output
+    assert_output --partial "branch ralph/a1b2 preserved"
 }
 
 # ---------------------------------------------------------------------------
@@ -189,6 +208,30 @@ GITSTUB
     [ -f "$TEST_WORK_DIR/claude_args.log" ]
     run cat "$TEST_WORK_DIR/claude_args.log"
     refute_output --partial "--project-directory"
+}
+
+@test "ralph banner does not show WBranch line when no worktree" {
+    # Use a git stub for non-git-repo
+    cat > "$STUB_DIR/git" <<'GITSTUB'
+#!/bin/bash
+case "$1" in
+    branch) echo "main"; exit 0 ;;
+    -C)
+        shift; shift
+        case "$1" in
+            rev-parse) exit 1 ;;
+            *) exit 0 ;;
+        esac
+        ;;
+    rev-parse) exit 1 ;;
+    *) exit 0 ;;
+esac
+GITSTUB
+    chmod +x "$STUB_DIR/git"
+
+    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    assert_success
+    refute_output --partial "WBranch:"
 }
 
 @test "ralph banner does not show Work line when no worktree" {

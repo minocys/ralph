@@ -8,7 +8,7 @@
 #   handle_term()            — immediate force-kill on SIGTERM
 #
 # Globals used (must be set before calling setup functions):
-#   AGENT_ID, TASK_SCRIPT, TMPFILE, INTERRUPTED, PIPELINE_PID, RALPH_WORK_DIR
+#   AGENT_ID, TASK_SCRIPT, TMPFILE, INTERRUPTED, PIPELINE_PID, RALPH_WORK_DIR, RALPH_WORK_BRANCH
 
 # cleanup: EXIT trap handler — deregister agent, remove worktree, remove tmpfile
 cleanup() {

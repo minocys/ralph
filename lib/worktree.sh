@@ -7,7 +7,8 @@
 #   cleanup_worktree()  — remove a git worktree (best-effort, preserves branch)
 #
 # Globals set by setup_worktree:
-#   RALPH_WORK_DIR — worktree path on success, or original project dir on fallback
+#   RALPH_WORK_DIR    — worktree path on success, or original project dir on fallback
+#   RALPH_WORK_BRANCH — worktree branch name on success, or empty on fallback
 
 # setup_worktree: attempt worktree creation with fallback to project directory
 #
@@ -24,6 +25,7 @@ setup_worktree() {
 
     # Default to project directory (fallback)
     RALPH_WORK_DIR="$project_dir"
+    RALPH_WORK_BRANCH=""
 
     # Check if project directory is a git repository
     if ! git -C "$project_dir" rev-parse --git-dir >/dev/null 2>&1; then
@@ -35,6 +37,7 @@ setup_worktree() {
     local worktree_path
     if worktree_path=$(cd "$project_dir" && create_worktree "$session_id" "$agent_id"); then
         RALPH_WORK_DIR="${project_dir}/${worktree_path}"
+        RALPH_WORK_BRANCH="ralph/${agent_id}"
     else
         echo "Warning: worktree creation failed, using project directory" >&2
     fi
@@ -88,8 +91,11 @@ cleanup_worktree() {
         return 0
     fi
 
+    local branch_info=""
+    [ -n "${RALPH_WORK_BRANCH:-}" ] && branch_info=" (branch ${RALPH_WORK_BRANCH} preserved)"
+
     if git worktree remove --force "$worktree_path" 2>&2; then
-        echo "worktree: removed $worktree_path" >&2
+        echo "worktree: removed $worktree_path${branch_info}" >&2
     else
         echo "worktree: failed to remove $worktree_path (best-effort, continuing)" >&2
     fi

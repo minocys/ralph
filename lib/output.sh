@@ -8,7 +8,7 @@
 # Globals used (must be set before calling print_banner):
 #   MODE, COMMAND, CURRENT_BRANCH, DANGER, ACTIVE_BACKEND,
 #   AGENT_ID, MODEL_ALIAS, RESOLVED_MODEL, MAX_ITERATIONS,
-#   RALPH_EXEC_MODE, RALPH_WORK_DIR
+#   RALPH_EXEC_MODE, RALPH_WORK_DIR, RALPH_WORK_BRANCH
 
 # jq filter: extract human-readable text from stream-json events
 JQ_FILTER='
@@ -47,7 +47,10 @@ print_banner() {
     echo "Backend: $ACTIVE_BACKEND"
     [ -n "$AGENT_ID" ] && echo "Agent:  $AGENT_ID"
     echo "Exec:   ${RALPH_EXEC_MODE:-local}"
-    [[ "${RALPH_WORK_DIR:-}" == */.ralph/worktrees/* ]] && echo "Work:   $RALPH_WORK_DIR"
+    if [[ "${RALPH_WORK_DIR:-}" == */.ralph/worktrees/* ]]; then
+        echo "Work:   $RALPH_WORK_DIR"
+        [ -n "${RALPH_WORK_BRANCH:-}" ] && echo "WBranch: $RALPH_WORK_BRANCH"
+    fi
     [ -n "$MODEL_ALIAS" ] && echo "Model:  $MODEL_ALIAS ($RESOLVED_MODEL)"
     [ $MAX_ITERATIONS -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
