@@ -26,6 +26,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - ralph-net
+
+networks:
+  ralph-net:
+    driver: bridge
 
 volumes:
   ralph-task-data:
