@@ -33,6 +33,8 @@ export SCRIPT_DIR
 . "$SCRIPT_DIR/lib/signals.sh"
 # shellcheck source=lib/output.sh
 . "$SCRIPT_DIR/lib/output.sh"
+# shellcheck source=lib/worktree.sh
+. "$SCRIPT_DIR/lib/worktree.sh"
 # shellcheck source=lib/loop.sh
 . "$SCRIPT_DIR/lib/loop.sh"
 
@@ -48,6 +50,7 @@ if [ "$RALPH_EXEC_MODE" = "docker" ]; then
     ensure_worker_container
 fi
 setup_session
+setup_worktree "$(pwd)" "$AGENT_ID" "$AGENT_ID"
 setup_cleanup_trap
 setup_signal_handlers
 print_banner
