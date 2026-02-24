@@ -132,7 +132,7 @@ Commands used during planning to synchronize specs with the task backlog:
 cat tasks.jsonl | task plan-sync
 
 # Export full task DAG as markdown-KV
-task plan-export
+ralph task list --all --markdown
 
 # Show status summary (open, active, done, blocked, deleted)
 task plan-status

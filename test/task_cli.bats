@@ -64,6 +64,13 @@ load test_helper
     assert_output --partial "Error: unknown command 'bogus-command'"
 }
 
+@test "task plan-export exits 1 with redirect to list --all" {
+    run "$SCRIPT_DIR/lib/task" plan-export
+    assert_failure
+    assert_output --partial "Error: unknown command 'plan-export'"
+    assert_output --partial "ralph task list --all"
+}
+
 # ---------------------------------------------------------------------------
 # Missing RALPH_DB_URL (copy task to temp dir without .env so fallback doesn't activate)
 # ---------------------------------------------------------------------------
