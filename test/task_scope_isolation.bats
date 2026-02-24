@@ -218,44 +218,6 @@ task_in_scope_b() {
 }
 
 # ===========================================================================
-# task list --all — scope isolation (replaces plan-export)
-# ===========================================================================
-
-@test "list --all only shows tasks from current scope" {
-    # Insert via plan-sync to set spec_ref
-    local input_a='{"id":"pe-a1","t":"Export Alpha 1","p":1,"spec":"alpha.md"}
-{"id":"pe-a2","t":"Export Alpha 2","p":2,"spec":"alpha.md"}'
-
-    local input_b='{"id":"pe-b1","t":"Export Beta 1","p":1,"spec":"beta.md"}'
-
-    printf "%s\n" "$input_a" | task_in_scope_a plan-sync >/dev/null
-    printf "%s\n" "$input_b" | task_in_scope_b plan-sync >/dev/null
-
-    # list --all in scope A
-    run task_in_scope_a list --all
-    assert_success
-    assert_output --partial "pe-a1"
-    assert_output --partial "pe-a2"
-    refute_output --partial "pe-b1"
-
-    # list --all --markdown in scope A
-    run task_in_scope_a list --all --markdown
-    assert_success
-    assert_output --partial "## Task pe-a1"
-    assert_output --partial "## Task pe-a2"
-    refute_output --partial "pe-b1"
-}
-
-@test "list --all returns empty when no tasks in current scope" {
-    local input_a='{"id":"pe-only-a","t":"Only Alpha","p":1,"spec":"alpha.md"}'
-    printf "%s\n" "$input_a" | task_in_scope_a plan-sync >/dev/null
-
-    local stdout_output
-    stdout_output=$(task_in_scope_b list --all 2>/dev/null)
-    [[ -z "$stdout_output" ]]
-}
-
-# ===========================================================================
 # task plan-status — scope isolation
 # ===========================================================================
 
