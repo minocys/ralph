@@ -37,6 +37,19 @@ load test_helper
     assert_success
 }
 
+@test "Dockerfile.worker installs claude-code globally via npm" {
+    run grep -E 'npm install -g @anthropic-ai/claude-code' "$SCRIPT_DIR/Dockerfile.worker"
+    assert_success
+}
+
+@test "Dockerfile.worker installs claude-code before creating non-root user" {
+    local npm_line
+    local adduser_line
+    npm_line=$(grep -n 'npm install -g @anthropic-ai/claude-code' "$SCRIPT_DIR/Dockerfile.worker" | head -1 | cut -d: -f1)
+    adduser_line=$(grep -n 'adduser -D -u 1000 ralph' "$SCRIPT_DIR/Dockerfile.worker" | head -1 | cut -d: -f1)
+    [ "$npm_line" -lt "$adduser_line" ]
+}
+
 @test "Dockerfile.worker creates non-root ralph user with UID 1000" {
     run grep -E 'adduser -D -u 1000 ralph' "$SCRIPT_DIR/Dockerfile.worker"
     assert_success

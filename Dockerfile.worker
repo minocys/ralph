@@ -2,6 +2,8 @@ FROM node:20-alpine
 
 RUN apk add --no-cache bash git jq postgresql-client
 
+RUN npm install -g @anthropic-ai/claude-code
+
 RUN adduser -D -u 1000 ralph
 RUN mkdir -p /workspace && chown ralph:ralph /workspace
 WORKDIR /workspace
