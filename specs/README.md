@@ -28,3 +28,6 @@
 | [project-auth-mounting.md](project-auth-mounting.md) | Bind-mount strategy for project directories, ~/.claude auth, and credential passthrough |
 | [container-entrypoint.md](container-entrypoint.md) | Entrypoint script that installs skills, hooks, and bootstraps the ralph environment inside the container |
 | [git-worktree-isolation.md](git-worktree-isolation.md) | Git worktrees for concurrent loop isolation within the same project directory |
+| [persistent-toolchain-volume.md](persistent-toolchain-volume.md) | Named Docker volume at ~/.local for toolchain persistence across container restarts |
+| [project-env-init.md](project-env-init.md) | `ralph init` subcommand detects project language and installs toolchains via LLM |
+| [container-security-hardening.md](container-security-hardening.md) | Read-only rootfs, no-new-privileges, restart policies, and credential hygiene |
