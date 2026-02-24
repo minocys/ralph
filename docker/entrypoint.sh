@@ -57,6 +57,14 @@ done
 echo "entrypoint: linked $_skill_count skill(s) into ~/.claude/skills/" >&2
 
 # ---------------------------------------------------------------------------
+# CLI symlinks (ralph.sh and task)
+# ---------------------------------------------------------------------------
+
+ln -sf "$RALPH_DIR/ralph.sh" /usr/local/bin/ralph
+ln -sf "$RALPH_DIR/task" /usr/local/bin/task
+echo "entrypoint: linked ralph and task into /usr/local/bin/" >&2
+
+# ---------------------------------------------------------------------------
 # Hooks
 # ---------------------------------------------------------------------------
 
