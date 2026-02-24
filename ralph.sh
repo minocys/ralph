@@ -36,13 +36,17 @@ export SCRIPT_DIR
 # shellcheck source=lib/loop.sh
 . "$SCRIPT_DIR/lib/loop.sh"
 
-# Orchestrate: parse → configure → preflight → postgres → session → traps → run
+# Orchestrate: parse → configure → preflight → postgres → docker mode → session → traps → run
 parse_args "$@"
 detect_backend
 resolve_model
 preflight
 load_env
+detect_docker_executor
 ensure_postgres
+if [ "$RALPH_EXEC_MODE" = "docker" ]; then
+    ensure_worker_container
+fi
 setup_session
 setup_cleanup_trap
 setup_signal_handlers
