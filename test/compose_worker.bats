@@ -118,6 +118,41 @@ COMPOSE_FILE="$_SCRIPT_DIR/docker-compose.yml"
     assert_success
 }
 
+# --- environment: API credential passthrough ---
+
+@test "ralph-worker passes ANTHROPIC_API_KEY with empty default" {
+    run grep 'ANTHROPIC_API_KEY:.*{ANTHROPIC_API_KEY:-}' "$COMPOSE_FILE"
+    assert_success
+}
+
+@test "ralph-worker passes AWS_ACCESS_KEY_ID with empty default" {
+    run grep 'AWS_ACCESS_KEY_ID:.*{AWS_ACCESS_KEY_ID:-}' "$COMPOSE_FILE"
+    assert_success
+}
+
+@test "ralph-worker passes AWS_SECRET_ACCESS_KEY with empty default" {
+    run grep 'AWS_SECRET_ACCESS_KEY:.*{AWS_SECRET_ACCESS_KEY:-}' "$COMPOSE_FILE"
+    assert_success
+}
+
+@test "ralph-worker passes AWS_SESSION_TOKEN with empty default" {
+    run grep 'AWS_SESSION_TOKEN:.*{AWS_SESSION_TOKEN:-}' "$COMPOSE_FILE"
+    assert_success
+}
+
+@test "ralph-worker passes CLAUDE_CODE_USE_BEDROCK with empty default" {
+    run grep 'CLAUDE_CODE_USE_BEDROCK:.*{CLAUDE_CODE_USE_BEDROCK:-}' "$COMPOSE_FILE"
+    assert_success
+}
+
+@test "API credential env vars use empty defaults only" {
+    # Each credential var should have :- immediately followed by } (no default value)
+    for var in ANTHROPIC_API_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN CLAUDE_CODE_USE_BEDROCK; do
+        run grep "${var}:.*\${${var}:-}" "$COMPOSE_FILE"
+        assert_success
+    done
+}
+
 # --- existing service unchanged ---
 
 @test "ralph-task-db service still exists" {

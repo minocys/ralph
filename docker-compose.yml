@@ -37,6 +37,13 @@ services:
       # Internal network address — overrides any RALPH_DB_URL from .env
       # Host-side tools continue using localhost:5499 via .env
       RALPH_DB_URL: postgres://ralph:ralph@ralph-task-db:5432/ralph
+      # API credentials — passed at runtime, never stored in .env or image
+      # Usage: docker compose run -e ANTHROPIC_API_KEY=sk-... ralph-worker
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      CLAUDE_CODE_USE_BEDROCK: ${CLAUDE_CODE_USE_BEDROCK:-}
     volumes:
       - ${RALPH_PROJECT_DIR:-.}:/workspace/project
       - ~/.claude:/mnt/claude-host:ro
