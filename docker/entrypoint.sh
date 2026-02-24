@@ -9,6 +9,10 @@ set -euo pipefail
 
 RALPH_DIR="/opt/ralph"
 
+# ---------------------------------------------------------------------------
+# Environment validation
+# ---------------------------------------------------------------------------
+
 # Source .env defaults from ralph installation directory
 if [ -f "$RALPH_DIR/.env.example" ]; then
     # shellcheck disable=SC1091
@@ -25,10 +29,25 @@ if [ -z "${RALPH_DB_URL:-}" ] && [ -z "${POSTGRES_USER:-}" ]; then
     exit 1
 fi
 
-# Run install.sh to set up skills, hooks, and symlinks (idempotent)
+# ---------------------------------------------------------------------------
+# Symlinks
+# ---------------------------------------------------------------------------
+
+# Run install.sh to set up skills and binary symlinks (idempotent)
 if [ -x "$RALPH_DIR/install.sh" ]; then
     "$RALPH_DIR/install.sh"
 fi
+
+# ---------------------------------------------------------------------------
+# Hooks
+# ---------------------------------------------------------------------------
+
+# Claude Code hooks (PreCompact, SessionEnd) are configured by install.sh
+# above. Additional hook setup can be added here if needed.
+
+# ---------------------------------------------------------------------------
+# Keep-alive
+# ---------------------------------------------------------------------------
 
 # Warn if /workspace is empty (no project mounted)
 if [ -z "$(ls -A /workspace 2>/dev/null)" ]; then
