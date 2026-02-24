@@ -37,6 +37,8 @@ services:
       # Internal network address — overrides any RALPH_DB_URL from .env
       # Host-side tools continue using localhost:5499 via .env
       RALPH_DB_URL: postgres://ralph:ralph@ralph-task-db:5432/ralph
+    volumes:
+      - ${RALPH_PROJECT_DIR:-.}:/workspace/project
     depends_on:
       ralph-task-db:
         condition: service_healthy

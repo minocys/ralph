@@ -80,6 +80,31 @@ COMPOSE_FILE="$_SCRIPT_DIR/docker-compose.yml"
     assert_output --partial "environment:"
 }
 
+# --- volumes ---
+
+@test "ralph-worker has volumes section" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial "volumes:"
+}
+
+@test "ralph-worker mounts project directory to /workspace/project" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial '/workspace/project'
+}
+
+@test "ralph-worker project mount uses RALPH_PROJECT_DIR variable interpolation" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial 'RALPH_PROJECT_DIR'
+}
+
+@test "ralph-worker project mount defaults to current directory" {
+    run grep 'RALPH_PROJECT_DIR:-\.' "$COMPOSE_FILE"
+    assert_success
+}
+
 # --- existing service unchanged ---
 
 @test "ralph-task-db service still exists" {
