@@ -68,8 +68,20 @@ echo "entrypoint: linked ralph and task into /usr/local/bin/" >&2
 # Hooks
 # ---------------------------------------------------------------------------
 
-# Claude Code hooks (PreCompact, SessionEnd) are configured by install.sh
-# above. Additional hook setup can be added here if needed.
+# Configure PreCompact and SessionEnd hooks in ~/.claude/settings.json.
+# If settings.json exists from a bind mount, merge hooks into it.
+# Otherwise, create a new settings.json with only hook configuration.
+_settings_file="$HOME/.claude/settings.json"
+mkdir -p "$HOME/.claude"
+if [ ! -f "$_settings_file" ]; then
+    echo '{}' > "$_settings_file"
+fi
+jq --arg ralph "$RALPH_DIR" \
+    '.hooks = ((.hooks // {}) * {
+        "PreCompact": [{"matcher":"*","hooks":[{"type":"command","command":("bash " + $ralph + "/hooks/precompact.sh")}]}],
+        "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":("bash " + $ralph + "/hooks/session_end.sh")}]}]
+    })' "$_settings_file" > "${_settings_file}.tmp" && mv "${_settings_file}.tmp" "$_settings_file"
+echo "entrypoint: configured hooks in $_settings_file" >&2
 
 # ---------------------------------------------------------------------------
 # Keep-alive
