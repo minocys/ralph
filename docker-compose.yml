@@ -47,6 +47,7 @@ services:
     volumes:
       - ${RALPH_PROJECT_DIR:-.}:/workspace/project
       - ~/.claude:/mnt/claude-host:ro
+      - ~/.gitconfig:/home/ralph/.gitconfig:ro
     depends_on:
       ralph-task-db:
         condition: service_healthy

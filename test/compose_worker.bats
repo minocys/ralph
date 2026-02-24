@@ -118,6 +118,19 @@ COMPOSE_FILE="$_SCRIPT_DIR/docker-compose.yml"
     assert_success
 }
 
+# --- ~/.gitconfig bind mount ---
+
+@test "ralph-worker mounts ~/.gitconfig to /home/ralph/.gitconfig read-only" {
+    run sed -n '/^  ralph-worker:/,/^  [a-z]/p' "$COMPOSE_FILE"
+    assert_success
+    assert_output --partial '/home/ralph/.gitconfig:ro'
+}
+
+@test "ralph-worker ~/.gitconfig mount uses home directory tilde" {
+    run grep '~/.gitconfig:/home/ralph/.gitconfig:ro' "$COMPOSE_FILE"
+    assert_success
+}
+
 # --- environment: API credential passthrough ---
 
 @test "ralph-worker passes ANTHROPIC_API_KEY with empty default" {
