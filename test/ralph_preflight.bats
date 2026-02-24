@@ -5,7 +5,7 @@ load test_helper
 
 @test "missing specs/ directory exits 1" {
     rm -rf "$TEST_WORK_DIR/specs"
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_failure
     assert_output --partial "No specs found"
 }
@@ -13,7 +13,7 @@ load test_helper
 @test "empty specs/ directory exits 1" {
     rm -rf "$TEST_WORK_DIR/specs"
     mkdir -p "$TEST_WORK_DIR/specs"
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_failure
     assert_output --partial "No specs found"
 }

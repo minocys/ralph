@@ -83,13 +83,13 @@ teardown() {
 }
 
 @test "build mode registers agent and displays agent ID in banner" {
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     assert_output --partial "Agent:"
 }
 
 @test "build mode deregisters agent on normal exit" {
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 
     # Extract agent ID from banner output
@@ -112,7 +112,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     # Verify the env file was written with a 4-char hex ID
     [ -f "$ENVFILE" ]
@@ -131,7 +131,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$ENVFILE" ]
@@ -152,7 +152,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$SCRIPT_DIR/ralph.sh" --plan -n 1
+    run "$SCRIPT_DIR/ralph.sh" plan -n 1
     assert_success
 
     [ -f "$ENVFILE" ]
@@ -162,7 +162,7 @@ STUB
 }
 
 @test "plan mode does not register agent" {
-    run "$SCRIPT_DIR/ralph.sh" --plan -n 1
+    run "$SCRIPT_DIR/ralph.sh" plan -n 1
     assert_success
     refute_output --partial "Agent:"
 }
@@ -171,13 +171,13 @@ STUB
     # Ensure task script is not found by removing it from PATH/SCRIPT_DIR context
     # ralph.sh uses SCRIPT_DIR/task, so we test by running from a dir without task
     # The task script check uses -x so a missing file is handled gracefully
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 }
 
 @test "agent is registered with active status in database" {
     # Run ralph briefly
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 
     # Agent should exist (status will be stopped after cleanup)

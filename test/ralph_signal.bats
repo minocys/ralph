@@ -224,7 +224,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -259,7 +259,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -293,7 +293,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -343,7 +343,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline
@@ -384,7 +384,7 @@ STUB
     chmod +x "$STUB_DIR/claude"
 
     # Launch ralph.sh in its own session
-    launch_ralph_in_session -n 1
+    launch_ralph_in_session build -n 1
 
     # Wait for ralph's pipeline to start (claude stub produces "working")
     wait_for_pipeline

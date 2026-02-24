@@ -140,7 +140,7 @@ teardown() {
     # With peek: no claimable/active tasks → peek returns empty → exits early
     create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 5
+    run "$TEST_WORK_DIR/ralph.sh" build -n 5
     assert_success
     assert_output --partial "No tasks available"
     refute_output --partial "Reached max iterations"
@@ -150,7 +150,7 @@ teardown() {
     create_task_stub "2 open, 1 active, 3 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    run "$TEST_WORK_DIR/ralph.sh" build -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
 }
@@ -158,7 +158,7 @@ teardown() {
 @test "build mode continues when task plan-status fails" {
     create_task_stub "" 1 '{"id":"t1","t":"Task one","s":"open","p":0}'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    run "$TEST_WORK_DIR/ralph.sh" build -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
 }
@@ -181,7 +181,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify claude received the peek JSONL in its prompt argument
@@ -203,7 +203,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 5
+    run "$TEST_WORK_DIR/ralph.sh" build -n 5
     assert_success
     assert_output --partial "No tasks available"
     refute_output --partial "Reached max iterations"
@@ -215,7 +215,7 @@ STUB
 @test "build mode continues loop when peek fails with non-zero exit" {
     create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 "" 1
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    run "$TEST_WORK_DIR/ralph.sh" build -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
 }
@@ -234,7 +234,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # The -p value should be "/ralph-build {JSONL}" as a single argument
@@ -252,7 +252,7 @@ STUB
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
         $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify fail was called with the task ID and reason
@@ -267,7 +267,7 @@ STUB
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
         ""
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify fail was NOT called
@@ -279,7 +279,7 @@ STUB
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
         $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify ordered execution: fail before plan-status
@@ -303,7 +303,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 2
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 2
     assert_success
     assert_output --partial "Ralph completed successfully"
 }

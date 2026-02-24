@@ -36,7 +36,7 @@ load test_helper
     ln -s "$SCRIPT_DIR/ralph.sh" "$link_dir/ralph"
 
     # If SCRIPT_DIR resolves correctly, model lookup should work
-    run "$link_dir/ralph" --model opus-4.5 -n 1
+    run "$link_dir/ralph" build --model opus-4.5 -n 1
     assert_success
     assert_output --partial "Model:  opus-4.5"
 }
@@ -72,7 +72,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
     assert_file_exists "$marker"
     run cat "$marker"
