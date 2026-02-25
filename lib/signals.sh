@@ -8,13 +8,17 @@
 #   handle_term()            — immediate force-kill on SIGTERM
 #
 # Globals used (must be set before calling setup functions):
-#   AGENT_ID, TASK_SCRIPT, TMPFILE, INTERRUPTED, PIPELINE_PID
+#   AGENT_ID, TASK_SCRIPT, TMPFILE, INTERRUPTED, PIPELINE_PID, RALPH_WORK_DIR, RALPH_WORK_BRANCH
 
-# cleanup: EXIT trap handler — deregister agent and remove tmpfile
+# cleanup: EXIT trap handler — deregister agent, remove worktree, remove tmpfile
 cleanup() {
     # Deregister agent if one was registered
     if [ -n "$AGENT_ID" ] && [ -x "$TASK_SCRIPT" ]; then
         "$TASK_SCRIPT" agent deregister "$AGENT_ID" 2>/dev/null || true
+    fi
+    # Remove worktree if one was created (path contains .ralph/worktrees/)
+    if [[ "${RALPH_WORK_DIR:-}" == */.ralph/worktrees/* ]]; then
+        cleanup_worktree "$RALPH_WORK_DIR"
     fi
     rm -f "$TMPFILE"
 }

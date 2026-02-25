@@ -2,17 +2,73 @@
 # lib/docker.sh — Docker lifecycle and PostgreSQL readiness for ralph.sh
 #
 # Provides:
-#   check_docker_installed()  — verify docker CLI and compose V2 plugin
-#   is_container_running()    — check if ralph-task-db container is running
-#   wait_for_healthy()        — poll until container healthy + pg_isready
-#   ensure_env_file()         — create .env from .env.example if missing
-#   load_env()                — ensure .env exists and source it
-#   ensure_postgres()         — orchestrate full Docker lifecycle
+#   detect_docker_executor()    — set RALPH_EXEC_MODE based on DOCKER_EXECUTOR
+#   ensure_worker_container()   — verify ralph-worker is running, start if needed
+#   check_docker_installed()    — verify docker CLI and compose V2 plugin
+#   is_container_running()      — check if ralph-task-db container is running
+#   wait_for_healthy()          — poll until container healthy + pg_isready
+#   ensure_env_file()           — create .env from .env.example if missing
+#   load_env()                  — ensure .env exists and source it
+#   ensure_postgres()           — orchestrate full Docker lifecycle
 #
 # Globals used:
 #   SCRIPT_DIR (must be set before sourcing)
 #   DOCKER_HEALTH_TIMEOUT (optional, default 30s)
 #   POSTGRES_PORT (optional, default 5499)
+#   WORKER_HEALTH_TIMEOUT (optional, default 60s)
+
+# detect_docker_executor: set RALPH_EXEC_MODE based on DOCKER_EXECUTOR env var
+# When DOCKER_EXECUTOR is "true" (case-insensitive), sets RALPH_EXEC_MODE=docker.
+# Otherwise sets RALPH_EXEC_MODE=local. Always returns 0.
+detect_docker_executor() {
+    local val="${DOCKER_EXECUTOR:-}"
+    # Case-insensitive comparison
+    val="$(echo "$val" | tr '[:upper:]' '[:lower:]')"
+    if [ "$val" = "true" ]; then
+        RALPH_EXEC_MODE="docker"
+    else
+        RALPH_EXEC_MODE="local"
+    fi
+    export RALPH_EXEC_MODE
+    return 0
+}
+
+# ensure_worker_container: verify ralph-worker is running, start if needed.
+# Checks docker compose ps for the running state of ralph-worker. If the
+# container is not running, starts it with docker compose up -d ralph-worker.
+# Waits up to WORKER_HEALTH_TIMEOUT seconds (default 60) for the container
+# to reach a running state. Exits 1 if startup fails after timeout.
+ensure_worker_container() {
+    local timeout="${WORKER_HEALTH_TIMEOUT:-60}"
+    local status
+
+    # Check if ralph-worker is already running
+    status=$(docker compose --project-directory "$SCRIPT_DIR" ps --format '{{.State}}' ralph-worker 2>/dev/null) || true
+    if [ "$status" = "running" ]; then
+        return 0
+    fi
+
+    # Start the worker service
+    echo "Starting ralph-worker container..." >&2
+    if ! docker compose --project-directory "$SCRIPT_DIR" up -d ralph-worker; then
+        echo "Error: failed to start ralph-worker container" >&2
+        exit 1
+    fi
+
+    # Wait for container to reach running state
+    local elapsed=0
+    while [ "$elapsed" -lt "$timeout" ]; do
+        status=$(docker compose --project-directory "$SCRIPT_DIR" ps --format '{{.State}}' ralph-worker 2>/dev/null) || true
+        if [ "$status" = "running" ]; then
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    echo "Error: ralph-worker failed to start within ${timeout}s" >&2
+    exit 1
+}
 
 # check_docker_installed: verify docker CLI and compose V2 are available
 check_docker_installed() {

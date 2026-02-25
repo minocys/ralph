@@ -12,7 +12,8 @@
 #   RALPH_TASK_SCRIPT, RALPH_AGENT_ID
 # Globals used (must be set before calling run_build_loop):
 #   MODE, COMMAND, MAX_ITERATIONS, ITERATION, DANGER, RESOLVED_MODEL,
-#   TASK_SCRIPT, AGENT_ID, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID
+#   TASK_SCRIPT, AGENT_ID, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID,
+#   RALPH_EXEC_MODE, RALPH_WORK_DIR
 #
 # Note: INTERRUPTED and PIPELINE_PID are modified by signal handlers in
 # lib/signals.sh and must remain global (not declared local here).
@@ -84,12 +85,21 @@ run_build_loop() {
         fi
         $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
         [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
+        [[ "${RALPH_WORK_DIR:-}" == */.ralph/worktrees/* ]] && CLAUDE_ARGS+=(--project-directory "$RALPH_WORK_DIR")
 
         # Reset interrupt counter for this iteration
         INTERRUPTED=0
 
+        # Build the claude command based on execution mode
+        local CLAUDE_CMD
+        if [ "${RALPH_EXEC_MODE:-local}" = "docker" ]; then
+            CLAUDE_CMD=(docker exec ralph-worker claude)
+        else
+            CLAUDE_CMD=(claude)
+        fi
+
         # Run pipeline in background subshell so wait is interruptible by signals
-        ( claude "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER" ) &
+        ( "${CLAUDE_CMD[@]}" "${CLAUDE_ARGS[@]}" | tee "$TMPFILE" | jq --unbuffered -rj "$JQ_FILTER" ) &
         PIPELINE_PID=$!
 
         # Wait for pipeline; re-wait after first interrupt to let claude finish

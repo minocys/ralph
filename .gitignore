@@ -1,3 +1,4 @@
 IMPLEMENTATION_PLAN.json
 .DS_Store
 .env
+.ralph/worktrees/
