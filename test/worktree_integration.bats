@@ -16,7 +16,7 @@ load test_helper
 
 # Create a task stub that returns a dummy task for peek
 _create_task_stub() {
-    cat > "$TEST_WORK_DIR/task" <<'STUB'
+    cat > "$TEST_WORK_DIR/lib/task" <<'STUB'
 #!/bin/bash
 case "$1" in
     agent)
@@ -33,7 +33,7 @@ case "$1" in
     *) exit 0 ;;
 esac
 STUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 }
 
 # Initialize a git repo in $TEST_WORK_DIR so worktree creation can succeed
@@ -115,7 +115,7 @@ teardown() {
 @test "ralph creates worktree when project is a git repo" {
     _init_git_repo
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # The branch ralph/a1b2 should have been created
@@ -126,7 +126,7 @@ teardown() {
 @test "ralph passes --project-directory to claude when worktree is active" {
     _init_git_repo
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/claude_args.log" ]
@@ -138,7 +138,7 @@ teardown() {
 @test "ralph banner shows worktree path when active" {
     _init_git_repo
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
     assert_output --partial "Work:"
     assert_output --partial ".ralph/worktrees/"
@@ -147,7 +147,7 @@ teardown() {
 @test "ralph banner shows worktree branch name when active" {
     _init_git_repo
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
     assert_output --partial "WBranch:"
     assert_output --partial "ralph/a1b2"
@@ -156,7 +156,7 @@ teardown() {
 @test "ralph cleans up worktree on normal exit" {
     _init_git_repo
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Worktree directory should be removed after exit
@@ -167,7 +167,7 @@ teardown() {
 @test "ralph cleanup log includes branch name" {
     _init_git_repo
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Cleanup logs to stderr, which bats captures in $output
@@ -201,7 +201,7 @@ esac
 GITSTUB
     chmod +x "$STUB_DIR/git"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Should NOT have --project-directory in claude args
@@ -229,7 +229,7 @@ esac
 GITSTUB
     chmod +x "$STUB_DIR/git"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
     refute_output --partial "WBranch:"
 }
@@ -253,7 +253,7 @@ esac
 GITSTUB
     chmod +x "$STUB_DIR/git"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
     refute_output --partial "Work:"
 }
@@ -275,7 +275,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # Plan mode has no AGENT_ID, so setup_worktree receives empty args

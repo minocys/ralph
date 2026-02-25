@@ -55,7 +55,7 @@ DOCKERSTUB
 @test "ralph.sh sets RALPH_EXEC_MODE=local when DOCKER_EXECUTOR is unset" {
     unset DOCKER_EXECUTOR
     _stub_docker_with_worker_logging
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     # ensure_worker_container should NOT have been called
     if [ -f "$STUB_DIR/.docker_compose_log" ]; then
@@ -67,7 +67,7 @@ DOCKERSTUB
 @test "ralph.sh does not call ensure_worker_container in local mode" {
     export DOCKER_EXECUTOR="false"
     _stub_docker_with_worker_logging
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     # Log file should not contain ralph-worker ps check
     if [ -f "$STUB_DIR/.docker_compose_log" ]; then
@@ -81,7 +81,7 @@ DOCKERSTUB
 @test "ralph.sh calls ensure_worker_container when DOCKER_EXECUTOR=true" {
     export DOCKER_EXECUTOR="true"
     _stub_docker_with_worker_logging
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     # Log file should show ralph-worker ps check
     assert [ -f "$STUB_DIR/.docker_compose_log" ]
@@ -92,7 +92,7 @@ DOCKERSTUB
 @test "ralph.sh calls ensure_worker_container when DOCKER_EXECUTOR=TRUE (case-insensitive)" {
     export DOCKER_EXECUTOR="TRUE"
     _stub_docker_with_worker_logging
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
     assert [ -f "$STUB_DIR/.docker_compose_log" ]
     run grep "ps ralph-worker" "$STUB_DIR/.docker_compose_log"
@@ -106,7 +106,7 @@ DOCKERSTUB
     _stub_docker_with_worker_logging
     # ralph.sh should complete without error — detect_docker_executor sets
     # RALPH_EXEC_MODE before the banner and loop run
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     assert_success
 }
 
@@ -117,7 +117,7 @@ DOCKERSTUB
     # Write DOCKER_EXECUTOR=true into .env so load_env picks it up
     echo 'DOCKER_EXECUTOR=true' >> "$SCRIPT_DIR/.env"
     _stub_docker_with_worker_logging
-    run "$SCRIPT_DIR/ralph.sh" -n 1
+    run "$SCRIPT_DIR/ralph.sh" build -n 1
     # Clean up the injected line
     sed -i.bak '/^DOCKER_EXECUTOR=true$/d' "$SCRIPT_DIR/.env"
     rm -f "$SCRIPT_DIR/.env.bak"

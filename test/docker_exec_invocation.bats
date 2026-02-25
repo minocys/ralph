@@ -12,7 +12,7 @@ load test_helper
 
 # Create a task stub in $TEST_WORK_DIR with peek returning a dummy task.
 _create_task_stub() {
-    cat > "$TEST_WORK_DIR/task" <<'STUB'
+    cat > "$TEST_WORK_DIR/lib/task" <<'STUB'
 #!/bin/bash
 case "$1" in
     agent)
@@ -29,7 +29,7 @@ case "$1" in
     *) exit 0 ;;
 esac
 STUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 }
 
 # Override default setup: copy ralph project into test dir like ralph_build_loop.bats
@@ -127,7 +127,7 @@ teardown() {
 
 @test "local mode calls claude directly" {
     unset DOCKER_EXECUTOR
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -137,7 +137,7 @@ teardown() {
 
 @test "local mode does not use docker exec" {
     export DOCKER_EXECUTOR="false"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -151,7 +151,7 @@ teardown() {
 
 @test "docker mode invokes claude via docker exec ralph-worker" {
     export DOCKER_EXECUTOR="true"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -167,7 +167,7 @@ teardown() {
 
 @test "docker mode does not call claude directly" {
     export DOCKER_EXECUTOR="true"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -181,7 +181,7 @@ teardown() {
 
 @test "docker mode forwards --output-format flag" {
     export DOCKER_EXECUTOR="true"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -191,7 +191,7 @@ teardown() {
 
 @test "docker mode forwards --dangerously-skip-permissions flag" {
     export DOCKER_EXECUTOR="true"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1 --danger
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1 --danger
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -201,7 +201,7 @@ teardown() {
 
 @test "docker mode forwards --model flag" {
     export DOCKER_EXECUTOR="true"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1 -m sonnet
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1 -m sonnet
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -211,7 +211,7 @@ teardown() {
 
 @test "docker mode forwards --verbose flag" {
     export DOCKER_EXECUTOR="true"
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     [ -f "$TEST_WORK_DIR/invocation.log" ]
@@ -263,6 +263,6 @@ DOCKERSTUB
     chmod +x "$STUB_DIR/docker"
 
     # ralph.sh should complete normally when docker exec succeeds
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 }
