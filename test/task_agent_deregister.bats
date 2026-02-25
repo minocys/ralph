@@ -40,14 +40,14 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "agent deregister with no ID exits 1" {
-    run "$SCRIPT_DIR/task" agent deregister
+    run "$SCRIPT_DIR/lib/task" agent deregister
     assert_failure
     [[ "$status" -eq 1 ]]
     assert_output --partial "Error: missing agent ID"
 }
 
 @test "agent deregister with no ID shows usage" {
-    run "$SCRIPT_DIR/task" agent deregister
+    run "$SCRIPT_DIR/lib/task" agent deregister
     assert_failure
     assert_output --partial "Usage:"
 }
@@ -56,7 +56,7 @@ teardown() {
 # Not found
 # ---------------------------------------------------------------------------
 @test "agent deregister with nonexistent ID exits 2" {
-    run "$SCRIPT_DIR/task" agent deregister "ffff"
+    run "$SCRIPT_DIR/lib/task" agent deregister "ffff"
     assert_failure
     [[ "$status" -eq 2 ]]
     assert_output --partial "not found"
@@ -66,11 +66,11 @@ teardown() {
 # Successful deregistration
 # ---------------------------------------------------------------------------
 @test "agent deregister changes status to stopped" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
     assert_output "deregistered $agent_id"
 
@@ -81,20 +81,20 @@ teardown() {
 }
 
 @test "agent deregister exits 0 on success" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
 }
 
 @test "agent deregister prints confirmation message" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
     assert_output "deregistered $agent_id"
 }
@@ -103,15 +103,15 @@ teardown() {
 # Agent record preserved
 # ---------------------------------------------------------------------------
 @test "deregistered agent excluded from agent list" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
 
     # Deregistered (stopped) agent should not appear in agent list
-    run "$SCRIPT_DIR/task" agent list
+    run "$SCRIPT_DIR/lib/task" agent list
     assert_success
     refute_output --partial "$agent_id"
 }
@@ -120,15 +120,15 @@ teardown() {
 # Idempotency
 # ---------------------------------------------------------------------------
 @test "agent deregister on already-stopped agent succeeds" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
 
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
 
     # Deregister again — should still succeed (idempotent)
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
     assert_output "deregistered $agent_id"
 }
@@ -137,15 +137,15 @@ teardown() {
 # Multiple agents
 # ---------------------------------------------------------------------------
 @test "agent deregister only affects specified agent" {
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local id1="$output"
 
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local id2="$output"
 
-    run "$SCRIPT_DIR/task" agent deregister "$id1"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$id1"
     assert_success
 
     # id1 should be stopped, id2 should still be active
@@ -163,7 +163,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "register then deregister full workflow" {
     # Register
-    run "$SCRIPT_DIR/task" agent register
+    run "$SCRIPT_DIR/lib/task" agent register
     assert_success
     local agent_id="$output"
     [[ "${agent_id}" =~ ^[0-9a-f]{4}$ ]]
@@ -174,7 +174,7 @@ teardown() {
     [[ "$status" == "active" ]]
 
     # Deregister
-    run "$SCRIPT_DIR/task" agent deregister "$agent_id"
+    run "$SCRIPT_DIR/lib/task" agent deregister "$agent_id"
     assert_success
 
     # Verify stopped

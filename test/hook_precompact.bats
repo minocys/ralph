@@ -28,12 +28,12 @@ setup() {
     export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
 
     # Set up hook environment variables
-    export RALPH_TASK_SCRIPT="$SCRIPT_DIR/task"
+    export RALPH_TASK_SCRIPT="$SCRIPT_DIR/lib/task"
     export RALPH_AGENT_ID="a1b2"
 
     # Ensure schema is initialized by running a benign task command
-    "$SCRIPT_DIR/task" create "pc-setup" "schema init" >/dev/null 2>&1
-    psql "$RALPH_DB_URL" -tAX -c "DELETE FROM tasks WHERE id='pc-setup';" >/dev/null 2>&1
+    "$SCRIPT_DIR/lib/task" create "pc-setup" "schema init" >/dev/null 2>&1
+    psql "$RALPH_DB_URL" -tAX -c "DELETE FROM tasks WHERE slug='pc-setup' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null 2>&1
 }
 
 teardown() {
@@ -48,9 +48,9 @@ teardown() {
 # PreCompact hook: active task exists for this agent
 # ---------------------------------------------------------------------------
 @test "precompact hook outputs continue:false JSON when active task exists" {
-    "$SCRIPT_DIR/task" create "pc-01" "Active task for agent"
+    "$SCRIPT_DIR/lib/task" create "pc-01" "Active task for agent"
     psql "$RALPH_DB_URL" -tAX -c \
-        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-01';" >/dev/null
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-01' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run bash -c '"$SCRIPT_DIR/hooks/precompact.sh" 2>/dev/null'
     assert_success
@@ -62,9 +62,9 @@ teardown() {
 }
 
 @test "precompact hook calls task fail on active task" {
-    "$SCRIPT_DIR/task" create "pc-02" "Active task to fail"
+    "$SCRIPT_DIR/lib/task" create "pc-02" "Active task to fail"
     psql "$RALPH_DB_URL" -tAX -c \
-        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-02';" >/dev/null
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-02' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     # Run hook (capture stderr for debugging, but don't assert on it)
     run "$SCRIPT_DIR/hooks/precompact.sh"
@@ -72,7 +72,7 @@ teardown() {
 
     # Task status must be set back to open
     local task_status
-    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='pc-02';")
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='pc-02' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "open" ]
 }
 
@@ -80,9 +80,9 @@ teardown() {
 # PreCompact hook: stderr warning and retry_count
 # ---------------------------------------------------------------------------
 @test "precompact hook logs stderr warning when failing active task" {
-    "$SCRIPT_DIR/task" create "pc-03" "Task for warning test"
+    "$SCRIPT_DIR/lib/task" create "pc-03" "Task for warning test"
     psql "$RALPH_DB_URL" -tAX -c \
-        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-03';" >/dev/null
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-03' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     run bash -c '"$SCRIPT_DIR/hooks/precompact.sh" 2>"$TEST_WORK_DIR/stderr.txt"'
     assert_success
@@ -95,13 +95,13 @@ teardown() {
 }
 
 @test "precompact hook increments retry_count" {
-    "$SCRIPT_DIR/task" create "pc-04" "Task to check retry_count"
+    "$SCRIPT_DIR/lib/task" create "pc-04" "Task to check retry_count"
     psql "$RALPH_DB_URL" -tAX -c \
-        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE id='pc-04';" >/dev/null
+        "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
 
     # Verify retry_count starts at 0
     local before
-    before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE id='pc-04';")
+    before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$before" = "0" ]
 
     run "$SCRIPT_DIR/hooks/precompact.sh"
@@ -109,8 +109,27 @@ teardown() {
 
     # retry_count must be incremented
     local after
-    after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE id='pc-04';")
+    after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$after" = "1" ]
+}
+
+# ---------------------------------------------------------------------------
+# PreCompact hook: ignores active tasks assigned to other agents
+# ---------------------------------------------------------------------------
+@test "precompact hook ignores active tasks assigned to other agents" {
+    "$SCRIPT_DIR/lib/task" create "pc-05" "Task for other agent"
+    psql "$RALPH_DB_URL" -tAX -c \
+        "UPDATE tasks SET status='active', assignee='zz99' WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+
+    run "$SCRIPT_DIR/hooks/precompact.sh"
+    assert_success
+
+    # Hook should not fail the other agent's task
+    echo "$output" | jq -e '.continue == true'
+
+    local task_status
+    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';")
+    [ "$task_status" = "active" ]
 }
 
 # ---------------------------------------------------------------------------

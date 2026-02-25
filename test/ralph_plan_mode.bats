@@ -2,7 +2,7 @@
 # test/ralph_plan_mode.bats — plan-mode task export integration tests for ralph.sh
 #
 # These tests verify that plan mode pre-fetches the task DAG via
-# `task plan-export` and passes it to Claude as part of the prompt.
+# `task list --all --markdown` and passes it to Claude as part of the prompt.
 
 load test_helper
 
@@ -11,15 +11,15 @@ load test_helper
 # ---------------------------------------------------------------------------
 
 # Create a task stub at $TEST_WORK_DIR/task with configurable behavior.
-# Usage: create_task_stub [plan_export_output] [plan_export_exit_code]
+# Usage: create_task_stub [list_all_output] [list_all_exit_code]
 create_task_stub() {
-    local plan_export_output="${1:-}"
-    local plan_export_exit="${2:-0}"
+    local list_all_output="${1:-}"
+    local list_all_exit="${2:-0}"
 
-    # Write plan-export output to a data file (avoids quoting issues with JSONL in heredoc)
-    printf '%s' "$plan_export_output" > "$TEST_WORK_DIR/.plan_export_data"
+    # Write list --all output to a data file (avoids quoting issues with JSONL in heredoc)
+    printf '%s' "$list_all_output" > "$TEST_WORK_DIR/.list_all_data"
 
-    cat > "$TEST_WORK_DIR/task" <<STUB
+    cat > "$TEST_WORK_DIR/lib/task" <<STUB
 #!/bin/bash
 # Log every invocation
 echo "\$*" >> "${TEST_WORK_DIR}/task_calls.log"
@@ -31,12 +31,16 @@ case "\$1" in
             *) exit 0 ;;
         esac
         ;;
-    plan-export)
-        EXPORT_DATA=\$(cat "${TEST_WORK_DIR}/.plan_export_data")
-        if [ -n "\$EXPORT_DATA" ]; then
-            echo "\$EXPORT_DATA"
+    list)
+        # Handle list --all --markdown (replacement for plan-export)
+        if echo "\$*" | grep -q -- '--all'; then
+            LIST_DATA=\$(cat "${TEST_WORK_DIR}/.list_all_data")
+            if [ -n "\$LIST_DATA" ]; then
+                echo "\$LIST_DATA"
+            fi
+            exit ${list_all_exit}
         fi
-        exit ${plan_export_exit}
+        exit 0
         ;;
     plan-status)
         echo "1 open, 0 active, 0 done, 0 blocked, 0 deleted"
@@ -47,7 +51,7 @@ case "\$1" in
         ;;
 esac
 STUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 }
 
 # Override default setup: copy ralph.sh so SCRIPT_DIR resolves to TEST_WORK_DIR
@@ -60,7 +64,10 @@ setup() {
     # Copy ralph.sh and lib/ into the test work directory
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
     # Minimal specs/ directory so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
@@ -70,7 +77,7 @@ setup() {
     cat > "$STUB_DIR/claude" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$@" > "$TEST_WORK_DIR/claude_args.txt"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
 echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
 exit 0
 STUB
@@ -115,19 +122,19 @@ teardown() {
 # Plan-mode task export tests
 # ---------------------------------------------------------------------------
 
-@test "plan mode calls task plan-export before claude invocation" {
+@test "plan mode calls task list --all --markdown before claude invocation" {
     create_task_stub '## Task t-01
 id: t-01
 title: Test task
 status: open'
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
-    # Verify task stub was called with plan-export --markdown
+    # Verify task stub was called with list --all --markdown
     [ -f "$TEST_WORK_DIR/task_calls.log" ]
     run cat "$TEST_WORK_DIR/task_calls.log"
-    assert_output --partial "plan-export --markdown"
+    assert_output --partial "list --all --markdown"
 
     # Verify claude was called
     [ -f "$TEST_WORK_DIR/claude_args.txt" ]
@@ -139,7 +146,7 @@ id: t-01
 title: Test task
 status: open'
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # The -p value should be "/ralph-plan {markdown-KV}" as a single argument
@@ -149,10 +156,10 @@ status: open'
     assert_output --partial 'title: Test task'
 }
 
-@test "plan mode handles empty plan-export output" {
+@test "plan mode handles empty list --all output" {
     create_task_stub ""
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 1
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
     # Claude should still be called with just /ralph-plan (no task data appended)

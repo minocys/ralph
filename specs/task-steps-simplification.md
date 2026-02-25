@@ -13,7 +13,7 @@ Replace the `task_steps` table with a `TEXT[]` column on the `tasks` table and r
 
 ### Remove step-done Command
 
-- Remove the `step-done` subcommand from the `task` CLI
+- Remove the `step-done` subcommand from the task CLI (`lib/task`)
 - Remove `cmd_step_done()` function
 - Remove `step-done` from the main dispatch, usage text, and help output
 
@@ -25,39 +25,39 @@ Replace the `task_steps` table with a `TEXT[]` column on the `tasks` table and r
 
 ### Update create
 
-- The `-s STEPS_JSON` flag on `task create` must accept a JSON array of strings (e.g., `'["step1","step2"]'`) instead of `[{"content":"..."}]`
+- The `-s STEPS_JSON` flag on `ralph task create` must accept a JSON array of strings (e.g., `'["step1","step2"]'`) instead of `[{"content":"..."}]`
 - Write steps directly to the `steps` column as a TEXT[] value
 
 ### Update update
 
-- The `--steps` flag on `task update` must accept a JSON array of strings
+- The `--steps` flag on `ralph task update` must accept a JSON array of strings
 - Write steps directly to the `steps` column as a TEXT[] value
 
 ### Update show
 
-- `task show` must render steps from the `steps` column as a numbered list
+- `ralph task show` must render steps from the `steps` column as a numbered list
 - No status indicator per step (was `[pending]`/`[done]` — now just the step text)
 
 ### Update claim
 
-- `task claim` must read steps from the `steps` column instead of joining `task_steps`
+- `ralph task claim` must read steps from the `steps` column instead of joining `task_steps`
 - Steps in output are a plain list (no seq/status metadata)
 
-### Update plan-export
+### Update list --all
 
-- `task plan-export` must read steps from the `steps` column instead of joining `task_steps`
+- `ralph task list --all` (and `ralph task list --all --markdown`) must read steps from the `steps` column instead of joining `task_steps`
 
 ### Update list
 
-- `task list --markdown` must read steps from the `steps` column instead of joining `task_steps`
+- `ralph task list --markdown` must read steps from the `steps` column instead of joining `task_steps`
 
 ### Update peek
 
-- `task peek` does not currently include steps — no change needed unless steps are added to peek output
+- `ralph task peek` does not currently include steps — no change needed unless steps are added to peek output
 
 ### Skill Prompts
 
-- Remove `task step-done <id> <seq>` from `ralph-build` SKILL.md (step 6)
+- Remove `ralph task step-done <id> <seq>` from `ralph-build` SKILL.md (step 6)
 - The builder no longer tracks individual step progress — steps are informational only
 
 ## Constraints

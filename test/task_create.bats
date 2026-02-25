@@ -40,13 +40,13 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task create without ID exits 1 with error" {
-    run "$SCRIPT_DIR/task" create
+    run "$SCRIPT_DIR/lib/task" create
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
 
 @test "task create without title exits 1 with error" {
-    run "$SCRIPT_DIR/task" create "test-01"
+    run "$SCRIPT_DIR/lib/task" create "test-01"
     assert_failure
     assert_output --partial "Error: missing task title"
 }
@@ -55,24 +55,24 @@ teardown() {
 # Minimal create
 # ---------------------------------------------------------------------------
 @test "task create with minimal args inserts task and prints ID" {
-    run "$SCRIPT_DIR/task" create "test-01" "My first task"
+    run "$SCRIPT_DIR/lib/task" create "test-01" "My first task"
     assert_success
     assert_output "test-01"
 
     # Verify task exists in DB
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT id, title, priority, status, retry_count FROM tasks WHERE id = 'test-01';
+        SELECT slug, title, priority, status, retry_count FROM tasks WHERE slug = 'test-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "test-01|My first task|2|open|0"
 }
 
 @test "task create sets updated_at on insert" {
-    run "$SCRIPT_DIR/task" create "test-ts" "Timestamp test"
+    run "$SCRIPT_DIR/lib/task" create "test-ts" "Timestamp test"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT CASE WHEN updated_at IS NOT NULL THEN 'set' ELSE 'null' END FROM tasks WHERE id = 'test-ts';
+        SELECT CASE WHEN updated_at IS NOT NULL THEN 'set' ELSE 'null' END FROM tasks WHERE slug = 'test-ts' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "set"
@@ -82,7 +82,7 @@ teardown() {
 # Create with all flags
 # ---------------------------------------------------------------------------
 @test "task create with all flags stores correct values" {
-    run "$SCRIPT_DIR/task" create "feat-01" "Full task" \
+    run "$SCRIPT_DIR/lib/task" create "feat-01" "Full task" \
         -p 1 \
         -c "feat" \
         -d "A detailed description" \
@@ -92,8 +92,8 @@ teardown() {
     assert_output "feat-01"
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT id, title, description, category, priority, spec_ref, ref
-        FROM tasks WHERE id = 'feat-01';
+        SELECT slug, title, description, category, priority, spec_ref, ref
+        FROM tasks WHERE slug = 'feat-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "feat-01|Full task|A detailed description|feat|1|task-cli|specs/task-cli.md"
@@ -103,12 +103,12 @@ teardown() {
 # Steps
 # ---------------------------------------------------------------------------
 @test "task create with steps stores steps in TEXT[] column" {
-    run "$SCRIPT_DIR/task" create "step-01" "Task with steps" \
+    run "$SCRIPT_DIR/lib/task" create "step-01" "Task with steps" \
         -s '["First step","Second step","Third step"]'
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT unnest(steps) FROM tasks WHERE id = 'step-01';
+        SELECT unnest(steps) FROM tasks WHERE slug = 'step-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "First step
@@ -121,15 +121,14 @@ Third step"
 # ---------------------------------------------------------------------------
 @test "task create with deps inserts into task_deps" {
     # Create blocker tasks first
-    "$SCRIPT_DIR/task" create "blocker-a" "Blocker A" > /dev/null
-    "$SCRIPT_DIR/task" create "blocker-b" "Blocker B" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "blocker-a" "Blocker A" > /dev/null
+    "$SCRIPT_DIR/lib/task" create "blocker-b" "Blocker B" > /dev/null
 
-    run "$SCRIPT_DIR/task" create "dep-01" "Dependent task" --deps "blocker-a,blocker-b"
+    run "$SCRIPT_DIR/lib/task" create "dep-01" "Dependent task" --deps "blocker-a,blocker-b"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT blocked_by FROM task_deps
-        WHERE task_id = 'dep-01' ORDER BY blocked_by;
+        SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'dep-01' AND scope_repo = 'test/repo' AND scope_branch = 'main') ORDER BY t.slug;
     "
     assert_success
     assert_output "blocker-a
@@ -140,25 +139,25 @@ blocker-b"
 # Defaults
 # ---------------------------------------------------------------------------
 @test "task create defaults priority to 2, status to open" {
-    run "$SCRIPT_DIR/task" create "def-01" "Default check"
+    run "$SCRIPT_DIR/lib/task" create "def-01" "Default check"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT priority, status FROM tasks WHERE id = 'def-01';
+        SELECT priority, status FROM tasks WHERE slug = 'def-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "2|open"
 }
 
 @test "task create with NULL description and category" {
-    run "$SCRIPT_DIR/task" create "null-01" "Null fields test"
+    run "$SCRIPT_DIR/lib/task" create "null-01" "Null fields test"
     assert_success
 
     run psql "$RALPH_DB_URL" -tAX -c "
         SELECT
             CASE WHEN description IS NULL THEN 'null' ELSE description END,
             CASE WHEN category IS NULL THEN 'null' ELSE category END
-        FROM tasks WHERE id = 'null-01';
+        FROM tasks WHERE slug = 'null-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "null|null"
@@ -168,8 +167,8 @@ blocker-b"
 # Duplicate ID
 # ---------------------------------------------------------------------------
 @test "task create with duplicate ID fails" {
-    "$SCRIPT_DIR/task" create "dup-01" "First" > /dev/null
-    run "$SCRIPT_DIR/task" create "dup-01" "Second"
+    "$SCRIPT_DIR/lib/task" create "dup-01" "First" > /dev/null
+    run "$SCRIPT_DIR/lib/task" create "dup-01" "Second"
     assert_failure
 }
 
@@ -177,12 +176,12 @@ blocker-b"
 # Special characters in title
 # ---------------------------------------------------------------------------
 @test "task create handles single quotes in title" {
-    run "$SCRIPT_DIR/task" create "quote-01" "It's a task"
+    run "$SCRIPT_DIR/lib/task" create "quote-01" "It's a task"
     assert_success
     assert_output "quote-01"
 
     run psql "$RALPH_DB_URL" -tAX -c "
-        SELECT title FROM tasks WHERE id = 'quote-01';
+        SELECT title FROM tasks WHERE slug = 'quote-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
     assert_output "It's a task"

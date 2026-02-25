@@ -41,10 +41,10 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task peek with no tasks exits 0 with empty output" {
     # Ensure schema exists (list triggers ensure_schema)
-    run "$SCRIPT_DIR/task" list
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
     assert_output ""
 }
@@ -53,10 +53,10 @@ teardown() {
 # Claimable tasks as markdown-KV
 # ---------------------------------------------------------------------------
 @test "task peek returns claimable tasks as markdown-KV with status: open" {
-    "$SCRIPT_DIR/task" create "t-a" "Task A" -p 1
-    "$SCRIPT_DIR/task" create "t-b" "Task B" -p 2
+    "$SCRIPT_DIR/lib/task" create "t-a" "Task A" -p 1
+    "$SCRIPT_DIR/lib/task" create "t-b" "Task B" -p 2
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Should have 2 task sections
@@ -75,12 +75,12 @@ teardown() {
 # Active tasks
 # ---------------------------------------------------------------------------
 @test "task peek returns active tasks with status: active and assignee" {
-    "$SCRIPT_DIR/task" create "t-act" "Active task" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-act" "Active task" -p 0
 
     # Claim to make it active
-    "$SCRIPT_DIR/task" claim --agent "a1b2" >/dev/null
+    "$SCRIPT_DIR/lib/task" claim --agent "a1b2" >/dev/null
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Should have an active section
@@ -94,13 +94,13 @@ teardown() {
 # Sort order
 # ---------------------------------------------------------------------------
 @test "task peek sorts claimable by priority ASC then created_at ASC" {
-    "$SCRIPT_DIR/task" create "t-p2" "Priority 2" -p 2
+    "$SCRIPT_DIR/lib/task" create "t-p2" "Priority 2" -p 2
     sleep 0.1
-    "$SCRIPT_DIR/task" create "t-p0" "Priority 0" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-p0" "Priority 0" -p 0
     sleep 0.1
-    "$SCRIPT_DIR/task" create "t-p1" "Priority 1" -p 1
+    "$SCRIPT_DIR/lib/task" create "t-p1" "Priority 1" -p 1
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Extract task IDs in order from ## Task headers
@@ -121,9 +121,9 @@ teardown() {
 # Markdown-KV keys
 # ---------------------------------------------------------------------------
 @test "task peek uses full key names in markdown-KV output" {
-    "$SCRIPT_DIR/task" create "t-keys" "Key test" -p 1 -c feat -d "A description"
+    "$SCRIPT_DIR/lib/task" create "t-keys" "Key test" -p 1 -c feat -d "A description"
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Verify full key names present
@@ -140,10 +140,10 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task peek -n 2 limits claimable tasks to 2" {
     for i in 1 2 3 4 5; do
-        "$SCRIPT_DIR/task" create "t-$i" "Task $i" -p 1
+        "$SCRIPT_DIR/lib/task" create "t-$i" "Task $i" -p 1
     done
 
-    run "$SCRIPT_DIR/task" peek -n 2
+    run "$SCRIPT_DIR/lib/task" peek -n 2
     assert_success
 
     # Count task sections with status: open — should be exactly 2
@@ -154,10 +154,10 @@ teardown() {
 
 @test "task peek default N is 5" {
     for i in 1 2 3 4 5 6 7 8; do
-        "$SCRIPT_DIR/task" create "t-$i" "Task $i" -p 1
+        "$SCRIPT_DIR/lib/task" create "t-$i" "Task $i" -p 1
     done
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Count claimable sections — should be exactly 5
@@ -168,18 +168,18 @@ teardown() {
 
 @test "task peek active tasks are not limited by N" {
     # Create 4 tasks: 3 will be claimed (active), 1 remains open
-    "$SCRIPT_DIR/task" create "t-open" "Open task" -p 0
-    "$SCRIPT_DIR/task" create "t-act1" "Active 1" -p 1
-    "$SCRIPT_DIR/task" create "t-act2" "Active 2" -p 2
-    "$SCRIPT_DIR/task" create "t-act3" "Active 3" -p 3
+    "$SCRIPT_DIR/lib/task" create "t-open" "Open task" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-act1" "Active 1" -p 1
+    "$SCRIPT_DIR/lib/task" create "t-act2" "Active 2" -p 2
+    "$SCRIPT_DIR/lib/task" create "t-act3" "Active 3" -p 3
 
     # Claim 3 tasks to make them active
-    "$SCRIPT_DIR/task" claim --agent "agnt" >/dev/null
-    "$SCRIPT_DIR/task" claim --agent "agnt" >/dev/null
-    "$SCRIPT_DIR/task" claim --agent "agnt" >/dev/null
+    "$SCRIPT_DIR/lib/task" claim --agent "agnt" >/dev/null
+    "$SCRIPT_DIR/lib/task" claim --agent "agnt" >/dev/null
+    "$SCRIPT_DIR/lib/task" claim --agent "agnt" >/dev/null
 
     # Peek with -n 1: should get 1 claimable + all 3 active
-    run "$SCRIPT_DIR/task" peek -n 1
+    run "$SCRIPT_DIR/lib/task" peek -n 1
     assert_success
 
     local open_count
@@ -200,11 +200,11 @@ teardown() {
 # Blocked tasks
 # ---------------------------------------------------------------------------
 @test "task peek excludes blocked tasks from claimable" {
-    "$SCRIPT_DIR/task" create "t-blocker" "Blocker" -p 0
-    "$SCRIPT_DIR/task" create "t-blocked" "Blocked" -p 0
-    "$SCRIPT_DIR/task" block "t-blocked" --by "t-blocker"
+    "$SCRIPT_DIR/lib/task" create "t-blocker" "Blocker" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-blocked" "Blocked" -p 0
+    "$SCRIPT_DIR/lib/task" block "t-blocked" --by "t-blocker"
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Only t-blocker should appear
@@ -218,15 +218,15 @@ teardown() {
 # Expired lease eligibility
 # ---------------------------------------------------------------------------
 @test "task peek includes active-with-expired-lease as claimable (status: open)" {
-    "$SCRIPT_DIR/task" create "t-expired" "Expired lease" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-expired" "Expired lease" -p 0
 
     # Claim with a 1-second lease
-    "$SCRIPT_DIR/task" claim --agent "agnt" --lease 1 >/dev/null
+    "$SCRIPT_DIR/lib/task" claim --agent "agnt" --lease 1 >/dev/null
 
     # Wait for lease to expire
     sleep 2
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Should appear as claimable with status: open
@@ -238,24 +238,24 @@ teardown() {
 # Non-locking (no FOR UPDATE)
 # ---------------------------------------------------------------------------
 @test "task peek does not modify task state (non-locking read)" {
-    "$SCRIPT_DIR/task" create "t-nl1" "Non-lock 1" -p 0
-    "$SCRIPT_DIR/task" create "t-nl2" "Non-lock 2" -p 1
+    "$SCRIPT_DIR/lib/task" create "t-nl1" "Non-lock 1" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-nl2" "Non-lock 2" -p 1
 
     # Run peek
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # Verify tasks are still status=open in DB
     local db_status
-    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='t-nl1'")
+    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
-    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id='t-nl2'")
+    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='t-nl2' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
     # Verify assignee is still NULL
     local db_assignee
-    db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE id='t-nl1'")
+    db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ -z "$db_assignee" ]]
 }
 
@@ -263,10 +263,10 @@ teardown() {
 # Blank line separation between task sections
 # ---------------------------------------------------------------------------
 @test "task peek separates task sections with blank lines" {
-    "$SCRIPT_DIR/task" create "t-sep1" "Sep 1" -p 0
-    "$SCRIPT_DIR/task" create "t-sep2" "Sep 2" -p 1
+    "$SCRIPT_DIR/lib/task" create "t-sep1" "Sep 1" -p 0
+    "$SCRIPT_DIR/lib/task" create "t-sep2" "Sep 2" -p 1
 
-    run "$SCRIPT_DIR/task" peek
+    run "$SCRIPT_DIR/lib/task" peek
     assert_success
 
     # There should be a blank line between sections

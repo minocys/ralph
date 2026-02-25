@@ -40,20 +40,20 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task update without ID exits 1 with error" {
-    run "$SCRIPT_DIR/task" update
+    run "$SCRIPT_DIR/lib/task" update
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
 
 @test "task update with ID but no flags exits 1" {
-    run "$SCRIPT_DIR/task" update "test/01"
+    run "$SCRIPT_DIR/lib/task" update "test/01"
     assert_failure
     assert_output --partial "Error: no fields to update"
 }
 
 @test "task update with unknown flag exits 1" {
-    "$SCRIPT_DIR/task" create "test/01" "Original title"
-    run "$SCRIPT_DIR/task" update "test/01" --bogus val
+    "$SCRIPT_DIR/lib/task" create "test/01" "Original title"
+    run "$SCRIPT_DIR/lib/task" update "test/01" --bogus val
     assert_failure
     assert_output --partial "Error: unknown flag"
 }
@@ -62,7 +62,7 @@ teardown() {
 # Not found
 # ---------------------------------------------------------------------------
 @test "task update on nonexistent task exits 2" {
-    run "$SCRIPT_DIR/task" update "nonexistent/01" --title "New title"
+    run "$SCRIPT_DIR/lib/task" update "nonexistent/01" --title "New title"
     assert_failure
     [ "$status" -eq 2 ]
     assert_output --partial "not found"
@@ -72,10 +72,10 @@ teardown() {
 # Immutability of done tasks
 # ---------------------------------------------------------------------------
 @test "task update on done task exits 1" {
-    "$SCRIPT_DIR/task" create "test/01" "A task"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     # Directly set status to done
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE id = 'test/01'" >/dev/null
-    run "$SCRIPT_DIR/task" update "test/01" --title "New title"
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    run "$SCRIPT_DIR/lib/task" update "test/01" --title "New title"
     assert_failure
     [ "$status" -eq 1 ]
     assert_output --partial "done and cannot be updated"
@@ -85,54 +85,54 @@ teardown() {
 # Field updates
 # ---------------------------------------------------------------------------
 @test "task update --title changes title" {
-    "$SCRIPT_DIR/task" create "test/01" "Original title"
-    run "$SCRIPT_DIR/task" update "test/01" --title "Updated title"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Original title"
+    run "$SCRIPT_DIR/lib/task" update "test/01" --title "Updated title"
     assert_success
     assert_output "updated test/01"
 
     local new_title
-    new_title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
+    new_title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_title" = "Updated title" ]
 }
 
 @test "task update --priority changes priority" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -p 2
-    run "$SCRIPT_DIR/task" update "test/01" --priority 0
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task" -p 2
+    run "$SCRIPT_DIR/lib/task" update "test/01" --priority 0
     assert_success
 
     local new_pri
-    new_pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE id = 'test/01'")
+    new_pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_pri" = "0" ]
 }
 
 @test "task update --description changes description" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -d "Old desc"
-    run "$SCRIPT_DIR/task" update "test/01" --description "New desc"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task" -d "Old desc"
+    run "$SCRIPT_DIR/lib/task" update "test/01" --description "New desc"
     assert_success
 
     local new_desc
-    new_desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE id = 'test/01'")
+    new_desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_desc" = "New desc" ]
 }
 
 @test "task update --status changes status" {
-    "$SCRIPT_DIR/task" create "test/01" "A task"
-    run "$SCRIPT_DIR/task" update "test/01" --status "active"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task"
+    run "$SCRIPT_DIR/lib/task" update "test/01" --status "active"
     assert_success
 
     local new_status
-    new_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE id = 'test/01'")
+    new_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_status" = "active" ]
 }
 
 @test "task update always sets updated_at" {
-    "$SCRIPT_DIR/task" create "test/01" "A task"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     # Clear updated_at to verify it gets set
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE id = 'test/01'" >/dev/null
-    "$SCRIPT_DIR/task" update "test/01" --title "New"
+    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    "$SCRIPT_DIR/lib/task" update "test/01" --title "New"
 
     local updated
-    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE id = 'test/01'")
+    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$updated" = "t" ]
 }
 
@@ -140,33 +140,33 @@ teardown() {
 # Steps replacement
 # ---------------------------------------------------------------------------
 @test "task update --steps replaces existing steps" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -s '["step one","step two"]'
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task" -s '["step one","step two"]'
 
     # Verify initial steps
     local count_before
-    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE id = 'test/01'")
+    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_before" = "2" ]
 
     # Replace steps
-    run "$SCRIPT_DIR/task" update "test/01" --steps '["new step A","new step B","new step C"]'
+    run "$SCRIPT_DIR/lib/task" update "test/01" --steps '["new step A","new step B","new step C"]'
     assert_success
 
     local count_after
-    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE id = 'test/01'")
+    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_after" = "3" ]
 
     local first_step
-    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps[1] FROM tasks WHERE id = 'test/01'")
+    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps[1] FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$first_step" = "new step A" ]
 }
 
 @test "task update --steps with empty array clears steps" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -s '["step one"]'
-    run "$SCRIPT_DIR/task" update "test/01" --steps '[]'
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task" -s '["step one"]'
+    run "$SCRIPT_DIR/lib/task" update "test/01" --steps '[]'
     assert_success
 
     local steps_null
-    steps_null=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps IS NULL FROM tasks WHERE id = 'test/01'")
+    steps_null=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps IS NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$steps_null" = "t" ]
 }
 
@@ -174,14 +174,14 @@ teardown() {
 # Multiple fields at once
 # ---------------------------------------------------------------------------
 @test "task update multiple fields at once" {
-    "$SCRIPT_DIR/task" create "test/01" "A task" -p 2 -d "Old desc"
-    run "$SCRIPT_DIR/task" update "test/01" --title "New title" --priority 0 --description "New desc"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task" -p 2 -d "Old desc"
+    run "$SCRIPT_DIR/lib/task" update "test/01" --title "New title" --priority 0 --description "New desc"
     assert_success
 
     local title pri desc
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
-    pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE id = 'test/01'")
-    desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE id = 'test/01'")
+    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "New title" ]
     [ "$pri" = "0" ]
     [ "$desc" = "New desc" ]
@@ -191,11 +191,11 @@ teardown() {
 # Special characters
 # ---------------------------------------------------------------------------
 @test "task update handles single quotes in title" {
-    "$SCRIPT_DIR/task" create "test/01" "A task"
-    run "$SCRIPT_DIR/task" update "test/01" --title "It's a test"
+    "$SCRIPT_DIR/lib/task" create "test/01" "A task"
+    run "$SCRIPT_DIR/lib/task" update "test/01" --title "It's a test"
     assert_success
 
     local title
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE id = 'test/01'")
+    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "It's a test" ]
 }

@@ -44,13 +44,13 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task block without ID exits 1" {
-    run "$SCRIPT_DIR/task" block
+    run "$SCRIPT_DIR/lib/task" block
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
 
 @test "task block without --by exits 1" {
-    run "$SCRIPT_DIR/task" block "test/01"
+    run "$SCRIPT_DIR/lib/task" block "test/01"
     assert_failure
     assert_output --partial "Error: missing --by"
 }
@@ -59,16 +59,16 @@ teardown() {
 # Not found
 # ---------------------------------------------------------------------------
 @test "task block with nonexistent task exits 2" {
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
-    run "$SCRIPT_DIR/task" block "nonexistent/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
+    run "$SCRIPT_DIR/lib/task" block "nonexistent/01" --by "blocker/01"
     assert_failure
     [ "$status" -eq 2 ]
     assert_output --partial "not found"
 }
 
 @test "task block with nonexistent blocker exits 2" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    run "$SCRIPT_DIR/task" block "test/01" --by "nonexistent/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    run "$SCRIPT_DIR/lib/task" block "test/01" --by "nonexistent/01"
     assert_failure
     [ "$status" -eq 2 ]
     assert_output --partial "not found"
@@ -78,50 +78,50 @@ teardown() {
 # Successful block
 # ---------------------------------------------------------------------------
 @test "task block adds dependency" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
 
-    run "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
+    run "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
     assert_success
     assert_output "blocked test/01 by blocker/01"
 
     # Verify in database
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01' AND blocked_by = 'blocker/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
 @test "task block is idempotent (duplicate does not error)" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
 
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
-    run "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
+    run "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
     assert_success
 
     # Still only one row
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01' AND blocked_by = 'blocker/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
 @test "task block dependency appears in task show" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
 
-    run "$SCRIPT_DIR/task" show "test/01"
+    run "$SCRIPT_DIR/lib/task" show "test/01"
     assert_success
     assert_output --partial "Dependencies:"
     assert_output --partial "blocker/01"
 }
 
 @test "task block dependency appears in list --markdown" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
 
-    run "$SCRIPT_DIR/task" list --markdown
+    run "$SCRIPT_DIR/lib/task" list --markdown
     assert_success
     # The markdown-KV output for test/01 should include blocker/01 in deps
     assert_output --partial "id: test/01"
@@ -132,14 +132,14 @@ teardown() {
 # Special characters
 # ---------------------------------------------------------------------------
 @test "task block handles IDs with single quotes" {
-    "$SCRIPT_DIR/task" create "test/it's" "Quoted task"
-    "$SCRIPT_DIR/task" create "block/it's" "Quoted blocker"
+    "$SCRIPT_DIR/lib/task" create "test/it's" "Quoted task"
+    "$SCRIPT_DIR/lib/task" create "block/it's" "Quoted blocker"
 
-    run "$SCRIPT_DIR/task" block "test/it's" --by "block/it's"
+    run "$SCRIPT_DIR/lib/task" block "test/it's" --by "block/it's"
     assert_success
 
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/it''s' AND blocked_by = 'block/it''s'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -151,13 +151,13 @@ teardown() {
 # Argument validation
 # ---------------------------------------------------------------------------
 @test "task unblock without ID exits 1" {
-    run "$SCRIPT_DIR/task" unblock
+    run "$SCRIPT_DIR/lib/task" unblock
     assert_failure
     assert_output --partial "Error: missing task ID"
 }
 
 @test "task unblock without --by exits 1" {
-    run "$SCRIPT_DIR/task" unblock "test/01"
+    run "$SCRIPT_DIR/lib/task" unblock "test/01"
     assert_failure
     assert_output --partial "Error: missing --by"
 }
@@ -166,10 +166,10 @@ teardown() {
 # Not found
 # ---------------------------------------------------------------------------
 @test "task unblock nonexistent dependency exits 2" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
 
-    run "$SCRIPT_DIR/task" unblock "test/01" --by "blocker/01"
+    run "$SCRIPT_DIR/lib/task" unblock "test/01" --by "blocker/01"
     assert_failure
     [ "$status" -eq 2 ]
     assert_output --partial "dependency not found"
@@ -179,46 +179,46 @@ teardown() {
 # Successful unblock
 # ---------------------------------------------------------------------------
 @test "task unblock removes dependency" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
 
-    run "$SCRIPT_DIR/task" unblock "test/01" --by "blocker/01"
+    run "$SCRIPT_DIR/lib/task" unblock "test/01" --by "blocker/01"
     assert_success
     assert_output "unblocked test/01 from blocker/01"
 
     # Verify removed from database
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01' AND blocked_by = 'blocker/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }
 
 @test "task unblock removes only specified dependency" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker 1"
-    "$SCRIPT_DIR/task" create "blocker/02" "Blocker 2"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/02"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker 1"
+    "$SCRIPT_DIR/lib/task" create "blocker/02" "Blocker 2"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/02"
 
-    "$SCRIPT_DIR/task" unblock "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" unblock "test/01" --by "blocker/01"
 
     # blocker/01 removed, blocker/02 still there
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/01'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 
     local remaining
-    remaining=$(psql "$RALPH_DB_URL" -tAX -c "SELECT blocked_by FROM task_deps WHERE task_id = 'test/01'")
+    remaining=$(psql "$RALPH_DB_URL" -tAX -c "SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$remaining" = "blocker/02" ]
 }
 
 @test "task unblock dependency no longer appears in task show" {
-    "$SCRIPT_DIR/task" create "test/01" "Task"
-    "$SCRIPT_DIR/task" create "blocker/01" "Blocker"
-    "$SCRIPT_DIR/task" block "test/01" --by "blocker/01"
-    "$SCRIPT_DIR/task" unblock "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" create "test/01" "Task"
+    "$SCRIPT_DIR/lib/task" create "blocker/01" "Blocker"
+    "$SCRIPT_DIR/lib/task" block "test/01" --by "blocker/01"
+    "$SCRIPT_DIR/lib/task" unblock "test/01" --by "blocker/01"
 
-    run "$SCRIPT_DIR/task" show "test/01"
+    run "$SCRIPT_DIR/lib/task" show "test/01"
     assert_success
     refute_output --partial "Dependencies:"
     refute_output --partial "blocker/01"
@@ -228,14 +228,14 @@ teardown() {
 # Special characters
 # ---------------------------------------------------------------------------
 @test "task unblock handles IDs with single quotes" {
-    "$SCRIPT_DIR/task" create "test/it's" "Quoted task"
-    "$SCRIPT_DIR/task" create "block/it's" "Quoted blocker"
-    "$SCRIPT_DIR/task" block "test/it's" --by "block/it's"
+    "$SCRIPT_DIR/lib/task" create "test/it's" "Quoted task"
+    "$SCRIPT_DIR/lib/task" create "block/it's" "Quoted blocker"
+    "$SCRIPT_DIR/lib/task" block "test/it's" --by "block/it's"
 
-    run "$SCRIPT_DIR/task" unblock "test/it's" --by "block/it's"
+    run "$SCRIPT_DIR/lib/task" unblock "test/it's" --by "block/it's"
     assert_success
 
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = 'test/it''s' AND blocked_by = 'block/it''s'")
+    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }

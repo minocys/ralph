@@ -6,7 +6,7 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 ### Peek (Build Phase)
 
-- `task peek [-n N]` returns a read-only snapshot of the task landscape for agent decision-making
+- `ralph task peek [-n N]` returns a read-only snapshot of the task landscape for agent decision-making
 - Claimable tasks: the top N tasks matching claim eligibility criteria (see below), sorted by priority ASC then `created_at` ASC
 - Active tasks: all tasks with `status = 'active'` regardless of N limit, including their `assignee` field
 - Output is markdown-KV format (each task as a `## Task {id}` section with `key: value` lines), with claimable and active tasks distinguished by the `status` field — `open` for claimable, `active` for in-progress
@@ -24,7 +24,7 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 #### Untargeted Claim
 
-- `task claim` (no ID argument) selects the highest-priority eligible task automatically
+- `ralph task claim` (no ID argument) selects the highest-priority eligible task automatically
 - The claim operation must be a single atomic transaction that:
   1. Selects the next eligible task with `FOR UPDATE SKIP LOCKED`
   2. Sets status to `active`, assignee to the agent ID, `lease_expires_at` to `now() + lease duration`
@@ -36,7 +36,7 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 #### Targeted Claim
 
-- `task claim <id>` claims a specific task chosen by the agent after reviewing the peek snapshot
+- `ralph task claim <id>` claims a specific task chosen by the agent after reviewing the peek snapshot
 - The claim must verify eligibility before proceeding — the task must meet the same criteria as untargeted claim (open + unblocked, or active with expired lease)
 - If the specified task is not eligible (already claimed by another agent, blocked, done, or deleted), return exit code 2
 - The claim operation uses the same atomic transaction pattern as untargeted claim, but targets the specified task ID instead of selecting by priority
@@ -44,35 +44,35 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 ### Lease Renewal
 
-- `task renew <id>` must extend `lease_expires_at` to `now() + lease duration` within a transaction that verifies the caller is the current assignee
+- `ralph task renew <id>` must extend `lease_expires_at` to `now() + lease duration` within a transaction that verifies the caller is the current assignee
 
 ### Lease-Based Recovery
 
 - Tasks with `status = 'active'` and `lease_expires_at < now()` are considered abandoned
-- Abandoned tasks are automatically eligible for re-claiming by `task claim` — no separate recovery command needed
+- Abandoned tasks are automatically eligible for re-claiming by `ralph task claim` — no separate recovery command needed
 - When an abandoned task is reclaimed, `retry_count` is incremented to track repeated failures
 - Default lease duration is 600 seconds (10 minutes)
 
 ### Completion
 
-- `task done <id>` must:
+- `ralph task done <id>` must:
   - Verify the task status is `active`
   - Set status to `done`, store the result JSONB, update `updated_at`
-  - This implicitly unblocks downstream tasks (checked dynamically by `task claim`)
-- `task fail <id>` must:
+  - This implicitly unblocks downstream tasks (checked dynamically by `ralph task claim`)
+- `ralph task fail <id>` must:
   - Set status to `open`, clear assignee, clear `lease_expires_at`, increment `retry_count`, update `updated_at`
   - The task becomes eligible for re-claiming immediately
 
 ### Dependency Rules
 
-- `task block <id> --by <blocker-id>` adds a row to the `task_deps` table
-- `task unblock <id> --by <blocker-id>` removes the row
+- `ralph task block <id> --by <blocker-id>` adds a row to the `task_deps` table
+- `ralph task unblock <id> --by <blocker-id>` removes the row
 - Circular dependencies are not validated (the planner is responsible for avoiding them)
 - A task with all blockers in `done` or `deleted` status is considered unblocked
 
 ### Plan Synchronization (Plan Phase)
 
-- `task plan-sync` reads JSONL from stdin where each line represents a task with planner-assigned ID
+- `ralph task plan-sync` reads JSONL from stdin where each line represents a task with planner-assigned ID
 - The diff algorithm operates per `spec_ref` group:
   - For each task in stdin:
     - If `id` exists in DB and task is `done` → skip (done tasks are immutable)
@@ -87,8 +87,8 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 ## Constraints
 
 - All scheduling queries must execute within a single PostgreSQL transaction
-- `task claim` must not succeed for two concurrent agents on the same task — `SELECT FOR UPDATE SKIP LOCKED` guarantees this
-- No task queue polling or wait mechanisms — agents call `task claim` on demand
+- `ralph task claim` must not succeed for two concurrent agents on the same task — `SELECT FOR UPDATE SKIP LOCKED` guarantees this
+- No task queue polling or wait mechanisms — agents call `ralph task claim` on demand
 - Plan-sync must be idempotent — running it twice with the same input produces no changes on the second run
 
 ## Out of Scope

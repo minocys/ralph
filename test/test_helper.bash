@@ -10,6 +10,19 @@ load "$TEST_DIR/libs/bats-support/load"
 load "$TEST_DIR/libs/bats-assert/load"
 load "$TEST_DIR/libs/bats-file/load"
 
+# Source .env from project root for database URL (matches runtime behavior)
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+    # shellcheck disable=SC1091
+    . "$SCRIPT_DIR/.env"
+fi
+export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5499/ralph}"
+
+# Default scope for tests — set unconditionally at load time so that env vars
+# from the caller's shell (e.g. RALPH_SCOPE_REPO derived from git) are always
+# overridden. Individual tests can re-export per-test if needed.
+export RALPH_SCOPE_REPO="test/repo"
+export RALPH_SCOPE_BRANCH="main"
+
 setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
@@ -36,8 +49,11 @@ STUB
     export TEST_WORK_DIR
     export STUB_DIR
 
-    # Always use the test database
-    export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+    # RALPH_DB_URL is set at load time (above) from .env
+
+    # Default scope for tests (overridable per-test)
+    export RALPH_SCOPE_REPO="test/repo"
+    export RALPH_SCOPE_BRANCH="main"
 
     # Docker/pg_isready stubs so ensure_postgres() passes without real Docker
     cat > "$STUB_DIR/docker" <<'DOCKERSTUB'

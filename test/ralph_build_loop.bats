@@ -2,8 +2,8 @@
 # test/ralph_build_loop.bats — build-mode loop control tests for ralph.sh
 #
 # These tests verify that build mode uses `task plan-status` to decide
-# when all tasks are complete, while plan mode continues to rely on the
-# <promise>Tastes Like Burning.</promise> grep check.
+# when all tasks are complete, and that plan mode uses a deterministic
+# for-loop (no sentinel check).
 
 load test_helper
 
@@ -26,7 +26,7 @@ create_task_stub() {
     # Write list output to a data file
     printf '%s' "$list_active_output" > "$TEST_WORK_DIR/.list_data"
 
-    cat > "$TEST_WORK_DIR/task" <<STUB
+    cat > "$TEST_WORK_DIR/lib/task" <<STUB
 #!/bin/bash
 case "\$1" in
     agent)
@@ -66,7 +66,7 @@ case "\$1" in
         ;;
 esac
 STUB
-    chmod +x "$TEST_WORK_DIR/task"
+    chmod +x "$TEST_WORK_DIR/lib/task"
 }
 
 # Override default setup: copy ralph.sh so SCRIPT_DIR resolves to TEST_WORK_DIR
@@ -76,10 +76,13 @@ setup() {
     STUB_DIR="$(mktemp -d)"
     export TEST_WORK_DIR STUB_DIR
 
-    # Copy ralph.sh and lib/ into the test work directory
+    # Copy ralph.sh and lib/*.sh into the test work directory
     cp "$SCRIPT_DIR/ralph.sh" "$TEST_WORK_DIR/ralph.sh"
     chmod +x "$TEST_WORK_DIR/ralph.sh"
-    cp -r "$SCRIPT_DIR/lib" "$TEST_WORK_DIR/lib"
+    mkdir -p "$TEST_WORK_DIR/lib"
+    for f in "$SCRIPT_DIR"/lib/*.sh; do
+        cp "$f" "$TEST_WORK_DIR/lib/"
+    done
 
     # Minimal specs/ directory so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
@@ -137,7 +140,7 @@ teardown() {
     # With peek: no claimable/active tasks → peek returns empty → exits early
     create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 5
+    run "$TEST_WORK_DIR/ralph.sh" build -n 5
     assert_success
     assert_output --partial "No tasks available"
     refute_output --partial "Reached max iterations"
@@ -147,7 +150,7 @@ teardown() {
     create_task_stub "2 open, 1 active, 3 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    run "$TEST_WORK_DIR/ralph.sh" build -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
 }
@@ -155,7 +158,7 @@ teardown() {
 @test "build mode continues when task plan-status fails" {
     create_task_stub "" 1 '{"id":"t1","t":"Task one","s":"open","p":0}'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    run "$TEST_WORK_DIR/ralph.sh" build -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
 }
@@ -178,7 +181,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify claude received the peek JSONL in its prompt argument
@@ -200,7 +203,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 5
+    run "$TEST_WORK_DIR/ralph.sh" build -n 5
     assert_success
     assert_output --partial "No tasks available"
     refute_output --partial "Reached max iterations"
@@ -212,7 +215,7 @@ STUB
 @test "build mode continues loop when peek fails with non-zero exit" {
     create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 "" 1
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 2
+    run "$TEST_WORK_DIR/ralph.sh" build -n 2
     assert_success
     assert_output --partial "Reached max iterations: 2"
 }
@@ -231,7 +234,7 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # The -p value should be "/ralph-build {JSONL}" as a single argument
@@ -247,9 +250,9 @@ STUB
 @test "build mode fails active task after claude exits" {
     create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
-        $'ID P S CAT TITLE AGENT\nt1 0 active - Task_one t001'
+        $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify fail was called with the task ID and reason
@@ -264,7 +267,7 @@ STUB
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
         ""
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify fail was NOT called
@@ -274,9 +277,9 @@ STUB
 @test "build mode crash-safety runs before plan-status check" {
     create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
-        $'ID P S CAT TITLE AGENT\nt1 0 active - Task_one t001'
+        $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001'
 
-    run "$TEST_WORK_DIR/ralph.sh" -n 1
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
     # Verify ordered execution: fail before plan-status
@@ -287,11 +290,34 @@ STUB
 }
 
 # ---------------------------------------------------------------------------
-# Plan-mode promise check is retained
+# Plan-mode for-loop iteration control
 # ---------------------------------------------------------------------------
 
-@test "plan mode still uses promise grep check" {
-    # Override claude stub to emit the promise sentinel in valid stream-JSON
+@test "plan mode runs exactly N iterations" {
+    # Override claude stub to count invocations
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "claude-call" >> "$TEST_WORK_DIR/call_count.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 3
+    assert_success
+    assert_output --partial "Reached max iterations: 3"
+
+    # Verify claude was called exactly 3 times
+    [ -f "$TEST_WORK_DIR/call_count.log" ]
+    local count
+    count=$(wc -l < "$TEST_WORK_DIR/call_count.log")
+    [ "$count" -eq 3 ]
+}
+
+@test "plan mode does not check for sentinel" {
+    # Claude emits the old sentinel text — plan mode should ignore it and
+    # continue to the next iteration (no early exit)
     cat > "$STUB_DIR/claude" <<'STUB'
 #!/bin/bash
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"<promise>Tastes Like Burning.</promise>"}]}}'
@@ -300,7 +326,9 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    run "$TEST_WORK_DIR/ralph.sh" --plan -n 2
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 2
     assert_success
-    assert_output --partial "Ralph completed successfully"
+    # Should run all iterations, not exit early on sentinel
+    assert_output --partial "Reached max iterations: 2"
+    refute_output --partial "Ralph completed successfully"
 }
