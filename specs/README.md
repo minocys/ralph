@@ -27,3 +27,8 @@
 | [task-steps-simplification.md](task-steps-simplification.md) | Flatten task steps from a separate table into a TEXT[] column and remove step tracking |
 | [deprecate-plan-export.md](deprecate-plan-export.md) | Complete removal of `plan-export` command (replaced by `ralph task list --all`) |
 | [scoped-task-lists.md](scoped-task-lists.md) | Scope task and agent data by git repository and branch for multi-agent isolation |
+| [docker-sandbox-dispatch.md](docker-sandbox-dispatch.md) | CLI routing that intercepts `--docker` and delegates subcommand execution to a Docker sandbox |
+| [sandbox-identity.md](sandbox-identity.md) | Deterministic sandbox naming from repo and branch, with existence lookup and reuse |
+| [sandbox-bootstrap.md](sandbox-bootstrap.md) | One-time setup of ralph, PostgreSQL, and dependencies inside a newly created sandbox |
+| [sandbox-credentials.md](sandbox-credentials.md) | AWS/Bedrock credential resolution and injection into the sandbox environment |
+| [sandbox-signal-handling.md](sandbox-signal-handling.md) | Ctrl+C detach behavior when attached to a Docker sandbox exec session |
