@@ -10,6 +10,7 @@
 #   ensure_postgres()         — orchestrate full Docker lifecycle
 #   derive_sandbox_name()     — deterministic sandbox name from repo+branch
 #   lookup_sandbox()          — check sandbox existence and state
+#   resolve_aws_credentials() — resolve AWS/Bedrock credentials for sandbox injection
 #
 # Globals used:
 #   SCRIPT_DIR (must be set before sourcing)
@@ -196,4 +197,51 @@ lookup_sandbox() {
         stopped|exited) echo "stopped" ;;
         *) echo "" ;;
     esac
+}
+
+# resolve_aws_credentials: resolve current AWS credentials for sandbox injection.
+# Outputs KEY=VALUE lines for: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+# AWS_SESSION_TOKEN, AWS_DEFAULT_REGION.
+# Exits 1 with actionable error if aws CLI is missing or credentials fail.
+resolve_aws_credentials() {
+    # Verify aws CLI is available
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "Error: aws CLI not found. Install it: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html" >&2
+        return 1
+    fi
+
+    # Resolve credentials via aws configure export-credentials
+    local cred_json
+    if ! cred_json=$(aws configure export-credentials --format json 2>&1); then
+        echo "Error: Failed to resolve AWS credentials. Run 'aws sso login' or configure AWS credentials." >&2
+        echo "$cred_json" >&2
+        return 1
+    fi
+
+    # Extract credential fields from JSON
+    local access_key secret_key session_token
+    access_key=$(printf '%s' "$cred_json" | jq -r '.AccessKeyId // empty')
+    secret_key=$(printf '%s' "$cred_json" | jq -r '.SecretAccessKey // empty')
+    session_token=$(printf '%s' "$cred_json" | jq -r '.SessionToken // empty')
+
+    if [ -z "$access_key" ] || [ -z "$secret_key" ]; then
+        echo "Error: Failed to resolve AWS credentials. Run 'aws sso login' or configure AWS credentials." >&2
+        return 1
+    fi
+
+    # Resolve region: env var takes precedence, then aws configure
+    local region="${AWS_DEFAULT_REGION:-}"
+    if [ -z "$region" ]; then
+        region=$(aws configure get region 2>/dev/null) || true
+    fi
+    if [ -z "$region" ]; then
+        echo "Error: AWS region could not be determined. Set AWS_DEFAULT_REGION or run 'aws configure set region <region>'." >&2
+        return 1
+    fi
+
+    # Output KEY=VALUE lines for consumption by caller
+    echo "AWS_ACCESS_KEY_ID=${access_key}"
+    echo "AWS_SECRET_ACCESS_KEY=${secret_key}"
+    echo "AWS_SESSION_TOKEN=${session_token}"
+    echo "AWS_DEFAULT_REGION=${region}"
 }
