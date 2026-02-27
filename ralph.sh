@@ -103,7 +103,10 @@ case "$SUBCMD" in
                 echo "Error: failed to start sandbox '$SANDBOX_NAME'" >&2
                 exit 1
             fi
-            bootstrap_sandbox "$SANDBOX_NAME" "$SCRIPT_DIR"
+            if ! bootstrap_sandbox "$SANDBOX_NAME" "$SCRIPT_DIR"; then
+                echo "Error: failed to bootstrap sandbox '$SANDBOX_NAME'" >&2
+                exit 1
+            fi
         elif [ "$SANDBOX_STATUS" = "stopped" ]; then
             # Stopped: restart then exec
             if ! docker sandbox run "$SANDBOX_NAME"; then
