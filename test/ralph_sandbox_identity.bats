@@ -287,6 +287,263 @@ STUB
     assert_output ""
 }
 
+# =============================================================================
+# Edge-case tests (sandbox-identity/03)
+# =============================================================================
+
+# --- git detection edge cases: verify exit code is exactly 1 ---
+
+@test "derive_sandbox_name: not in git repo exits with code 1" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    unset RALPH_SCOPE_BRANCH
+    cd "$TEST_WORK_DIR"
+    run derive_sandbox_name
+    [ "$status" -eq 1 ]
+    assert_output --partial "not inside a git repository"
+}
+
+@test "derive_sandbox_name: no origin remote exits with code 1" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    export RALPH_SCOPE_BRANCH="main"
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    run derive_sandbox_name
+    [ "$status" -eq 1 ]
+    assert_output --partial 'no git remote "origin" found'
+}
+
+@test "derive_sandbox_name: detached HEAD exits with code 1 and suggests checkout" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="owner/repo"
+    unset RALPH_SCOPE_BRANCH
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    git checkout --detach -q
+    run derive_sandbox_name
+    [ "$status" -eq 1 ]
+    assert_output --partial "detached HEAD state"
+    assert_output --partial "Checkout a branch first"
+}
+
+@test "derive_sandbox_name: error messages are written to stderr" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    unset RALPH_SCOPE_BRANCH
+    cd "$TEST_WORK_DIR"
+    # Capture only stderr
+    run bash -c '. "$SCRIPT_DIR/lib/docker.sh"; derive_sandbox_name 2>/dev/null'
+    assert_failure
+    # stdout should be empty since errors go to stderr
+    assert_output ""
+}
+
+# --- branch with deep nested slashes ---
+
+@test "derive_sandbox_name: branch feature/auth/v2 produces correct name" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="minocys/ralph-docker"
+    export RALPH_SCOPE_BRANCH="feature/auth/v2"
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-minocys-ralph-docker-feature-auth-v2" ]
+}
+
+@test "derive_sandbox_name: branch with many nested slashes" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="acme/web"
+    export RALPH_SCOPE_BRANCH="feat/scope/auth/oauth2/v3"
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-acme-web-feat-scope-auth-oauth2-v3" ]
+}
+
+@test "derive_sandbox_name: branch with trailing slash is sanitized" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="owner/repo"
+    export RALPH_SCOPE_BRANCH="feature/"
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-owner-repo-feature" ]
+}
+
+@test "derive_sandbox_name: branch with leading slash is sanitized" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="owner/repo"
+    export RALPH_SCOPE_BRANCH="/feature"
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-owner-repo-feature" ]
+}
+
+# --- truncation edge cases ---
+
+@test "derive_sandbox_name: name at exactly 63 chars is not truncated" {
+    _load_docker_functions
+    # "ralph-" = 6 chars, need repo + branch components to total 57 chars
+    # repo: "aaa/bbbbbbbbbbbbbbbbbbbbb" sanitized = "aaa-bbbbbbbbbbbbbbbbbbbbb" (25 chars)
+    # branch: "ccccccccccccccccccccccccccccccc" (31 chars)
+    # total: 6 + 25 + 1 (dash) + 31 = 63
+    export RALPH_SCOPE_REPO="aaa/bbbbbbbbbbbbbbbbbbbbb"
+    export RALPH_SCOPE_BRANCH="ccccccccccccccccccccccccccccccc"
+    derive_sandbox_name
+    [ "${#SANDBOX_NAME}" -eq 63 ]
+    [ "$SANDBOX_NAME" = "ralph-aaa-bbbbbbbbbbbbbbbbbbbbb-ccccccccccccccccccccccccccccccc" ]
+}
+
+@test "derive_sandbox_name: name at 64 chars is truncated to 63" {
+    _load_docker_functions
+    # Same as above but one char longer in branch
+    export RALPH_SCOPE_REPO="aaa/bbbbbbbbbbbbbbbbbbbbb"
+    export RALPH_SCOPE_BRANCH="cccccccccccccccccccccccccccccccc"
+    derive_sandbox_name
+    [ "${#SANDBOX_NAME}" -le 63 ]
+}
+
+@test "derive_sandbox_name: truncation strips trailing dashes recursively" {
+    _load_docker_functions
+    # Craft a name where char 63 falls on a dash boundary after sanitization
+    # "ralph-" (6) + repo part + "-" + branch part
+    # Make it so truncation at 63 hits a dash that was produced by sanitization
+    export RALPH_SCOPE_REPO="aaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    export RALPH_SCOPE_BRANCH="x/cccccccccc"
+    derive_sandbox_name
+    # Verify no trailing dash
+    [[ "$SANDBOX_NAME" != *- ]]
+    [ "${#SANDBOX_NAME}" -le 63 ]
+}
+
+@test "derive_sandbox_name: very long repo+branch well over 63 chars" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="very-long-organization-name/this-is-an-extremely-long-repository-name-that-goes-on"
+    export RALPH_SCOPE_BRANCH="feature/very-long-branch-name-that-also-goes-on-and-on-forever"
+    derive_sandbox_name
+    [ "${#SANDBOX_NAME}" -le 63 ]
+    [[ "$SANDBOX_NAME" != *- ]]
+    # Verify prefix is correct
+    [[ "$SANDBOX_NAME" == ralph-* ]]
+}
+
+# --- determinism edge cases ---
+
+@test "derive_sandbox_name: deterministic across separate function loads" {
+    export RALPH_SCOPE_REPO="minocys/ralph-docker"
+    export RALPH_SCOPE_BRANCH="feature/auth/v2"
+
+    # First invocation
+    . "$SCRIPT_DIR/lib/docker.sh"
+    derive_sandbox_name
+    local first="$SANDBOX_NAME"
+
+    # Second invocation after re-sourcing
+    unset SANDBOX_NAME
+    . "$SCRIPT_DIR/lib/docker.sh"
+    derive_sandbox_name
+    [ "$first" = "$SANDBOX_NAME" ]
+}
+
+@test "derive_sandbox_name: deterministic with truncation" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="very-long-organization-name/extremely-long-repository-name-here"
+    export RALPH_SCOPE_BRANCH="feature/very-long-branch-name-that-goes-on-forever"
+    derive_sandbox_name
+    local first="$SANDBOX_NAME"
+    derive_sandbox_name
+    [ "$first" = "$SANDBOX_NAME" ]
+}
+
+@test "derive_sandbox_name: different inputs produce different names" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="acme/web-app"
+    export RALPH_SCOPE_BRANCH="main"
+    derive_sandbox_name
+    local first="$SANDBOX_NAME"
+
+    export RALPH_SCOPE_REPO="acme/web-app"
+    export RALPH_SCOPE_BRANCH="develop"
+    derive_sandbox_name
+    [ "$first" != "$SANDBOX_NAME" ]
+}
+
+# --- git fallback when env vars are partially set ---
+
+@test "derive_sandbox_name: RALPH_SCOPE_REPO set but RALPH_SCOPE_BRANCH unset falls back to git branch" {
+    _load_docker_functions
+    export RALPH_SCOPE_REPO="override/repo"
+    unset RALPH_SCOPE_BRANCH
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    # git branch --show-current returns "main" or "master" on init
+    local branch
+    branch=$(git branch --show-current)
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-override-repo-${branch}" ]
+}
+
+@test "derive_sandbox_name: RALPH_SCOPE_BRANCH set but RALPH_SCOPE_REPO unset falls back to git remote" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    export RALPH_SCOPE_BRANCH="my-branch"
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    git remote add origin https://github.com/testowner/testrepo.git
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-testowner-testrepo-my-branch" ]
+}
+
+# --- git URL format handling ---
+
+@test "derive_sandbox_name: HTTPS URL with .git suffix" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    export RALPH_SCOPE_BRANCH="main"
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    git remote add origin https://github.com/myorg/myrepo.git
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-myorg-myrepo-main" ]
+}
+
+@test "derive_sandbox_name: HTTPS URL without .git suffix" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    export RALPH_SCOPE_BRANCH="main"
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    git remote add origin https://github.com/myorg/myrepo
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-myorg-myrepo-main" ]
+}
+
+@test "derive_sandbox_name: SSH URL with .git suffix" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    export RALPH_SCOPE_BRANCH="main"
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    git remote add origin git@github.com:myorg/myrepo.git
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-myorg-myrepo-main" ]
+}
+
+@test "derive_sandbox_name: SSH URL without .git suffix" {
+    _load_docker_functions
+    unset RALPH_SCOPE_REPO
+    export RALPH_SCOPE_BRANCH="main"
+    cd "$TEST_WORK_DIR"
+    git init -q
+    git commit --allow-empty -m "init" -q
+    git remote add origin git@github.com:myorg/myrepo
+    derive_sandbox_name
+    [ "$SANDBOX_NAME" = "ralph-myorg-myrepo-main" ]
+}
+
+# --- lookup_sandbox edge cases ---
+
 @test "lookup_sandbox returns empty when no sandboxes exist" {
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
