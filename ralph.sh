@@ -1,7 +1,10 @@
 #!/bin/bash
 # ralph — autonomous build loop powered by Claude Code
 #
-# Usage: ralph <command> [options]
+# Usage: ralph [--docker] <command> [options]
+#
+# Global Options:
+#   --docker  Run the command inside a Docker sandbox
 #
 # Commands:
 #   plan   Run the planner (study specs, create tasks)
@@ -22,7 +25,10 @@ export SCRIPT_DIR
 
 # usage: print top-level help and exit
 usage() {
-    echo "Usage: ralph <command> [options]"
+    echo "Usage: ralph [--docker] <command> [options]"
+    echo ""
+    echo "Global Options:"
+    echo "  --docker  Run the command inside a Docker sandbox"
     echo ""
     echo "Commands:"
     echo "  plan   Run the planner (study specs, create tasks)"
@@ -32,10 +38,70 @@ usage() {
     echo "Run 'ralph <command> --help' for command-specific options."
 }
 
+# docker_usage: print docker-specific help and exit
+docker_usage() {
+    echo "Usage: ralph --docker <command> [options]"
+    echo ""
+    echo "Run a ralph command inside a Docker sandbox for the current repo+branch."
+    echo ""
+    echo "Commands:"
+    echo "  plan   Run the planner inside a sandbox"
+    echo "  build  Run the builder inside a sandbox"
+    echo "  task   Interact with the task backlog inside a sandbox"
+    echo ""
+    echo "The sandbox is derived from the current git repo and branch."
+    echo "If no sandbox exists, one is created and bootstrapped automatically."
+    echo ""
+    echo "Note: AWS SSO tokens have a limited lifetime. If using Bedrock,"
+    echo "re-run 'aws sso login' if credentials expire during a long session."
+}
+
 # Detect subcommand from first positional argument
 SUBCMD="${1:-}"
 
 case "$SUBCMD" in
+    # Docker sandbox dispatch: delegate to sandbox, no local setup
+    --docker)
+        shift
+        # Check for --help before anything else
+        if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+            docker_usage
+            exit 0
+        fi
+        # Require a subcommand after --docker
+        if [ $# -eq 0 ]; then
+            echo "Error: --docker requires a subcommand (e.g., ralph --docker build)" >&2
+            echo "Run 'ralph --docker --help' for usage" >&2
+            exit 1
+        fi
+        # Verify docker CLI is available
+        if ! command -v docker >/dev/null 2>&1; then
+            echo "Error: docker CLI not found. Install Docker: https://docs.docker.com/get-docker/" >&2
+            exit 1
+        fi
+        # Capture forwarded args (subcommand + all flags)
+        DOCKER_FORWARD_ARGS=("$@")
+        # Source docker.sh for sandbox functions
+        # shellcheck source=lib/docker.sh
+        . "$SCRIPT_DIR/lib/docker.sh"
+        # Derive sandbox name from repo+branch
+        derive_sandbox_name
+        # Check sandbox state
+        SANDBOX_STATUS=$(lookup_sandbox "$SANDBOX_NAME")
+        if [ -z "$SANDBOX_STATUS" ]; then
+            # No sandbox: create, bootstrap, exec
+            # (sandbox-bootstrap spec — implemented separately)
+            echo "Creating sandbox '$SANDBOX_NAME'..."
+            echo "Error: sandbox creation not yet implemented" >&2
+            exit 1
+        elif [ "$SANDBOX_STATUS" = "stopped" ]; then
+            # Stopped: restart then exec
+            docker sandbox run "$SANDBOX_NAME"
+        fi
+        # Exec ralph inside the sandbox
+        exec docker sandbox exec -it "$SANDBOX_NAME" ralph "${DOCKER_FORWARD_ARGS[@]}"
+        ;;
+
     # Task subcommand: exec directly to lib/task, no other setup
     task)
         shift
