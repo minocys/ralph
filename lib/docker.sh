@@ -199,6 +199,147 @@ lookup_sandbox() {
     esac
 }
 
+# create_sandbox: create a new Docker sandbox for the given name.
+# Usage: create_sandbox <name> <target_repo_dir> <ralph_docker_dir>
+# Creates sandbox with claude-code template, shell agent, and mounts.
+create_sandbox() {
+    local name="$1"
+    local target_repo_dir="$2"
+    local ralph_docker_dir="$3"
+
+    docker sandbox create \
+        -t docker/sandbox-templates:claude-code \
+        --name "$name" \
+        shell \
+        "$target_repo_dir" \
+        "${ralph_docker_dir}:ro"
+}
+
+# bootstrap_sandbox: one-time setup of ralph and dependencies inside a sandbox.
+# Usage: bootstrap_sandbox <name> <ralph_docker_dir>
+# Checks for marker file; if missing, installs ralph, postgres, and writes marker.
+bootstrap_sandbox() {
+    local name="$1"
+    local ralph_docker_dir="$2"
+
+    # Check if already bootstrapped
+    if docker sandbox exec "$name" test -f ~/.ralph/.bootstrapped 2>/dev/null; then
+        return 0
+    fi
+
+    echo "Bootstrapping sandbox '$name'..."
+
+    # Find the ralph-docker mount path inside the sandbox.
+    # The second mount argument becomes available at a path based on its basename.
+    local mount_basename
+    mount_basename=$(basename "$ralph_docker_dir")
+
+    # Install ralph and dependencies inside the sandbox
+    docker sandbox exec "$name" bash -c "
+        set -e
+
+        # Determine the ralph-docker mount path (search common mount locations)
+        RALPH_MOUNT=''
+        for candidate in \"/root/$mount_basename\" \"/home/agent/$mount_basename\" \"/$mount_basename\"; do
+            if [ -f \"\$candidate/ralph.sh\" ]; then
+                RALPH_MOUNT=\"\$candidate\"
+                break
+            fi
+        done
+        if [ -z \"\$RALPH_MOUNT\" ]; then
+            echo 'Error: could not locate ralph-docker mount inside sandbox' >&2
+            exit 1
+        fi
+
+        # Create ralph install directory
+        sudo mkdir -p /opt/ralph/lib
+        sudo mkdir -p /opt/ralph/db
+
+        # Copy ralph.sh to /usr/local/bin/ralph
+        sudo cp \"\$RALPH_MOUNT/ralph.sh\" /usr/local/bin/ralph
+        sudo chmod +x /usr/local/bin/ralph
+        # Patch SCRIPT_DIR to point to /opt/ralph
+        sudo sed -i 's|^SCRIPT_DIR=.*|SCRIPT_DIR=\"/opt/ralph\"|' /usr/local/bin/ralph
+
+        # Copy lib/, models.json, db/ to /opt/ralph/
+        sudo cp -r \"\$RALPH_MOUNT/lib/\"* /opt/ralph/lib/
+        sudo cp \"\$RALPH_MOUNT/models.json\" /opt/ralph/
+        if [ -d \"\$RALPH_MOUNT/db\" ]; then
+            sudo cp -r \"\$RALPH_MOUNT/db/\"* /opt/ralph/db/
+        fi
+
+        # Copy skills to ~/.claude/skills/
+        mkdir -p ~/.claude/skills
+        if [ -d \"\$RALPH_MOUNT/skills\" ]; then
+            cp -r \"\$RALPH_MOUNT/skills/\"* ~/.claude/skills/
+        fi
+
+        # Copy hooks
+        if [ -d \"\$RALPH_MOUNT/hooks\" ]; then
+            sudo mkdir -p /opt/ralph/hooks
+            sudo cp -r \"\$RALPH_MOUNT/hooks/\"* /opt/ralph/hooks/
+        fi
+
+        # Install jq if not present
+        if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq jq
+        fi
+
+        # Install psql client if not present
+        if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+        fi
+
+        # Set up PostgreSQL via Docker Compose inside sandbox
+        mkdir -p ~/.ralph
+        cat > ~/.ralph/docker-compose.yml <<'COMPOSE'
+services:
+  ralph-task-dev:
+    image: postgres:17-alpine
+    ports:
+      - \"5464:5432\"
+    environment:
+      POSTGRES_USER: ralph
+      POSTGRES_PASSWORD: ralph
+      POSTGRES_DB: ralph
+    healthcheck:
+      test: [\"CMD-SHELL\", \"pg_isready -U ralph\"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ralph-data:/var/lib/postgresql/data
+      - /opt/ralph/db:/docker-entrypoint-initdb.d:ro
+volumes:
+  ralph-data:
+COMPOSE
+
+        # Generate .env
+        cat > ~/.ralph/.env <<'ENVFILE'
+RALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph
+POSTGRES_PORT=5464
+ENVFILE
+
+        # Start PostgreSQL
+        docker compose -f ~/.ralph/docker-compose.yml up -d
+
+        # Wait for healthy
+        timeout=30
+        elapsed=0
+        while [ \"\$elapsed\" -lt \"\$timeout\" ]; do
+            if docker inspect --format '{{.State.Health.Status}}' ralph-task-dev 2>/dev/null | grep -q healthy; then
+                break
+            fi
+            sleep 1
+            elapsed=\$((elapsed + 1))
+        done
+
+        # Write bootstrap marker
+        touch ~/.ralph/.bootstrapped
+        echo 'Bootstrap complete.'
+    "
+}
+
 # resolve_aws_credentials: resolve current AWS credentials for sandbox injection.
 # Outputs KEY=VALUE lines for: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
 # AWS_SESSION_TOKEN, AWS_DEFAULT_REGION.

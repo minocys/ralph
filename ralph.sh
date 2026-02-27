@@ -89,11 +89,12 @@ case "$SUBCMD" in
         # Check sandbox state
         SANDBOX_STATUS=$(lookup_sandbox "$SANDBOX_NAME")
         if [ -z "$SANDBOX_STATUS" ]; then
-            # No sandbox: create, bootstrap, exec
-            # (sandbox-bootstrap spec — implemented separately)
+            # No sandbox: create, start, bootstrap, exec
+            TARGET_REPO_DIR="$(pwd)"
             echo "Creating sandbox '$SANDBOX_NAME'..."
-            echo "Error: sandbox creation not yet implemented" >&2
-            exit 1
+            create_sandbox "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"
+            docker sandbox run "$SANDBOX_NAME"
+            bootstrap_sandbox "$SANDBOX_NAME" "$SCRIPT_DIR"
         elif [ "$SANDBOX_STATUS" = "stopped" ]; then
             # Stopped: restart then exec
             docker sandbox run "$SANDBOX_NAME"

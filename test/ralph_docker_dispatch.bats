@@ -242,3 +242,206 @@ STUB
     assert_success
     assert_output --partial "exec -it"
 }
+
+# --- Sandbox lifecycle: not found → create + bootstrap + exec ---
+
+@test "ralph --docker creates sandbox when not found" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    # Simulate bootstrap marker check: not bootstrapped yet on first call
+    if echo "$*" | grep -q "test -f"; then
+        exit 1
+    fi
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # Verify create was called
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "sandbox create"
+}
+
+@test "ralph --docker bootstraps new sandbox before exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 1
+    fi
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # Verify sequence: create → run → bootstrap exec → final exec
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "sandbox create"
+    assert_output --partial "sandbox run"
+    assert_output --partial "sandbox exec"
+}
+
+@test "ralph --docker create passes sandbox template and mount paths" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 1
+    fi
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    # Verify template flag
+    assert_output --partial "docker/sandbox-templates:claude-code"
+    # Verify --name flag
+    assert_output --partial "--name"
+    # Verify shell agent type
+    assert_output --partial "shell"
+    # Verify read-only mount for ralph-docker dir
+    assert_output --partial ":ro"
+}
+
+@test "ralph --docker skips bootstrap when marker exists" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    # Bootstrap marker exists
+    if echo "$*" | grep -q "test -f"; then
+        exit 0
+    fi
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # Verify that bootstrap install commands were NOT run (only marker check + final exec)
+    local log
+    log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+    # Should have create, run, marker check exec, and final exec — but no bootstrap bash -c exec
+    local bootstrap_count
+    bootstrap_count=$(echo "$log" | grep -c "bash -c" || true)
+    [ "$bootstrap_count" -eq 0 ]
+}
+
+# --- Sandbox lifecycle: running → exec directly ---
+
+@test "ralph --docker execs directly when sandbox is running" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # Verify no create or run calls — only ls and exec
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    refute_output --partial "sandbox create"
+    refute_output --partial "sandbox run"
+    assert_output --partial "sandbox exec"
+}
+
+# --- Sandbox lifecycle: stopped → start + exec ---
+
+@test "ralph --docker restarts stopped sandbox then execs" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"stopped"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    # No create — sandbox already exists
+    refute_output --partial "sandbox create"
+    # Start it
+    assert_output --partial "sandbox run"
+    # Then exec
+    assert_output --partial "sandbox exec"
+}
