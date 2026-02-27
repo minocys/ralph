@@ -172,6 +172,27 @@ STUB
     run "$SCRIPT_DIR/ralph.sh" --docker build
     assert_failure
     assert_output --partial "docker CLI not found"
+    assert_output --partial "https://docs.docker.com/get-docker/"
+}
+
+@test "ralph --docker preflight check runs before sandbox operations" {
+    # Even with a valid subcommand, missing docker should fail immediately
+    rm -f "$STUB_DIR/docker"
+    local new_path="$STUB_DIR"
+    IFS=: read -ra dirs <<< "$PATH"
+    for d in "${dirs[@]}"; do
+        [ -x "$d/docker" ] && continue
+        new_path="$new_path:$d"
+    done
+    export PATH="$new_path"
+
+    # Verify no sandbox operations are attempted (no docker calls logged)
+    run "$SCRIPT_DIR/ralph.sh" --docker plan -n 1
+    assert_failure
+    assert_output --partial "Error:"
+    assert_output --partial "docker CLI not found"
+    # Ensure no docker call log was created (preflight exits before sandbox ops)
+    assert [ ! -f "$TEST_WORK_DIR/docker_calls.log" ]
 }
 
 # --- Sandbox state handling ---
