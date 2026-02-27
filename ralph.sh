@@ -95,12 +95,21 @@ case "$SUBCMD" in
             # No sandbox: create, start, bootstrap, exec
             TARGET_REPO_DIR="$(pwd)"
             echo "Creating sandbox '$SANDBOX_NAME'..."
-            create_sandbox "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"
-            docker sandbox run "$SANDBOX_NAME"
+            if ! create_sandbox "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"; then
+                echo "Error: failed to create sandbox '$SANDBOX_NAME'" >&2
+                exit 1
+            fi
+            if ! docker sandbox run "$SANDBOX_NAME"; then
+                echo "Error: failed to start sandbox '$SANDBOX_NAME'" >&2
+                exit 1
+            fi
             bootstrap_sandbox "$SANDBOX_NAME" "$SCRIPT_DIR"
         elif [ "$SANDBOX_STATUS" = "stopped" ]; then
             # Stopped: restart then exec
-            docker sandbox run "$SANDBOX_NAME"
+            if ! docker sandbox run "$SANDBOX_NAME"; then
+                echo "Error: failed to restart sandbox '$SANDBOX_NAME'" >&2
+                exit 1
+            fi
         fi
         # Build -e flags for credential injection
         DOCKER_ENV_FLAGS=()

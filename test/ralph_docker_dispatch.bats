@@ -531,3 +531,340 @@ STUB
     assert_failure
     [ "$status" -eq 130 ]
 }
+
+# =============================================================================
+# Integration tests: full flow --docker dispatch
+# =============================================================================
+
+# --- Full lifecycle: not found → create → run → bootstrap → exec ---
+
+@test "integration: full flow from --docker build to exec verifies correct ordering" {
+    # Comprehensive stub that logs each step with a sequence number
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "STEP: $1 $2" >> "$TEST_WORK_DIR/docker_calls.log"
+echo "FULL: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+
+# sandbox ls: no sandbox exists
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+
+# sandbox create: succeed
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+
+# sandbox run: succeed
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+
+# sandbox exec: marker check fails (not bootstrapped), bootstrap succeeds, final exec succeeds
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 1
+    fi
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+
+    # Verify the complete sequence by line ordering in log
+    local log
+    log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+
+    # Extract STEP lines for ordering verification
+    local steps
+    steps=$(echo "$log" | grep "^STEP:" | cut -d' ' -f2-)
+
+    # 1. sandbox ls (lookup)
+    local ls_line create_line run_line exec_marker_line exec_bootstrap_line exec_final_line
+    ls_line=$(echo "$log" | grep -n "^STEP: sandbox ls" | head -1 | cut -d: -f1)
+    create_line=$(echo "$log" | grep -n "^STEP: sandbox create" | head -1 | cut -d: -f1)
+    run_line=$(echo "$log" | grep -n "^STEP: sandbox run" | head -1 | cut -d: -f1)
+
+    # All exec calls (marker check, bootstrap, and final exec)
+    local exec_lines
+    exec_lines=$(echo "$log" | grep -n "^STEP: sandbox exec" | cut -d: -f1)
+    local first_exec_line last_exec_line
+    first_exec_line=$(echo "$exec_lines" | head -1)
+    last_exec_line=$(echo "$exec_lines" | tail -1)
+
+    # Verify ordering: ls < create < run < exec calls
+    [ "$ls_line" -lt "$create_line" ]
+    [ "$create_line" -lt "$run_line" ]
+    [ "$run_line" -lt "$first_exec_line" ]
+
+    # Verify the final exec contains the ralph command
+    assert_output --partial "ralph build"
+}
+
+@test "integration: full flow includes bootstrap marker check before exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$TEST_WORK_DIR/docker_calls.log"
+
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 1
+    fi
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+
+    # Verify the bootstrap marker check (test -f) was attempted
+    local log
+    log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+    echo "$log" | grep -q "test -f"
+}
+
+# --- Task subcommand passthrough ---
+
+@test "integration: --docker task claim id passes through to sandbox exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker task claim my-task-01
+    assert_success
+    assert_output --partial "ralph task claim my-task-01"
+}
+
+@test "integration: --docker task show id passes through to sandbox exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker task show my-task-01
+    assert_success
+    assert_output --partial "ralph task show my-task-01"
+}
+
+# --- Failed sandbox create exits with error ---
+
+@test "integration: --docker exits with error when sandbox create fails" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    echo "Error: failed to create sandbox" >&2
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_failure
+}
+
+@test "integration: --docker does not exec when sandbox create fails" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    echo "Error: disk space exhausted" >&2
+    exit 1
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_failure
+    # Verify exec was never called (create failed before exec)
+    if [ -f "$TEST_WORK_DIR/docker_calls.log" ]; then
+        local log
+        log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+        local exec_count
+        exec_count=$(echo "$log" | grep -c "sandbox exec" || true)
+        [ "$exec_count" -eq 0 ]
+    fi
+}
+
+@test "integration: --docker exits with error when sandbox run fails" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "create" ]; then
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "run" ]; then
+    echo "Error: sandbox failed to start" >&2
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_failure
+}
+
+# --- Multiple invocations reuse existing running sandbox ---
+
+@test "integration: running sandbox is reused without create or run" {
+    # Simulate a sandbox that is already running (from a previous invocation)
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    # First invocation: build
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+
+    local log
+    log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+
+    # No sandbox create or run should be called
+    local create_count run_count
+    create_count=$(echo "$log" | grep -c "sandbox create" || true)
+    run_count=$(echo "$log" | grep -c "sandbox run" || true)
+    [ "$create_count" -eq 0 ]
+    [ "$run_count" -eq 0 ]
+
+    # Only ls and exec should be called
+    echo "$log" | grep -q "sandbox ls"
+    echo "$log" | grep -q "sandbox exec"
+}
+
+@test "integration: second invocation to running sandbox skips create and bootstrap" {
+    # Simulate two sequential invocations to a running sandbox
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    # First invocation
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    assert_output --partial "ralph build"
+
+    # Reset log for second invocation
+    : > "$TEST_WORK_DIR/docker_calls.log"
+
+    # Second invocation with different subcommand
+    run "$SCRIPT_DIR/ralph.sh" --docker plan -n 1
+    assert_success
+    assert_output --partial "ralph plan -n 1"
+
+    # Verify second invocation also skipped create, run, and bootstrap
+    local log
+    log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+    local create_count run_count bash_c_count
+    create_count=$(echo "$log" | grep -c "sandbox create" || true)
+    run_count=$(echo "$log" | grep -c "sandbox run" || true)
+    bash_c_count=$(echo "$log" | grep -c "bash -c" || true)
+    [ "$create_count" -eq 0 ]
+    [ "$run_count" -eq 0 ]
+    [ "$bash_c_count" -eq 0 ]
+}
+
+@test "integration: sandbox name is derived consistently across invocations" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    # First invocation
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # The exec call should reference the consistent sandbox name
+    assert_output --partial "ralph-test-repo-main"
+
+    # Second invocation
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "ralph-test-repo-main"
+}
