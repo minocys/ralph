@@ -314,10 +314,13 @@ volumes:
   ralph-data:
 COMPOSE
 
-        # Generate .env
+        # Generate .env with same defaults as .env.example
         cat > ~/.ralph/.env <<'ENVFILE'
-RALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph
+POSTGRES_USER=ralph
+POSTGRES_PASSWORD=ralph
+POSTGRES_DB=ralph
 POSTGRES_PORT=5464
+RALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph
 ENVFILE
 
         # Start PostgreSQL
