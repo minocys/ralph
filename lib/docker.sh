@@ -222,8 +222,8 @@ bootstrap_sandbox() {
     local name="$1"
     local ralph_docker_dir="$2"
 
-    # Check if already bootstrapped
-    if docker sandbox exec "$name" test -f ~/.ralph/.bootstrapped 2>/dev/null; then
+    # Check if already bootstrapped (use bash -c so ~ expands inside the sandbox)
+    if docker sandbox exec "$name" bash -c 'test -f ~/.ralph/.bootstrapped' 2>/dev/null; then
         return 0
     fi
 

@@ -510,6 +510,31 @@ STUB
     assert_output --partial "touch ~/.ralph/.bootstrapped"
 }
 
+# --- bootstrap_sandbox() marker check uses docker sandbox exec test -f ---
+
+@test "marker check uses docker sandbox exec test -f" {
+    # Override docker stub: marker check succeeds (already bootstrapped)
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 0
+    fi
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    _load_docker_functions
+    bootstrap_sandbox "ralph-test-main" "/opt/ralph-docker"
+
+    # Verify the marker check command: docker sandbox exec <name> bash -c 'test -f ~/.ralph/.bootstrapped'
+    # The ~ must be passed literally (inside single quotes) so it expands in the sandbox, not on the host
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "sandbox exec ralph-test-main bash -c test -f ~/.ralph/.bootstrapped"
+}
+
 # --- bootstrap_sandbox() skips when marker exists ---
 
 @test "bootstrap skips when marker file already exists" {
@@ -529,12 +554,12 @@ STUB
     _load_docker_functions
     bootstrap_sandbox "ralph-test-main" "/opt/ralph-docker"
 
-    # Should only have marker check, no bash -c install script
+    # Should only have the marker check, no install script (which contains set -e)
     local log
     log=$(cat "$TEST_WORK_DIR/docker_calls.log")
-    local bash_c_count
-    bash_c_count=$(echo "$log" | grep -c "bash -c" || true)
-    [ "$bash_c_count" -eq 0 ]
+    local install_count
+    install_count=$(echo "$log" | grep -c "set -e" || true)
+    [ "$install_count" -eq 0 ]
 }
 
 # --- bootstrap_sandbox() invokes docker sandbox exec with sandbox name ---

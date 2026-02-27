@@ -385,10 +385,11 @@ STUB
     # Verify that bootstrap install commands were NOT run (only marker check + final exec)
     local log
     log=$(cat "$TEST_WORK_DIR/docker_calls.log")
-    # Should have create, run, marker check exec, and final exec — but no bootstrap bash -c exec
-    local bootstrap_count
-    bootstrap_count=$(echo "$log" | grep -c "bash -c" || true)
-    [ "$bootstrap_count" -eq 0 ]
+    # Should have create, run, marker check exec, and final exec — but no bootstrap install script
+    # The install script contains "set -e"; the marker check does not
+    local install_count
+    install_count=$(echo "$log" | grep -c "set -e" || true)
+    [ "$install_count" -eq 0 ]
 }
 
 # --- Sandbox lifecycle: running → exec directly ---
