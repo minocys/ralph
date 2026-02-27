@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# test/ralph_sandbox_bootstrap.bats — Tests for create_sandbox() and bootstrap marker
+# test/ralph_sandbox_bootstrap.bats — Tests for create_sandbox(), bootstrap_sandbox(), and bootstrap marker
 
 load test_helper
 
@@ -192,4 +192,255 @@ STUB
 
     run cat "$TEST_WORK_DIR/docker_calls.log"
     assert_output --partial "sandbox run ralph-test-repo-main"
+}
+
+# =============================================================================
+# bootstrap_sandbox() — ralph installation inside sandbox
+# =============================================================================
+
+# Helper: set up a docker stub that logs full args and simulates
+# "not yet bootstrapped" (marker check returns 1).
+_setup_bootstrap_docker_stub() {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$TEST_WORK_DIR/docker_calls.log"
+# Marker check: simulate not bootstrapped
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 1
+    fi
+fi
+# All other calls succeed
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+}
+
+# Helper: run bootstrap_sandbox and return the log content
+_run_bootstrap() {
+    _setup_bootstrap_docker_stub
+    _load_docker_functions
+    bootstrap_sandbox "ralph-test-main" "/opt/ralph-docker"
+}
+
+# --- bootstrap_sandbox() copies ralph.sh to /usr/local/bin/ralph ---
+
+@test "bootstrap installs ralph.sh to /usr/local/bin/ralph" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'cp "$RALPH_MOUNT/ralph.sh" /usr/local/bin/ralph'
+}
+
+@test "bootstrap makes /usr/local/bin/ralph executable" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "chmod +x /usr/local/bin/ralph"
+}
+
+@test "bootstrap patches SCRIPT_DIR to /opt/ralph" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'SCRIPT_DIR="/opt/ralph"'
+}
+
+# --- bootstrap_sandbox() copies lib/ to writable location ---
+
+@test "bootstrap copies lib/ to /opt/ralph/lib/" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'cp -r "$RALPH_MOUNT/lib/"* /opt/ralph/lib/'
+}
+
+@test "bootstrap creates /opt/ralph/lib directory" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "mkdir -p /opt/ralph/lib"
+}
+
+# --- bootstrap_sandbox() copies models.json ---
+
+@test "bootstrap copies models.json to /opt/ralph/" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'cp "$RALPH_MOUNT/models.json" /opt/ralph/'
+}
+
+# --- bootstrap_sandbox() copies skills/ to ~/.claude/skills/ ---
+
+@test "bootstrap copies skills/ to ~/.claude/skills/" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'cp -r "$RALPH_MOUNT/skills/"* ~/.claude/skills/'
+}
+
+@test "bootstrap creates ~/.claude/skills/ directory" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "mkdir -p ~/.claude/skills"
+}
+
+# --- bootstrap_sandbox() copies hooks/ ---
+
+@test "bootstrap copies hooks/ to /opt/ralph/hooks/" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'cp -r "$RALPH_MOUNT/hooks/"* /opt/ralph/hooks/'
+}
+
+# --- bootstrap_sandbox() copies db/ ---
+
+@test "bootstrap copies db/ to /opt/ralph/db/" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'cp -r "$RALPH_MOUNT/db/"* /opt/ralph/db/'
+}
+
+@test "bootstrap creates /opt/ralph/db directory" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "mkdir -p /opt/ralph/db"
+}
+
+# --- bootstrap_sandbox() installs jq and psql client ---
+
+@test "bootstrap installs jq via apt-get" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "apt-get install -y -qq jq"
+}
+
+@test "bootstrap installs postgresql-client via apt-get" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "apt-get install -y -qq postgresql-client"
+}
+
+@test "bootstrap uses sudo for apt-get install" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "sudo apt-get install -y -qq jq"
+    assert_output --partial "sudo apt-get install -y -qq postgresql-client"
+}
+
+# --- bootstrap_sandbox() sets up PostgreSQL ---
+
+@test "bootstrap generates docker-compose.yml at ~/.ralph/" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "~/.ralph/docker-compose.yml"
+}
+
+@test "bootstrap compose file uses postgres:17-alpine image" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "postgres:17-alpine"
+}
+
+@test "bootstrap compose file maps port 5464" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "5464:5432"
+}
+
+@test "bootstrap compose file mounts init scripts from /opt/ralph/db" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "/opt/ralph/db:/docker-entrypoint-initdb.d:ro"
+}
+
+@test "bootstrap starts PostgreSQL via docker compose up" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "docker compose -f ~/.ralph/docker-compose.yml up -d"
+}
+
+# --- bootstrap_sandbox() generates .env ---
+
+@test "bootstrap generates .env with RALPH_DB_URL" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "RALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph"
+}
+
+@test "bootstrap generates .env with POSTGRES_PORT" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "POSTGRES_PORT=5464"
+}
+
+# --- bootstrap_sandbox() writes marker ---
+
+@test "bootstrap writes .bootstrapped marker" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "touch ~/.ralph/.bootstrapped"
+}
+
+# --- bootstrap_sandbox() skips when marker exists ---
+
+@test "bootstrap skips when marker file already exists" {
+    # Override docker stub: marker check succeeds (already bootstrapped)
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    if echo "$*" | grep -q "test -f"; then
+        exit 0
+    fi
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    _load_docker_functions
+    bootstrap_sandbox "ralph-test-main" "/opt/ralph-docker"
+
+    # Should only have marker check, no bash -c install script
+    local log
+    log=$(cat "$TEST_WORK_DIR/docker_calls.log")
+    local bash_c_count
+    bash_c_count=$(echo "$log" | grep -c "bash -c" || true)
+    [ "$bash_c_count" -eq 0 ]
+}
+
+# --- bootstrap_sandbox() invokes docker sandbox exec with sandbox name ---
+
+@test "bootstrap exec targets the correct sandbox name" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    # The install exec call: sandbox exec ralph-test-main bash -c ...
+    assert_output --partial "sandbox exec ralph-test-main bash -c"
+}
+
+# --- bootstrap_sandbox() uses set -e for fail-fast ---
+
+@test "bootstrap script uses set -e for fail-fast" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "set -e"
+}
+
+# --- bootstrap_sandbox() searches for mount path ---
+
+@test "bootstrap searches common mount locations for ralph-docker" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    # Uses basename of ralph_docker_dir to search mount paths
+    assert_output --partial "/root/ralph-docker"
+    assert_output --partial "/home/agent/ralph-docker"
+}
+
+# --- bootstrap_sandbox() uses sudo for privileged operations ---
+
+@test "bootstrap uses sudo for copying to /opt/ralph" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial "sudo cp"
+    assert_output --partial "sudo mkdir -p /opt/ralph"
+}
+
+@test "bootstrap uses sudo for copying to /usr/local/bin" {
+    _run_bootstrap
+    run cat "$TEST_WORK_DIR/docker_calls.log"
+    assert_output --partial 'sudo cp "$RALPH_MOUNT/ralph.sh" /usr/local/bin/ralph'
 }
