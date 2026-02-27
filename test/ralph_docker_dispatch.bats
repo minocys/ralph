@@ -46,6 +46,10 @@ STUB
     export TEST_WORK_DIR
     export STUB_DIR
 
+    # Prevent detect_backend() from reading host ~/.claude/settings.json
+    export HOME="$TEST_WORK_DIR"
+    unset CLAUDE_CODE_USE_BEDROCK
+
     cd "$TEST_WORK_DIR"
 }
 

@@ -84,6 +84,9 @@ case "$SUBCMD" in
         # Source docker.sh for sandbox functions
         # shellcheck source=lib/docker.sh
         . "$SCRIPT_DIR/lib/docker.sh"
+        # Source config.sh for detect_backend()
+        # shellcheck source=lib/config.sh
+        . "$SCRIPT_DIR/lib/config.sh"
         # Derive sandbox name from repo+branch
         derive_sandbox_name
         # Check sandbox state
@@ -99,8 +102,23 @@ case "$SUBCMD" in
             # Stopped: restart then exec
             docker sandbox run "$SANDBOX_NAME"
         fi
+        # Build -e flags for credential injection
+        DOCKER_ENV_FLAGS=()
+        detect_backend
+        if [ "$ACTIVE_BACKEND" = "bedrock" ]; then
+            # Forward CLAUDE_CODE_USE_BEDROCK=1 into sandbox
+            DOCKER_ENV_FLAGS+=(-e "CLAUDE_CODE_USE_BEDROCK=1")
+            # Resolve AWS credentials and inject via -e flags
+            cred_output=""
+            if ! cred_output=$(resolve_aws_credentials); then
+                exit 1
+            fi
+            while IFS='=' read -r key value; do
+                [ -n "$key" ] && DOCKER_ENV_FLAGS+=(-e "${key}=${value}")
+            done <<< "$cred_output"
+        fi
         # Exec ralph inside the sandbox
-        exec docker sandbox exec -it "$SANDBOX_NAME" ralph "${DOCKER_FORWARD_ARGS[@]}"
+        exec docker sandbox exec -it "${DOCKER_ENV_FLAGS[@]}" "$SANDBOX_NAME" ralph "${DOCKER_FORWARD_ARGS[@]}"
         ;;
 
     # Task subcommand: exec directly to lib/task, no other setup
