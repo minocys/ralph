@@ -262,3 +262,71 @@ STUB
     assert_success
     assert_output --partial "ralph build -n 3 --model opus-4.5"
 }
+
+# --- RALPH_DOCKER_ENV custom variable passthrough ---
+
+@test "RALPH_DOCKER_ENV=FOO,BAR adds -e FOO=val -e BAR=val to exec" {
+    _setup_running_sandbox_docker_stub
+    unset CLAUDE_CODE_USE_BEDROCK
+    export HOME="$TEST_WORK_DIR"
+    export RALPH_DOCKER_ENV="FOO,BAR"
+    export FOO="hello"
+    export BAR="world"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    assert_output --partial "-e FOO=hello"
+    assert_output --partial "-e BAR=world"
+}
+
+@test "RALPH_DOCKER_ENV skips unset variables silently" {
+    _setup_running_sandbox_docker_stub
+    unset CLAUDE_CODE_USE_BEDROCK
+    export HOME="$TEST_WORK_DIR"
+    export RALPH_DOCKER_ENV="SET_VAR,UNSET_VAR"
+    export SET_VAR="present"
+    unset UNSET_VAR
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    assert_output --partial "-e SET_VAR=present"
+    refute_output --partial "UNSET_VAR"
+}
+
+@test "empty RALPH_DOCKER_ENV adds no extra -e flags" {
+    _setup_running_sandbox_docker_stub
+    unset CLAUDE_CODE_USE_BEDROCK
+    export HOME="$TEST_WORK_DIR"
+    export RALPH_DOCKER_ENV=""
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # With anthropic backend and empty RALPH_DOCKER_ENV, no -e flags at all
+    refute_output --partial " -e "
+}
+
+@test "unset RALPH_DOCKER_ENV adds no extra -e flags" {
+    _setup_running_sandbox_docker_stub
+    unset CLAUDE_CODE_USE_BEDROCK
+    export HOME="$TEST_WORK_DIR"
+    unset RALPH_DOCKER_ENV
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    refute_output --partial " -e "
+}
+
+@test "RALPH_DOCKER_ENV works alongside bedrock credential flags" {
+    _setup_running_sandbox_docker_stub
+    _setup_aws_stub
+    export CLAUDE_CODE_USE_BEDROCK=1
+    unset AWS_DEFAULT_REGION
+    export RALPH_DOCKER_ENV="MY_CUSTOM"
+    export MY_CUSTOM="customval"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    # Both bedrock and custom env flags should be present
+    assert_output --partial "-e AWS_ACCESS_KEY_ID="
+    assert_output --partial "-e MY_CUSTOM=customval"
+}

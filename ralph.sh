@@ -129,6 +129,16 @@ case "$SUBCMD" in
                 [ -n "$key" ] && DOCKER_ENV_FLAGS+=(-e "${key}=${value}")
             done <<< "$cred_output"
         fi
+        # RALPH_DOCKER_ENV: pass custom environment variables into the sandbox
+        if [ -n "${RALPH_DOCKER_ENV:-}" ]; then
+            IFS=',' read -ra _env_names <<< "$RALPH_DOCKER_ENV"
+            for _env_name in "${_env_names[@]}"; do
+                [ -z "$_env_name" ] && continue
+                if [ -n "${!_env_name+x}" ]; then
+                    DOCKER_ENV_FLAGS+=(-e "${_env_name}=${!_env_name}")
+                fi
+            done
+        fi
         # Exec ralph inside the sandbox
         exec docker sandbox exec -it "${DOCKER_ENV_FLAGS[@]}" "$SANDBOX_NAME" ralph "${DOCKER_FORWARD_ARGS[@]}"
         ;;
