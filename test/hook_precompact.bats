@@ -149,11 +149,13 @@ teardown() {
 # PreCompact hook: database unavailability
 # ---------------------------------------------------------------------------
 @test "precompact hook handles database unavailability gracefully" {
-    unset RALPH_DB_URL
+    # Point at a DB that cannot connect (lib/task sources .env as fallback
+    # when RALPH_DB_URL is unset, so we must set it to an unreachable URL)
+    export RALPH_DB_URL="postgres://nobody:wrong@localhost:19999/nonexistent"
 
     run "$SCRIPT_DIR/hooks/precompact.sh"
     assert_success
 
-    # Must still output continue:false JSON and exit 0
+    # Must still output continue:true JSON and exit 0
     echo "$output" | jq -e '.continue == true'
 }
