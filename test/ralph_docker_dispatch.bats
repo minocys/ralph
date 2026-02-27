@@ -445,3 +445,85 @@ STUB
     # Then exec
     assert_output --partial "sandbox exec"
 }
+
+# --- Exec invocation: correct args ---
+
+@test "ralph --docker exec passes correct args to docker sandbox exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+echo "DOCKER_CMD: $*" >> "$TEST_WORK_DIR/docker_calls.log"
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    echo "EXEC_ARGS: $*"
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build -n 3 --model opus-4.5 --danger
+    assert_success
+    # Verify full exec structure: sandbox exec -it <name> ralph <subcmd> [flags]
+    assert_output --partial "sandbox exec -it ralph-test-repo-main ralph build -n 3 --model opus-4.5 --danger"
+}
+
+# --- Exit code forwarding ---
+
+@test "ralph --docker forwards exit code 0 from sandbox exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    exit 0
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+}
+
+@test "ralph --docker forwards exit code 1 from sandbox exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_failure
+    [ "$status" -eq 1 ]
+}
+
+@test "ralph --docker forwards exit code 130 from sandbox exec" {
+    cat > "$STUB_DIR/docker" <<'STUB'
+#!/bin/bash
+if [ "$1" = "sandbox" ] && [ "$2" = "ls" ]; then
+    echo '[{"name":"ralph-test-repo-main","status":"running"}]'
+    exit 0
+fi
+if [ "$1" = "sandbox" ] && [ "$2" = "exec" ]; then
+    exit 130
+fi
+exit 0
+STUB
+    chmod +x "$STUB_DIR/docker"
+
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_failure
+    [ "$status" -eq 130 ]
+}
