@@ -5,21 +5,21 @@
 #   docker compose down -v       # stop and delete data
 #
 # Connection URL (set in your shell profile or .env):
-#   export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
+#   export RALPH_DB_URL="postgres://ralph:ralph@localhost:5464/ralph"
 
 services:
-  ralph-task-db:
+  ralph-task-dev:
     image: postgres:17-alpine
-    container_name: ralph-task-db
+    container_name: ralph-task-dev
     env_file: .env
     ports:
-      - "${POSTGRES_PORT:-5499}:5432"
+      - "${POSTGRES_PORT:-5464}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ralph}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ralph}
       POSTGRES_DB: ${POSTGRES_DB:-ralph}
     volumes:
-      - ralph-task-data:/var/lib/postgresql/data
+      - ralph-task-data-dev:/var/lib/postgresql/data
       - ./db/init/:/docker-entrypoint-initdb.d/:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ralph}"]
@@ -28,4 +28,4 @@ services:
       retries: 5
 
 volumes:
-  ralph-task-data:
+  ralph-task-data-dev:

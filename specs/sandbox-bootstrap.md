@@ -31,7 +31,7 @@ When a Docker sandbox is created for the first time, it needs ralph installed, P
 ### PostgreSQL setup
 
 - A Docker Compose file is generated at `~/.ralph/docker-compose.yml` inside the sandbox during bootstrap.
-- The compose file defines a `ralph-task-db` service using `postgres:17-alpine` with the same configuration as the host compose file: port 5499, credentials `ralph/ralph/ralph`, healthcheck, and a data volume.
+- The compose file defines a `ralph-task-dev` service using `postgres:17-alpine` with the same configuration as the host compose file: port 5464, credentials `ralph/ralph/ralph`, healthcheck, and a data volume.
 - The compose file includes an `init` volume mount that points to the schema SQL file copied during installation.
 - The `.env` file is generated at `~/.ralph/.env` inside the sandbox with the same defaults as `.env.example`.
 - PostgreSQL is started via `docker compose -f ~/.ralph/docker-compose.yml up -d` inside the sandbox.

@@ -15,7 +15,7 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
     # shellcheck disable=SC1091
     . "$SCRIPT_DIR/.env"
 fi
-export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5499/ralph}"
+export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5464/ralph}"
 
 # Default scope for tests — set unconditionally at load time so that env vars
 # from the caller's shell (e.g. RALPH_SCOPE_REPO derived from git) are always
