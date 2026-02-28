@@ -160,6 +160,8 @@ _load_docker_functions() {
     # Create a git repo with no remote
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     run derive_sandbox_name
     assert_failure
@@ -173,6 +175,8 @@ _load_docker_functions() {
     # Create a git repo and detach HEAD
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git checkout --detach -q
     run derive_sandbox_name
@@ -309,6 +313,8 @@ STUB
     export RALPH_SCOPE_BRANCH="main"
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     run derive_sandbox_name
     [ "$status" -eq 1 ]
@@ -321,6 +327,8 @@ STUB
     unset RALPH_SCOPE_BRANCH
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git checkout --detach -q
     run derive_sandbox_name
@@ -472,6 +480,8 @@ STUB
     unset RALPH_SCOPE_BRANCH
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     # git branch --show-current returns "main" or "master" on init
     local branch
@@ -486,6 +496,8 @@ STUB
     export RALPH_SCOPE_BRANCH="my-branch"
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git remote add origin https://github.com/testowner/testrepo.git
     derive_sandbox_name
@@ -500,6 +512,8 @@ STUB
     export RALPH_SCOPE_BRANCH="main"
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git remote add origin https://github.com/myorg/myrepo.git
     derive_sandbox_name
@@ -512,6 +526,8 @@ STUB
     export RALPH_SCOPE_BRANCH="main"
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git remote add origin https://github.com/myorg/myrepo
     derive_sandbox_name
@@ -524,6 +540,8 @@ STUB
     export RALPH_SCOPE_BRANCH="main"
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git remote add origin git@github.com:myorg/myrepo.git
     derive_sandbox_name
@@ -536,6 +554,8 @@ STUB
     export RALPH_SCOPE_BRANCH="main"
     cd "$TEST_WORK_DIR"
     git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
     git commit --allow-empty -m "init" -q
     git remote add origin git@github.com:myorg/myrepo
     derive_sandbox_name
