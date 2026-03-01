@@ -92,25 +92,15 @@ case "$SUBCMD" in
         # Check sandbox state
         SANDBOX_STATUS=$(lookup_sandbox "$SANDBOX_NAME")
         if [ -z "$SANDBOX_STATUS" ]; then
-            # No sandbox: create, start, bootstrap, exec
+            # No sandbox: create, bootstrap, exec
             TARGET_REPO_DIR="$(pwd)"
             echo "Creating sandbox '$SANDBOX_NAME'..."
             if ! create_sandbox "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"; then
                 echo "Error: failed to create sandbox '$SANDBOX_NAME'" >&2
                 exit 1
             fi
-            if ! docker sandbox run "$SANDBOX_NAME"; then
-                echo "Error: failed to start sandbox '$SANDBOX_NAME'" >&2
-                exit 1
-            fi
             if ! bootstrap_sandbox "$SANDBOX_NAME" "$SCRIPT_DIR"; then
                 echo "Error: failed to bootstrap sandbox '$SANDBOX_NAME'" >&2
-                exit 1
-            fi
-        elif [ "$SANDBOX_STATUS" = "stopped" ]; then
-            # Stopped: restart then exec
-            if ! docker sandbox run "$SANDBOX_NAME"; then
-                echo "Error: failed to restart sandbox '$SANDBOX_NAME'" >&2
                 exit 1
             fi
         fi
