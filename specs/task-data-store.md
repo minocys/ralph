@@ -5,7 +5,7 @@ PostgreSQL-backed persistent storage for multi-agent task orchestration across e
 ## Requirements
 
 - Store task, dependency, and agent data in a PostgreSQL database
-- Connection via `RALPH_DB_URL` environment variable (e.g. `postgres://ralph:pass@db:5499/ralph`)
+- Connection via `RALPH_DB_URL` environment variable (e.g. `postgres://ralph:pass@db:5464/ralph`)
 - Create schema automatically on first invocation if tables do not exist
 - Task table schema:
   - `id` — text primary key, planner-assigned stable ID in `{spec-slug}/{seq}` format (e.g. `task-cli/01`, `task-store/03`)

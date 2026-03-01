@@ -33,7 +33,7 @@ teardown() {
 # --- ensure_env_file tests ---
 
 @test "ensure_env_file copies .env.example to .env when .env is missing" {
-    printf 'POSTGRES_USER=ralph\nPOSTGRES_PASSWORD=ralph\nPOSTGRES_DB=ralph\nPOSTGRES_PORT=5499\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env.example"
+    printf 'POSTGRES_USER=ralph\nPOSTGRES_PASSWORD=ralph\nPOSTGRES_DB=ralph\nPOSTGRES_PORT=5464\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph\n' > "$TEST_WORK_DIR/.env.example"
 
     SCRIPT_DIR="$TEST_WORK_DIR"
     _load_ensure_env_file
@@ -45,7 +45,7 @@ teardown() {
 }
 
 @test "ensure_env_file .env content matches .env.example" {
-    printf 'POSTGRES_USER=ralph\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env.example"
+    printf 'POSTGRES_USER=ralph\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph\n' > "$TEST_WORK_DIR/.env.example"
 
     SCRIPT_DIR="$TEST_WORK_DIR"
     _load_ensure_env_file
@@ -103,39 +103,39 @@ _source_env() {
 }
 
 @test "sourcing .env sets RALPH_DB_URL when not already set" {
-    printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
+    printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph\n' > "$TEST_WORK_DIR/.env"
     unset RALPH_DB_URL
     SCRIPT_DIR="$TEST_WORK_DIR"
     _source_env
-    [ "$RALPH_DB_URL" = "postgres://ralph:ralph@localhost:5499/ralph" ]
+    [ "$RALPH_DB_URL" = "postgres://ralph:ralph@localhost:5464/ralph" ]
 }
 
 @test "sourcing .env sets POSTGRES_* vars" {
-    printf 'POSTGRES_USER=ralph\nPOSTGRES_PASSWORD=ralph\nPOSTGRES_DB=ralph\nPOSTGRES_PORT=5499\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
+    printf 'POSTGRES_USER=ralph\nPOSTGRES_PASSWORD=ralph\nPOSTGRES_DB=ralph\nPOSTGRES_PORT=5464\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph\n' > "$TEST_WORK_DIR/.env"
     unset RALPH_DB_URL POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB POSTGRES_PORT
     SCRIPT_DIR="$TEST_WORK_DIR"
     _source_env
     [ "$POSTGRES_USER" = "ralph" ]
     [ "$POSTGRES_PASSWORD" = "ralph" ]
     [ "$POSTGRES_DB" = "ralph" ]
-    [ "$POSTGRES_PORT" = "5499" ]
+    [ "$POSTGRES_PORT" = "5464" ]
 }
 
 @test "sourcing .env preserves existing RALPH_DB_URL" {
-    printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
-    RALPH_DB_URL="postgres://custom:custom@remotehost:5499/mydb"
+    printf 'RALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph\n' > "$TEST_WORK_DIR/.env"
+    RALPH_DB_URL="postgres://custom:custom@remotehost:5464/mydb"
     SCRIPT_DIR="$TEST_WORK_DIR"
     _source_env
-    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5499/mydb" ]
+    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5464/mydb" ]
 }
 
 @test "sourcing .env loads POSTGRES_* even when RALPH_DB_URL is pre-set" {
-    printf 'POSTGRES_USER=ralph\nPOSTGRES_PORT=5499\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5499/ralph\n' > "$TEST_WORK_DIR/.env"
-    RALPH_DB_URL="postgres://custom:custom@remotehost:5499/mydb"
+    printf 'POSTGRES_USER=ralph\nPOSTGRES_PORT=5464\nRALPH_DB_URL=postgres://ralph:ralph@localhost:5464/ralph\n' > "$TEST_WORK_DIR/.env"
+    RALPH_DB_URL="postgres://custom:custom@remotehost:5464/mydb"
     unset POSTGRES_USER POSTGRES_PORT
     SCRIPT_DIR="$TEST_WORK_DIR"
     _source_env
     [ "$POSTGRES_USER" = "ralph" ]
-    [ "$POSTGRES_PORT" = "5499" ]
-    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5499/mydb" ]
+    [ "$POSTGRES_PORT" = "5464" ]
+    [ "$RALPH_DB_URL" = "postgres://custom:custom@remotehost:5464/mydb" ]
 }

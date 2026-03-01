@@ -1,4 +1,6 @@
 # AGENTS.md
 
 ## Tests
-`bats --tap test/`
+Run tests in parallel for faster execution.
+
+`bats --tap --jobs 6 test/`
