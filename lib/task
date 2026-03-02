@@ -6,6 +6,28 @@ set -euo pipefail
 # Database connection
 # ---------------------------------------------------------------------------
 db_check() {
+    # --- sqlite3 availability check ---
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        echo "Error: sqlite3 is required but not installed." >&2
+        echo "  macOS:  sqlite3 ships with Xcode Command Line Tools" >&2
+        echo "  Linux:  sudo apt install sqlite3  (Debian/Ubuntu)" >&2
+        echo "          sudo dnf install sqlite   (Fedora/RHEL)" >&2
+        return 1
+    fi
+
+    # --- sqlite3 version check (>= 3.35 for RETURNING clause) ---
+    local _ver
+    _ver="$(sqlite3 --version | awk '{print $1}')"
+    local _major _minor
+    _major="${_ver%%.*}"
+    _minor="${_ver#*.}"; _minor="${_minor%%.*}"
+    if (( _major < 3 )) || { (( _major == 3 )) && (( _minor < 35 )); }; then
+        echo "Error: sqlite3 >= 3.35 is required (found $_ver)." >&2
+        echo "  RETURNING clause support requires version 3.35+." >&2
+        return 1
+    fi
+
+    # --- RALPH_DB_PATH resolution ---
     if [[ -z "${RALPH_DB_PATH:-}" ]]; then
         # Resolve script directory following symlinks (handles ~/.local/bin/task symlink)
         local _source="${BASH_SOURCE[0]}"
