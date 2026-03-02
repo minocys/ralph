@@ -39,6 +39,16 @@ psql_cmd() {
 # sql_esc: double single quotes for SQL string literals
 sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
+# generate_uuid: produce a lowercase UUID v4 string.
+# macOS ships uuidgen (uppercase); Linux exposes /proc/sys/kernel/random/uuid.
+generate_uuid() {
+    if [[ -f /proc/sys/kernel/random/uuid ]]; then
+        cat /proc/sys/kernel/random/uuid
+    else
+        uuidgen | tr '[:upper:]' '[:lower:]'
+    fi
+}
+
 # Build a PostgreSQL TEXT[] literal from a JSON array of strings.
 # Usage: build_steps_literal "$json_array"   →   ARRAY['s1','s2']::TEXT[]
 # Returns "NULL" for empty/zero-length arrays.
