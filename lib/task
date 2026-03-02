@@ -1,12 +1,12 @@
 #!/bin/bash
-# task — CLI for interacting with the Ralph task backlog via PostgreSQL
+# task — CLI for interacting with the Ralph task backlog via SQLite
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Database connection
 # ---------------------------------------------------------------------------
 db_check() {
-    if [[ -z "${RALPH_DB_URL:-}" ]]; then
+    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
         # Resolve script directory following symlinks (handles ~/.local/bin/task symlink)
         local _source="${BASH_SOURCE[0]}"
         while [ -L "$_source" ]; do
@@ -25,15 +25,28 @@ db_check() {
             . "$_repo_dir/.env"
         fi
     fi
-    if [[ -z "${RALPH_DB_URL:-}" ]]; then
-        echo "Error: RALPH_DB_URL is not set." >&2
-        echo "Fix: cp .env.example .env   (in the ralph repo root)" >&2
-        exit 1
+    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
+        # Default to $REPO_ROOT/.ralph/tasks.db
+        local _source="${BASH_SOURCE[0]}"
+        while [ -L "$_source" ]; do
+            local _dir
+            _dir="$(cd -P "$(dirname "$_source")" && pwd)"
+            _source="$(readlink "$_source")"
+            [[ "$_source" != /* ]] && _source="$_dir/$_source"
+        done
+        local _script_dir
+        _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
+        RALPH_DB_PATH="$_script_dir/../.ralph/tasks.db"
     fi
+    # Ensure the directory exists
+    local _db_dir
+    _db_dir="$(dirname "$RALPH_DB_PATH")"
+    mkdir -p "$_db_dir"
+    export RALPH_DB_PATH
 }
 
-psql_cmd() {
-    psql "$RALPH_DB_URL" -tAX "$@"
+sqlite_cmd() {
+    sqlite3 -batch -separator '|' "$RALPH_DB_PATH" "$@"
 }
 
 # sql_esc: double single quotes for SQL string literals
