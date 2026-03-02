@@ -228,55 +228,54 @@ render_task_md() {
 # Schema management
 # ---------------------------------------------------------------------------
 ensure_schema() {
-    psql_cmd -c "
-    SET client_min_messages TO WARNING;
-    CREATE TABLE IF NOT EXISTS tasks (
-        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        slug            TEXT NOT NULL,
-        scope_repo      TEXT NOT NULL,
-        scope_branch    TEXT NOT NULL,
-        title           TEXT NOT NULL,
-        description     TEXT,
-        category        TEXT,
-        priority        INT DEFAULT 2,
-        status          TEXT DEFAULT 'open',
-        spec_ref        TEXT,
-        ref             TEXT,
-        result          JSONB,
-        assignee        TEXT,
-        lease_expires_at TIMESTAMPTZ,
-        retry_count     INT DEFAULT 0,
-        fail_reason     TEXT,
-        steps           TEXT[],
-        created_at      TIMESTAMPTZ DEFAULT now(),
-        updated_at      TIMESTAMPTZ,
-        deleted_at      TIMESTAMPTZ,
-        UNIQUE(scope_repo, scope_branch, slug)
-    );
+    sqlite_cmd <<'SQL'
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+PRAGMA busy_timeout=5000;
 
-    CREATE INDEX IF NOT EXISTS idx_tasks_scope_status
-        ON tasks(scope_repo, scope_branch, status, priority, created_at);
+CREATE TABLE IF NOT EXISTS tasks (
+    id              TEXT PRIMARY KEY,
+    slug            TEXT NOT NULL,
+    scope_repo      TEXT NOT NULL,
+    scope_branch    TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    category        TEXT,
+    priority        INTEGER DEFAULT 2,
+    status          TEXT DEFAULT 'open',
+    spec_ref        TEXT,
+    ref             TEXT,
+    result          TEXT,
+    assignee        TEXT,
+    lease_expires_at TEXT,
+    retry_count     INTEGER DEFAULT 0,
+    fail_reason     TEXT,
+    steps           TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT,
+    deleted_at      TEXT,
+    UNIQUE(scope_repo, scope_branch, slug)
+);
 
-    CREATE TABLE IF NOT EXISTS task_deps (
-        task_id    UUID REFERENCES tasks(id) ON DELETE CASCADE,
-        blocked_by UUID REFERENCES tasks(id) ON DELETE CASCADE,
-        PRIMARY KEY (task_id, blocked_by)
-    );
+CREATE INDEX IF NOT EXISTS idx_tasks_scope_status
+    ON tasks(scope_repo, scope_branch, status, priority, created_at);
 
-    CREATE TABLE IF NOT EXISTS agents (
-        id           TEXT PRIMARY KEY,
-        pid          INT,
-        hostname     TEXT,
-        scope_repo   TEXT NOT NULL DEFAULT '',
-        scope_branch TEXT NOT NULL DEFAULT '',
-        started_at   TIMESTAMPTZ DEFAULT now(),
-        status       TEXT DEFAULT 'active'
-    );
+CREATE TABLE IF NOT EXISTS task_deps (
+    task_id    TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+    blocked_by TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, blocked_by)
+);
 
-    -- Idempotent migration: add scope columns to agents if upgrading from unscoped schema
-    ALTER TABLE agents ADD COLUMN IF NOT EXISTS scope_repo   TEXT NOT NULL DEFAULT '';
-    ALTER TABLE agents ADD COLUMN IF NOT EXISTS scope_branch TEXT NOT NULL DEFAULT '';
-    " > /dev/null
+CREATE TABLE IF NOT EXISTS agents (
+    id           TEXT PRIMARY KEY,
+    pid          INTEGER,
+    hostname     TEXT,
+    scope_repo   TEXT NOT NULL DEFAULT '',
+    scope_branch TEXT NOT NULL DEFAULT '',
+    started_at   TEXT DEFAULT (datetime('now')),
+    status       TEXT DEFAULT 'active'
+);
+SQL
 }
 
 # ---------------------------------------------------------------------------
