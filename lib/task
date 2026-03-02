@@ -71,6 +71,43 @@ sqlite_cmd() {
     sqlite3 -batch -separator '|' "$RALPH_DB_PATH" "$@"
 }
 
+# sql_write: execute a write transaction with BEGIN IMMEDIATE, .bail on,
+# and retry-on-BUSY (exit code 5) with exponential backoff.
+# Usage: sql_write "INSERT INTO ...;" or echo "SQL" | sql_write
+# SQL is wrapped in BEGIN IMMEDIATE...COMMIT automatically.
+# Retries up to 3 times on SQLITE_BUSY after the pragma busy_timeout.
+sql_write() {
+    local sql
+    if [[ $# -gt 0 ]]; then
+        sql="$1"
+    else
+        sql="$(cat)"
+    fi
+
+    local wrapped
+    wrapped="$(printf '.bail on\nBEGIN IMMEDIATE;\n%s\nCOMMIT;\n' "$sql")"
+
+    local max_retries=3
+    local attempt=0
+    local backoff_ms=(100 300 900)
+    local rc=0
+
+    while true; do
+        rc=0
+        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' "$RALPH_DB_PATH" || rc=$?
+        if [[ $rc -eq 0 ]]; then
+            return 0
+        elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then
+            # SQLITE_BUSY — sleep and retry
+            local ms="${backoff_ms[$attempt]}"
+            sleep "$(awk "BEGIN{printf \"%.3f\", $ms/1000}")"
+            (( attempt++ ))
+        else
+            return $rc
+        fi
+    done
+}
+
 # sql_esc: double single quotes for SQL string literals
 sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
