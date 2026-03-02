@@ -27,3 +27,7 @@
 | [task-steps-simplification.md](task-steps-simplification.md) | Flatten task steps from a separate table into a TEXT[] column and remove step tracking |
 | [deprecate-plan-export.md](deprecate-plan-export.md) | Complete removal of `plan-export` command (replaced by `ralph task list --all`) |
 | [scoped-task-lists.md](scoped-task-lists.md) | Scope task and agent data by git repository and branch for multi-agent isolation |
+| [sqlite-data-store.md](sqlite-data-store.md) | SQLite database file replacing PostgreSQL for task storage (supersedes task-data-store, shared-env-config) |
+| [sqlite-concurrency.md](sqlite-concurrency.md) | WAL mode and serialized writes replacing PostgreSQL row-level locking for concurrent claims |
+| [sql-dialect-migration.md](sql-dialect-migration.md) | Port all PostgreSQL-specific SQL in lib/task to SQLite-compatible equivalents |
+| [docker-removal.md](docker-removal.md) | Remove Docker, docker-compose, and PostgreSQL infrastructure (supersedes docker-auto-start) |
