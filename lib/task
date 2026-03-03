@@ -562,7 +562,7 @@ SELECT '_SYNC_COUNTS_|' ||
 COMMIT;"
 
     # Execute the entire transaction and capture tagged output
-    # Use .bail on for fail-fast behavior (equivalent to psql ON_ERROR_STOP)
+    # Use .bail on for fail-fast behavior (abort on first error)
     local tx_output
     tx_output=$(printf '.bail on\n%s\n' "$sql" | sqlite_cmd)
 
