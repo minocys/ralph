@@ -47,7 +47,7 @@ load test_helper
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 1, updated: 1, deleted: 0, skipped (done): 0"
+    assert_output "inserted: 1, updated: 0, deleted: 0, skipped (done): 0"
 
     # Verify steps
     run "$SCRIPT_DIR/lib/task" show ps-dep-02
@@ -100,7 +100,7 @@ load test_helper
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 3, deleted: 0, skipped (done): 0"
+    assert_output "inserted: 0, updated: 1, deleted: 0, skipped (done): 0"
 
     # Verify new steps replaced old
     run "$SCRIPT_DIR/lib/task" show ps-rep-03
@@ -154,7 +154,7 @@ load test_helper
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 1, deleted: 1, skipped (done): 0"
+    assert_output "inserted: 0, updated: 0, deleted: 1, skipped (done): 0"
 
     # Verify ps-del-02 is soft deleted
     run "$SCRIPT_DIR/lib/task" show ps-del-02
@@ -200,10 +200,10 @@ load test_helper
     assert_success
     assert_output "inserted: 1, updated: 0, deleted: 0, skipped (done): 0"
 
-    # Second sync with same input — task exists, gets updated (but values are the same)
+    # Second sync with same input — no columns changed, so updated count is 0
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 1, deleted: 0, skipped (done): 0"
+    assert_output "inserted: 0, updated: 0, deleted: 0, skipped (done): 0"
 
     # Verify task is still correct
     run "$SCRIPT_DIR/lib/task" show ps-idem-01
@@ -228,7 +228,7 @@ load test_helper
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 2, deleted: 1, skipped (done): 0"
+    assert_output "inserted: 0, updated: 0, deleted: 1, skipped (done): 0"
 
     # ps-multi-02 should be deleted
     run "$SCRIPT_DIR/lib/task" show ps-multi-02

@@ -494,7 +494,15 @@ ON CONFLICT (scope_repo, scope_branch, slug) DO UPDATE SET
   ref = excluded.ref,
   steps = excluded.steps,
   updated_at = datetime('now')
-WHERE tasks.status != 'done';"
+WHERE tasks.status != 'done'
+  AND (tasks.title IS NOT excluded.title
+       OR tasks.description IS NOT excluded.description
+       OR tasks.category IS NOT excluded.category
+       OR tasks.priority IS NOT excluded.priority
+       OR tasks.spec_ref IS NOT excluded.spec_ref
+       OR tasks.ref IS NOT excluded.ref
+       OR tasks.steps IS NOT excluded.steps);
+SELECT '_UPSERT_|${esc_id}|' || changes();"
 
         # Replace deps (guarded: only for non-done tasks; resolve slugs to UUIDs)
         sql+="
@@ -543,11 +551,11 @@ UPDATE tasks SET status = 'deleted', deleted_at = datetime('now'), updated_at = 
 SELECT '_SYNC_DEL_|' || changes();"
     done
 
-    # Compute insert/update/skip counts from within the transaction
+    # Compute insert/skip counts from within the transaction
+    # (updated count is derived from per-upsert changes() tags emitted above)
     sql+="
 SELECT '_SYNC_COUNTS_|' ||
   (SELECT count(*) FROM _sync_pre WHERE status = 'done') || '|' ||
-  (SELECT count(*) FROM _sync_pre WHERE status != 'done') || '|' ||
   (${#all_ids[@]} - (SELECT count(*) FROM _sync_pre));"
 
     sql+="
@@ -560,13 +568,30 @@ COMMIT;"
 
     # Parse counts from tagged output
     local inserted=0 updated=0 deleted=0 skipped=0
+
+    # Sum per-upsert changes() for actual updates (slug existed in _sync_pre with status != 'done')
+    # _UPSERT_|<slug>|<changes> lines emitted after each upsert
+    local upsert_line
+    while IFS= read -r upsert_line; do
+        [[ -z "$upsert_line" ]] && continue
+        local u_changes
+        u_changes=$(printf '%s' "$upsert_line" | cut -d'|' -f3)
+        updated=$((updated + u_changes))
+    done < <(printf '%s\n' "$tx_output" | grep '^_UPSERT_|')
+
     local counts_line
     counts_line=$(printf '%s\n' "$tx_output" | grep '^_SYNC_COUNTS_|' | head -1)
     if [[ -n "$counts_line" ]]; then
         skipped=$(printf '%s' "$counts_line" | cut -d'|' -f2)
-        updated=$(printf '%s' "$counts_line" | cut -d'|' -f3)
-        inserted=$(printf '%s' "$counts_line" | cut -d'|' -f4)
+        inserted=$(printf '%s' "$counts_line" | cut -d'|' -f3)
     fi
+
+    # Subtract skipped (done) tasks from updated — their _UPSERT_ changes() is 0
+    # but also subtract any new inserts that were counted in _UPSERT_ changes()
+    # _UPSERT_ changes() = 1 for both inserts and real updates, so:
+    # actual updated = total _UPSERT_ changes - inserted
+    updated=$((updated - inserted))
+
     local del_line
     while IFS= read -r del_line; do
         [[ -z "$del_line" ]] && continue
