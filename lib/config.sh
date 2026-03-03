@@ -6,6 +6,7 @@
 #   detect_backend()   — determine active backend (anthropic or bedrock) from env/settings
 #   resolve_model()    — resolve model alias via models.json
 #   subcommand_usage() — print per-subcommand help text
+#   load_env()         — source .env for optional RALPH_DB_PATH override
 #
 # Globals set by parse_flags:
 #   MAX_ITERATIONS, DANGER, MODEL_ALIAS
@@ -17,7 +18,9 @@
 #   SCRIPT_DIR (must be set before calling resolve_model)
 #
 # preflight():
-#   Verifies that required files/directories exist before entering the main loop.
+#   Verifies that required tools (sqlite3) and directories (specs/) exist.
+# load_env():
+#   Sources .env for optional RALPH_DB_PATH override.
 
 # subcommand_usage: print per-subcommand help and exit 0
 # Usage: subcommand_usage (uses MODE global)
@@ -122,11 +125,31 @@ detect_backend() {
     fi
 }
 
-# preflight: verify required directories and files exist
+# preflight: verify required tools and directories exist
 preflight() {
+    # sqlite3 must be on PATH
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        echo "Error: sqlite3 is required but not installed." >&2
+        case "$(uname -s)" in
+            Darwin) echo "  Install via Xcode CLT: xcode-select --install" >&2 ;;
+            Linux)  echo "  Install via package manager: sudo apt install sqlite3  (or equivalent)" >&2 ;;
+            *)      echo "  Please install sqlite3 and ensure it is on your PATH." >&2 ;;
+        esac
+        exit 1
+    fi
+
     if [ ! -d "./specs" ] || [ -z "$(ls -A ./specs 2>/dev/null)" ]; then
         echo "Error: No specs found. Run /ralph-spec first to generate specs in ./specs/"
         exit 1
+    fi
+}
+
+# load_env: source .env for optional RALPH_DB_PATH override
+# The database works without .env using the default path (.ralph/tasks.db).
+load_env() {
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        # shellcheck source=/dev/null
+        . "$SCRIPT_DIR/.env"
     fi
 }
 
