@@ -243,7 +243,7 @@ render_task_md() {
         "## Task \(.id)",
         "id: \(.id)",
         ((.t // .title // null) | if . != null and . != "" then "title: \(.)" else empty end),
-        ((.p // .priority // null) | if . != null then "priority: \(.)" else empty end),
+        ((if has("p") then .p elif has("priority") then .priority else null end) | if . != null then "priority: \(.)" else empty end),
         ((.s // .status // null) | if . != null and . != "" then "status: \(.)" else empty end),
         ((.cat // .category // null) | if . != null and . != "" then "category: \(.)" else empty end),
         (.spec | if . != null and . != "" then "spec: \(.)" else empty end),
