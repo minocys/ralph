@@ -68,7 +68,7 @@ db_check() {
 }
 
 sqlite_cmd() {
-    sqlite3 -batch -separator '|' "$RALPH_DB_PATH" "$@"
+    sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" "$@"
 }
 
 # sql_write: execute a write transaction with BEGIN IMMEDIATE, .bail on,
@@ -94,7 +94,7 @@ sql_write() {
 
     while true; do
         rc=0
-        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' "$RALPH_DB_PATH" || rc=$?
+        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" || rc=$?
         if [[ $rc -eq 0 ]]; then
             return 0
         elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then
@@ -732,28 +732,10 @@ cmd_claim() {
         eligible_where="$(scope_filter "t")"
     fi
 
-    # Step 1: Find eligible task ID inside a write transaction
-    local claim_sql
-    claim_sql="
-SELECT id FROM tasks t
-WHERE ${eligible_where}
-  AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < datetime('now')))
-  AND NOT EXISTS (
-      SELECT 1 FROM task_deps td
-      JOIN tasks blocker ON blocker.id = td.blocked_by
-      WHERE td.task_id = t.id
-        AND blocker.status NOT IN ('done', 'deleted')
-  )
-ORDER BY t.priority ASC, t.created_at ASC
-LIMIT 1;"
-
-    local candidate_id
-    candidate_id=$(sql_write "${claim_sql}" 2>/dev/null) || true
-
-    # sql_write wraps in BEGIN IMMEDIATE...COMMIT, but we need the SELECT + UPDATE
-    # in the same transaction. Restructure: build full transaction SQL.
-    # Re-do with a single transaction that selects, updates, and returns result.
-    local tx_sql=".bail on
+    # Atomic claim: SELECT eligible → UPDATE → SELECT result in one BEGIN IMMEDIATE transaction.
+    # Uses a temp table because SQLite does not support UPDATE inside CTE or FOR UPDATE SKIP LOCKED.
+    local tx_sql="
+.bail on
 BEGIN IMMEDIATE;
 CREATE TEMP TABLE IF NOT EXISTS _claim_candidate (task_uuid TEXT);
 DELETE FROM _claim_candidate;
@@ -805,7 +787,26 @@ FROM tasks c
 WHERE c.id = (SELECT task_uuid FROM _claim_candidate);
 COMMIT;"
 
-    result=$(printf '%s\n' "$tx_sql" | sqlite_cmd)
+    # Execute the claim transaction with retry-on-BUSY (exit code 5) to handle
+    # concurrent agents contending for BEGIN IMMEDIATE locks.
+    local max_retries=3
+    local attempt=0
+    local backoff_ms=(100 300 900)
+    local rc=0
+    result=""
+    while true; do
+        rc=0
+        result=$(printf '%s\n' "$tx_sql" | sqlite_cmd 2>/dev/null) || rc=$?
+        if [[ $rc -eq 0 ]]; then
+            break
+        elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then
+            local ms="${backoff_ms[$attempt]}"
+            sleep "$(awk "BEGIN{printf \"%.3f\", $ms/1000}")"
+            (( attempt++ ))
+        else
+            break
+        fi
+    done
 
     if [[ -z "$result" ]]; then
         if [[ -n "$target_id" ]]; then
