@@ -1,32 +1,9 @@
 #!/usr/bin/env bats
 # test/ralph_agent_lifecycle.bats — Tests for agent lifecycle integration in ralph.sh
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
 
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
 setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-
     # Seed a dummy task so task-peek returns data (prevents early loop exit)
     "$SCRIPT_DIR/lib/task" create dummy-001 "Dummy test task" >/dev/null 2>&1
 
@@ -38,48 +15,11 @@ exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
 
-    export ORIGINAL_PATH="$PATH"
-    export PATH="$STUB_DIR:$PATH"
-
-    # Docker/pg_isready stubs — DB is already running, skip real Docker checks
-    cat > "$STUB_DIR/docker" <<'DOCKERSTUB'
-#!/bin/bash
-case "$1" in
-    compose)
-        if [ "$2" = "version" ]; then echo "Docker Compose version v2.24.0"; fi
-        exit 0 ;;
-    inspect)
-        if [ "$3" = "{{.State.Running}}" ]; then echo "true"
-        elif [ "$3" = "{{.State.Health.Status}}" ]; then echo "healthy"; fi
-        exit 0 ;;
-esac
-exit 0
-DOCKERSTUB
-    chmod +x "$STUB_DIR/docker"
-    cat > "$STUB_DIR/pg_isready" <<'PGSTUB'
-#!/bin/bash
-exit 0
-PGSTUB
-    chmod +x "$STUB_DIR/pg_isready"
-
     # Minimal specs so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"
     echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
 
     cd "$TEST_WORK_DIR"
-}
-
-teardown() {
-    if [[ -n "$ORIGINAL_PATH" ]]; then
-        export PATH="$ORIGINAL_PATH"
-    fi
-
-    if [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-
-    [[ -d "$TEST_WORK_DIR" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "$STUB_DIR" ]] && rm -rf "$STUB_DIR"
 }
 
 @test "build mode registers agent and displays agent ID in banner" {
@@ -97,7 +37,7 @@ teardown() {
     [ -n "$AGENT_ID" ]
 
     # Verify agent status is stopped after exit
-    STATUS=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM agents WHERE id = '$AGENT_ID'")
+    STATUS=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$AGENT_ID'")
     [ "$STATUS" = "stopped" ]
 }
 
@@ -184,6 +124,6 @@ STUB
     AGENT_ID=$(echo "$output" | grep "Agent:" | awk '{print $2}')
     [ -n "$AGENT_ID" ]
 
-    COUNT=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM agents WHERE id = '$AGENT_ID'")
+    COUNT=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM agents WHERE id = '$AGENT_ID'")
     [ "$COUNT" = "1" ]
 }

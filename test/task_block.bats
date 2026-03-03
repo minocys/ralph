@@ -1,39 +1,10 @@
 #!/usr/bin/env bats
 # test/task_block.bats — Tests for the task block and unblock commands
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
 
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
 setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
+    load test_helper
 }
 
 # ===========================================================================
@@ -87,7 +58,7 @@ teardown() {
 
     # Verify in database
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -101,7 +72,7 @@ teardown() {
 
     # Still only one row
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -139,7 +110,7 @@ teardown() {
     assert_success
 
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -189,7 +160,7 @@ teardown() {
 
     # Verify removed from database
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }
 
@@ -204,11 +175,11 @@ teardown() {
 
     # blocker/01 removed, blocker/02 still there
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 
     local remaining
-    remaining=$(psql "$RALPH_DB_URL" -tAX -c "SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    remaining=$(sqlite3 "$RALPH_DB_PATH" "SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$remaining" = "blocker/02" ]
 }
 
@@ -236,6 +207,6 @@ teardown() {
     assert_success
 
     local dep_count
-    dep_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }

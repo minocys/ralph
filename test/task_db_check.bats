@@ -59,7 +59,7 @@ teardown() {
     unset RALPH_DB_PATH 2>/dev/null || true
 
     # Run the copied script — db_check will resolve default path and mkdir -p.
-    # The command will fail later (ensure_schema calls psql_cmd), but db_check
+    # The command will fail later (ensure_schema calls sqlite_cmd), but db_check
     # will have already created .ralph/.
     run "$TEST_WORK_DIR/repo/lib/task" list
     assert [ -d "$TEST_WORK_DIR/repo/.ralph" ]

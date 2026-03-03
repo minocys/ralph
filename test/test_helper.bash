@@ -10,12 +10,13 @@ load "$TEST_DIR/libs/bats-support/load"
 load "$TEST_DIR/libs/bats-assert/load"
 load "$TEST_DIR/libs/bats-file/load"
 
-# Source .env from project root for database URL (matches runtime behavior)
+# Source .env from project root for database config (matches runtime behavior)
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
     # shellcheck disable=SC1091
     . "$SCRIPT_DIR/.env"
 fi
-export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5499/ralph}"
+# Legacy PostgreSQL URL (used by tests not yet migrated to SQLite)
+export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5466/ralph}"
 
 # Default scope for tests — set unconditionally at load time so that env vars
 # from the caller's shell (e.g. RALPH_SCOPE_REPO derived from git) are always
@@ -26,6 +27,9 @@ export RALPH_SCOPE_BRANCH="main"
 setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
+
+    # Each test gets its own fresh SQLite database
+    export RALPH_DB_PATH="$TEST_WORK_DIR/tasks.db"
 
     # Minimal specs/ directory with a dummy spec so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"

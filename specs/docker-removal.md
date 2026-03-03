@@ -4,7 +4,7 @@ Remove Docker, docker-compose, and PostgreSQL infrastructure from Ralph, replaci
 
 ## Overview
 
-Ralph currently depends on Docker to run a PostgreSQL container (`ralph-task-db`). With the move to SQLite, Docker is no longer needed. This spec covers deleting Docker-related files, removing Docker checks from `ralph.sh`, simplifying environment configuration, and updating the install script.
+Ralph currently depends on Docker to run a PostgreSQL container (`ralph-task-db-dev`). With the move to SQLite, Docker is no longer needed. This spec covers deleting Docker-related files, removing Docker checks from `ralph.sh`, simplifying environment configuration, and updating the install script.
 
 ## Requirements
 

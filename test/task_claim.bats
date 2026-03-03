@@ -1,39 +1,10 @@
 #!/usr/bin/env bats
 # test/task_claim.bats — Tests for the task claim command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
 
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
 setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
+    load test_helper
 }
 
 # ---------------------------------------------------------------------------
@@ -214,7 +185,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task claim includes steps in output" {
     "$SCRIPT_DIR/lib/task" create "t-steps" "Steps task" -p 0
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE slug = 't-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"step one\",\"step two\"]' WHERE slug = 't-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     run "$SCRIPT_DIR/lib/task" claim
     assert_success
@@ -233,7 +204,7 @@ teardown() {
     assert_success
 
     # Set the blocker to done with a result via direct SQL
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE slug='t-dep-a' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE slug='t-dep-a' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Now claim dep-b
     run "$SCRIPT_DIR/lib/task" claim
@@ -261,7 +232,7 @@ teardown() {
 @test "task claim with all tasks done exits 2" {
     "$SCRIPT_DIR/lib/task" create "t-alldone" "All done" -p 0
     "$SCRIPT_DIR/lib/task" claim >/dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done' WHERE slug='t-alldone' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='t-alldone' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" claim
     assert_failure 2
@@ -366,12 +337,12 @@ teardown() {
 @test "task claim <id> returns blocker_results and steps like untargeted claim" {
     "$SCRIPT_DIR/lib/task" create "t-dep-tgt-a" "Dep A" -p 0
     "$SCRIPT_DIR/lib/task" create "t-dep-tgt-b" "Dep B" -p 0
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['step one','step two']::TEXT[] WHERE slug = 't-dep-tgt-b' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"step one\",\"step two\"]' WHERE slug = 't-dep-tgt-b' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     "$SCRIPT_DIR/lib/task" block "t-dep-tgt-b" --by "t-dep-tgt-a"
 
     # Claim and complete dep-a with a result
     "$SCRIPT_DIR/lib/task" claim >/dev/null
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE slug='t-dep-tgt-a' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE slug='t-dep-tgt-a' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Targeted claim of dep-b
     run "$SCRIPT_DIR/lib/task" claim t-dep-tgt-b
@@ -390,7 +361,7 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# Concurrent claim atomicity (FOR UPDATE SKIP LOCKED)
+# Concurrent claim atomicity
 # ---------------------------------------------------------------------------
 @test "concurrent claims: exactly one wins when two agents race for same task" {
     # Insert a single claimable task
@@ -444,6 +415,6 @@ teardown() {
 
     # Verify the task is claimed exactly once in the database
     local active_count
-    active_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT COUNT(*) FROM tasks WHERE slug = 't-race' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
+    active_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT COUNT(*) FROM tasks WHERE slug = 't-race' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }

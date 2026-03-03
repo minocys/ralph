@@ -1,39 +1,10 @@
 #!/usr/bin/env bats
 # test/task_fail.bats — Tests for the task fail command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
 
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
 setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
+    load test_helper
 }
 
 # ---------------------------------------------------------------------------
@@ -68,7 +39,7 @@ teardown() {
 
 @test "task fail on done task exits 1" {
     "$SCRIPT_DIR/lib/task" create "tf-02" "Done task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='done' WHERE slug='tf-02' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='tf-02' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" fail "tf-02"
     assert_failure
@@ -81,7 +52,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task fail on active task succeeds" {
     "$SCRIPT_DIR/lib/task" create "tf-03" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-03' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-03' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" fail "tf-03"
     assert_success
@@ -90,67 +61,67 @@ teardown() {
 
 @test "task fail sets status back to open" {
     "$SCRIPT_DIR/lib/task" create "tf-04" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-04' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-04' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-04"
 
     local task_status
-    task_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='tf-04' AND scope_repo='test/repo' AND scope_branch='main';")
+    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='tf-04' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "open" ]
 }
 
 @test "task fail clears assignee" {
     "$SCRIPT_DIR/lib/task" create "tf-05" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-05' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-05' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-05"
 
     local assignee
-    assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE slug='tf-05' AND scope_repo='test/repo' AND scope_branch='main';")
+    assignee=$(sqlite3 "$RALPH_DB_PATH" "SELECT assignee FROM tasks WHERE slug='tf-05' AND scope_repo='test/repo' AND scope_branch='main';")
     [ -z "$assignee" ]
 }
 
 @test "task fail clears lease_expires_at" {
     "$SCRIPT_DIR/lib/task" create "tf-06" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1', lease_expires_at=now()+interval '600 seconds' WHERE slug='tf-06' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1', lease_expires_at=datetime('now','+600 seconds') WHERE slug='tf-06' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-06"
 
     local lease
-    lease=$(psql "$RALPH_DB_URL" -tAX -c "SELECT lease_expires_at FROM tasks WHERE slug='tf-06' AND scope_repo='test/repo' AND scope_branch='main';")
+    lease=$(sqlite3 "$RALPH_DB_PATH" "SELECT lease_expires_at FROM tasks WHERE slug='tf-06' AND scope_repo='test/repo' AND scope_branch='main';")
     [ -z "$lease" ]
 }
 
 @test "task fail increments retry_count" {
     "$SCRIPT_DIR/lib/task" create "tf-07" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1', retry_count=0 WHERE slug='tf-07' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1', retry_count=0 WHERE slug='tf-07' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-07"
 
     local retry_count
-    retry_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='tf-07' AND scope_repo='test/repo' AND scope_branch='main';")
+    retry_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='tf-07' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$retry_count" -eq 1 ]
 }
 
 @test "task fail increments retry_count cumulatively" {
     "$SCRIPT_DIR/lib/task" create "tf-08" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1', retry_count=3 WHERE slug='tf-08' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1', retry_count=3 WHERE slug='tf-08' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-08"
 
     local retry_count
-    retry_count=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='tf-08' AND scope_repo='test/repo' AND scope_branch='main';")
+    retry_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='tf-08' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$retry_count" -eq 4 ]
 }
 
 @test "task fail sets updated_at" {
     "$SCRIPT_DIR/lib/task" create "tf-09" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1', updated_at=NULL WHERE slug='tf-09' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1', updated_at=NULL WHERE slug='tf-09' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-09"
 
     local updated
-    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at FROM tasks WHERE slug='tf-09' AND scope_repo='test/repo' AND scope_branch='main';")
+    updated=$(sqlite3 "$RALPH_DB_PATH" "SELECT updated_at FROM tasks WHERE slug='tf-09' AND scope_repo='test/repo' AND scope_branch='main';")
     [ -n "$updated" ]
 }
 
@@ -159,7 +130,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task fail with --reason succeeds" {
     "$SCRIPT_DIR/lib/task" create "tf-10" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-10' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-10' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" fail "tf-10" --reason "out of memory"
     assert_success
@@ -168,23 +139,23 @@ teardown() {
 
 @test "task fail with --reason persists reason in database" {
     "$SCRIPT_DIR/lib/task" create "tf-10a" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-10a' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-10a' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-10a" --reason "out of memory"
 
     local fail_reason
-    fail_reason=$(psql "$RALPH_DB_URL" -tAX -c "SELECT fail_reason FROM tasks WHERE slug='tf-10a' AND scope_repo='test/repo' AND scope_branch='main';")
+    fail_reason=$(sqlite3 "$RALPH_DB_PATH" "SELECT fail_reason FROM tasks WHERE slug='tf-10a' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$fail_reason" = "out of memory" ]
 }
 
 @test "task fail without --reason stores NULL fail_reason" {
     "$SCRIPT_DIR/lib/task" create "tf-10b" "Active task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-10b' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf-10b' AND scope_repo='test/repo' AND scope_branch='main';"
 
     "$SCRIPT_DIR/lib/task" fail "tf-10b"
 
     local fail_reason
-    fail_reason=$(psql "$RALPH_DB_URL" -tAX -c "SELECT fail_reason FROM tasks WHERE slug='tf-10b' AND scope_repo='test/repo' AND scope_branch='main';")
+    fail_reason=$(sqlite3 "$RALPH_DB_PATH" "SELECT fail_reason FROM tasks WHERE slug='tf-10b' AND scope_repo='test/repo' AND scope_branch='main';")
     [ -z "$fail_reason" ]
 }
 
@@ -220,7 +191,7 @@ teardown() {
     "$SCRIPT_DIR/lib/task" fail "tf-12"
 
     local retry1
-    retry1=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='tf-12' AND scope_repo='test/repo' AND scope_branch='main';")
+    retry1=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='tf-12' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$retry1" -eq 1 ]
 
     # Second claim-fail cycle
@@ -228,7 +199,7 @@ teardown() {
     "$SCRIPT_DIR/lib/task" fail "tf-12"
 
     local retry2
-    retry2=$(psql "$RALPH_DB_URL" -tAX -c "SELECT retry_count FROM tasks WHERE slug='tf-12' AND scope_repo='test/repo' AND scope_branch='main';")
+    retry2=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='tf-12' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$retry2" -eq 2 ]
 }
 
@@ -237,7 +208,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 @test "task fail works with special characters in task ID" {
     "$SCRIPT_DIR/lib/task" create "tf/special-13" "Special ID task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf/special-13' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf/special-13' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" fail "tf/special-13"
     assert_success
@@ -246,7 +217,7 @@ teardown() {
 
 @test "task fail works with single quotes in task ID" {
     "$SCRIPT_DIR/lib/task" create "tf'quoted" "Quoted ID task"
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf''quoted' AND scope_repo='test/repo' AND scope_branch='main';" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='active', assignee='agent-1' WHERE slug='tf''quoted' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" fail "tf'quoted"
     assert_success
