@@ -1635,9 +1635,10 @@ cmd_agent_register() {
         # Generate random 4-char hex ID
         agent_id=$(head -c 2 /dev/urandom | od -An -tx1 | tr -d ' \n')
 
-        # Try to insert; ON CONFLICT means collision — retry
+        # Try to insert via sql_write (BEGIN IMMEDIATE + retry-on-BUSY);
+        # ON CONFLICT means ID collision — retry with a new ID
         local result
-        result=$(sqlite_cmd "
+        result=$(sql_write "
             INSERT INTO agents (id, pid, hostname, scope_repo, scope_branch)
             VALUES ('$(sql_esc "$agent_id")', $pid, '$(sql_esc "$host")', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}')
             ON CONFLICT (id) DO NOTHING

@@ -153,3 +153,54 @@ load test_helper
     assert_failure
     assert_output --partial "Error: unknown agent subcommand"
 }
+
+# ---------------------------------------------------------------------------
+# Concurrent registration (BEGIN IMMEDIATE guard)
+# ---------------------------------------------------------------------------
+@test "concurrent agent registrations all succeed without SQLITE_BUSY errors" {
+    local count=4
+    local i
+    local pids=()
+
+    for (( i = 1; i <= count; i++ )); do
+        (
+            rc=0
+            "$SCRIPT_DIR/lib/task" agent register \
+                > "$TEST_WORK_DIR/agent_reg${i}.out" 2>&1 || rc=$?
+            echo "$rc" > "$TEST_WORK_DIR/agent_reg${i}.rc"
+        ) &
+        pids+=($!)
+    done
+
+    # Wait for all background processes
+    for pid in "${pids[@]}"; do
+        wait "$pid" || true
+    done
+
+    # All should succeed (exit 0)
+    for (( i = 1; i <= count; i++ )); do
+        local rc
+        rc=$(cat "$TEST_WORK_DIR/agent_reg${i}.rc")
+        [[ "$rc" == "0" ]]
+    done
+
+    # All should return valid 4-char hex IDs
+    local ids=()
+    for (( i = 1; i <= count; i++ )); do
+        local out
+        out=$(cat "$TEST_WORK_DIR/agent_reg${i}.out")
+        [[ "$out" =~ ^[0-9a-f]{4}$ ]]
+        ids+=("$out")
+    done
+
+    # All IDs should be unique
+    local unique_count
+    unique_count=$(printf '%s\n' "${ids[@]}" | sort -u | wc -l | tr -d ' ')
+    [[ "$unique_count" -eq "$count" ]]
+
+    # Database should have exactly $count active agents
+    local db_count
+    db_count=$(sqlite3 "$RALPH_DB_PATH" \
+        "SELECT COUNT(*) FROM agents WHERE status = 'active' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [[ "$db_count" -eq "$count" ]]
+}
