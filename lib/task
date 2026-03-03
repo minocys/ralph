@@ -439,7 +439,7 @@ cmd_plan_sync() {
 
     # Build the entire sync as a single SQL transaction — all reads and writes
     # execute within BEGIN...COMMIT for atomicity (task-scheduling.md requirement)
-    local sql="BEGIN;"
+    local sql="BEGIN IMMEDIATE;"
 
     # Batch-fetch existing task statuses INSIDE the transaction (for counting, by slug within scope)
     sql+="
