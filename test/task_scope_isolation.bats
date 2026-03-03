@@ -381,3 +381,75 @@ task_in_scope_b() {
     assert_output --partial "$agent2"
     refute_output --partial "$agent1"
 }
+
+# ===========================================================================
+# task agent deregister — scope isolation
+# ===========================================================================
+
+@test "agent deregister only affects agents in current scope" {
+    # Register agent in scope A
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    # Register agent in scope B
+    run task_in_scope_b agent register
+    assert_success
+    local agent_b="$output"
+
+    # Deregister agent_a from scope A
+    run task_in_scope_a agent deregister "$agent_a"
+    assert_success
+
+    # agent_a should be stopped
+    local status_a
+    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
+    [[ "$status_a" == "stopped" ]]
+
+    # agent_b should still be active
+    local status_b
+    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b' AND scope_repo = '$SCOPE_B_REPO';")
+    [[ "$status_b" == "active" ]]
+}
+
+@test "agent deregister cannot deregister agent from different scope" {
+    # Register agent in scope A
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    # Try to deregister agent_a from scope B — should fail (not found)
+    run task_in_scope_b agent deregister "$agent_a"
+    assert_failure 2
+    assert_output --partial "not found"
+
+    # agent_a should still be active in scope A
+    local status_a
+    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
+    [[ "$status_a" == "active" ]]
+}
+
+@test "agent registered in scope A cannot be deregistered from scope B" {
+    # Register agents in each scope
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    run task_in_scope_b agent register
+    assert_success
+    local agent_b="$output"
+
+    # Try to deregister scope A's agent from scope B
+    run task_in_scope_b agent deregister "$agent_a"
+    assert_failure 2
+    assert_output --partial "not found"
+
+    # Both agents should remain in their original states
+    local status_a
+    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a';")
+    [[ "$status_a" == "active" ]]
+
+    local status_b
+    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b';")
+    [[ "$status_b" == "active" ]]
+}

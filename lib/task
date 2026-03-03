@@ -1673,16 +1673,16 @@ cmd_agent_deregister() {
     local esc_id
     esc_id=$(sql_esc "$id")
 
-    # Check agent exists
+    # Check agent exists in current scope
     local current
-    current=$(sqlite_cmd "SELECT id FROM agents WHERE id = '${esc_id}';")
+    current=$(sqlite_cmd "SELECT id FROM agents WHERE id = '${esc_id}' AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}';")
 
     if [[ -z "$current" ]]; then
         echo "Error: agent '$id' not found" >&2
         exit 2
     fi
 
-    sql_write "UPDATE agents SET status = 'stopped' WHERE id = '${esc_id}';" > /dev/null
+    sql_write "UPDATE agents SET status = 'stopped' WHERE id = '${esc_id}' AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}';" > /dev/null
 
     echo "deregistered $id"
 }
