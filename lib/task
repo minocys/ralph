@@ -970,20 +970,6 @@ cmd_fail() {
     local esc_id
     esc_id=$(sql_esc "$task_id")
 
-    # Check task exists and get current status
-    local current_status
-    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
-
-    if [[ -z "$current_status" ]]; then
-        echo "Error: task '$task_id' not found" >&2
-        exit 2
-    fi
-
-    if [[ "$current_status" != "active" ]]; then
-        echo "Error: task '$task_id' is not active (status: $current_status)" >&2
-        exit 1
-    fi
-
     local esc_reason
     esc_reason=$(sql_esc "$reason")
 
@@ -993,7 +979,10 @@ cmd_fail() {
         fail_reason_sql="'${esc_reason}'"
     fi
 
-    sql_write "
+    # Atomic: UPDATE only if status = 'active', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
         UPDATE tasks
         SET status = 'open',
             assignee = NULL,
@@ -1001,10 +990,26 @@ cmd_fail() {
             retry_count = retry_count + 1,
             fail_reason = ${fail_reason_sql},
             updated_at = datetime('now')
-        WHERE $(scope_where "${esc_id}");
-    " > /dev/null
+        WHERE $(scope_where "${esc_id}") AND status = 'active';
+        SELECT changes();
+    ")
 
-    echo "failed $task_id"
+    if [[ "$output" == "1" ]]; then
+        echo "failed $task_id"
+        return 0
+    fi
+
+    # UPDATE affected 0 rows — determine why
+    local current_status
+    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
+
+    if [[ -z "$current_status" ]]; then
+        echo "Error: task '$task_id' not found" >&2
+        exit 2
+    fi
+
+    echo "Error: task '$task_id' is not active (status: $current_status)" >&2
+    exit 1
 }
 cmd_list() {
     local status_filter=""
