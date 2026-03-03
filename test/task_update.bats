@@ -154,6 +154,32 @@ load test_helper
     [ "$desc" = "New desc" ]
 }
 
+@test "task update --title and --steps together applies both in single UPDATE" {
+    "$SCRIPT_DIR/lib/task" create "test/01" "Original" -s '["old step"]'
+    run "$SCRIPT_DIR/lib/task" update "test/01" --title "Combined" --steps '["new step A","new step B"]'
+    assert_success
+
+    local title steps_count first_step
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    first_step=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$title" = "Combined" ]
+    [ "$steps_count" = "2" ]
+    [ "$first_step" = "new step A" ]
+}
+
+@test "task update --steps alone updates only steps" {
+    "$SCRIPT_DIR/lib/task" create "test/01" "Keep this title" -s '["old step"]'
+    run "$SCRIPT_DIR/lib/task" update "test/01" --steps '["only step"]'
+    assert_success
+
+    local title steps_count
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$title" = "Keep this title" ]
+    [ "$steps_count" = "1" ]
+}
+
 # ---------------------------------------------------------------------------
 # Special characters
 # ---------------------------------------------------------------------------

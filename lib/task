@@ -1414,25 +1414,20 @@ cmd_update() {
     if [[ "$has_status" -eq 1 ]]; then
         set_parts+=("status = '$(sql_esc "$status")'")
     fi
+    if [[ "$has_steps" -eq 1 ]]; then
+        local steps_val="NULL"
+        if [[ -n "$steps_json" ]]; then
+            steps_val=$(build_steps_literal "$steps_json")
+        fi
+        set_parts+=("steps = ${steps_val}")
+    fi
     # Always set updated_at
     set_parts+=("updated_at = datetime('now')")
 
     local set_clause
     set_clause=$(IFS=', '; echo "${set_parts[*]}")
 
-    local sql="UPDATE tasks SET ${set_clause} WHERE $(scope_where "${esc_id}");"
-
-    # If --steps provided, update tasks.steps column (JSON array TEXT)
-    if [[ "$has_steps" -eq 1 ]]; then
-        local steps_val="NULL"
-        if [[ -n "$steps_json" ]]; then
-            steps_val=$(build_steps_literal "$steps_json")
-        fi
-        sql+="
-UPDATE tasks SET steps = ${steps_val} WHERE $(scope_where "${esc_id}");"
-    fi
-
-    sql_write "$sql" > /dev/null
+    sql_write "UPDATE tasks SET ${set_clause} WHERE $(scope_where "${esc_id}");" > /dev/null
     echo "updated $id"
 }
 cmd_delete() {
