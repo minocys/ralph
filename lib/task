@@ -634,6 +634,7 @@ cmd_peek() {
             's', 'open',
             'cat', t.category,
             'spec', t.spec_ref,
+            'ref', t.ref,
             'steps', COALESCE(json(t.steps), json('[]')),
             'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), json('[]'))
         )
@@ -661,6 +662,7 @@ cmd_peek() {
             's', 'active',
             'cat', t.category,
             'spec', t.spec_ref,
+            'ref', t.ref,
             'steps', COALESCE(json(t.steps), json('[]')),
             'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), json('[]')),
             'assignee', t.assignee

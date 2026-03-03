@@ -227,6 +227,39 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
+# Ref field
+# ---------------------------------------------------------------------------
+@test "task peek includes ref field for tasks that have one" {
+    "$SCRIPT_DIR/lib/task" create "t-ref" "Task with ref" -p 1 --ref "lib/task:cmd_peek"
+
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^ref: lib/task:cmd_peek'
+}
+
+@test "task peek omits ref field for tasks without one" {
+    "$SCRIPT_DIR/lib/task" create "t-noref" "Task without ref" -p 1
+
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    # ref line should not appear
+    ! echo "$output" | grep -q '^ref:'
+}
+
+@test "task peek includes ref field for active tasks" {
+    "$SCRIPT_DIR/lib/task" create "t-aref" "Active with ref" -p 0 --ref "lib/signals.sh:42"
+
+    "$SCRIPT_DIR/lib/task" claim --agent "a1b2" >/dev/null
+
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^ref: lib/signals.sh:42'
+}
+
+# ---------------------------------------------------------------------------
 # Blank line separation between task sections
 # ---------------------------------------------------------------------------
 @test "task peek separates task sections with blank lines" {
