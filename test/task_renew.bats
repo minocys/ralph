@@ -3,9 +3,6 @@
 
 load test_helper
 
-setup() {
-    load test_helper
-}
 
 # ---------------------------------------------------------------------------
 # Argument validation

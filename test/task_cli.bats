@@ -38,10 +38,10 @@ load test_helper
     assert_output --partial "agent deregister"
 }
 
-@test "task --help lists RALPH_DB_URL requirement" {
+@test "task --help lists RALPH_DB_PATH in environment section" {
     run "$SCRIPT_DIR/lib/task" --help
     assert_success
-    assert_output --partial "RALPH_DB_URL"
+    assert_output --partial "RALPH_DB_PATH"
 }
 
 # ---------------------------------------------------------------------------
@@ -72,52 +72,47 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
-# Missing RALPH_DB_URL (copy task to temp dir without .env so fallback doesn't activate)
+# Default RALPH_DB_PATH: commands work without explicit path (auto-creates DB)
 # ---------------------------------------------------------------------------
-@test "task create without RALPH_DB_URL exits 1 with error" {
+@test "task create without explicit RALPH_DB_PATH still validates args" {
     cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_URL 2>/dev/null || true
+    unset RALPH_DB_PATH 2>/dev/null || true
     run "$TEST_WORK_DIR/task" create
     assert_failure
-    assert_output --partial "RALPH_DB_URL"
+    assert_output --partial "missing task ID"
 }
 
-@test "task list without RALPH_DB_URL exits 1 with error" {
+@test "task list without explicit RALPH_DB_PATH succeeds" {
     cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_URL 2>/dev/null || true
+    unset RALPH_DB_PATH 2>/dev/null || true
     run "$TEST_WORK_DIR/task" list
-    assert_failure
-    assert_output --partial "RALPH_DB_URL"
+    assert_success
 }
 
-@test "task claim without RALPH_DB_URL exits 1 with error" {
+@test "task claim without explicit RALPH_DB_PATH exits 2 (no tasks)" {
     cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
     chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_URL 2>/dev/null || true
+    unset RALPH_DB_PATH 2>/dev/null || true
     run "$TEST_WORK_DIR/task" claim
-    assert_failure
-    assert_output --partial "RALPH_DB_URL"
+    [ "$status" -eq 2 ]
 }
 
 # ---------------------------------------------------------------------------
-# Agent subcommand routing (copy task to temp dir without .env)
+# Agent subcommand routing
 # ---------------------------------------------------------------------------
-@test "task agent without RALPH_DB_URL exits 1" {
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
-    chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_URL 2>/dev/null || true
-    run "$TEST_WORK_DIR/task" agent
+@test "task agent without subcommand exits 1" {
+    run "$SCRIPT_DIR/lib/task" agent
     assert_failure
-    assert_output --partial "RALPH_DB_URL"
+    assert_output --partial "missing agent subcommand"
 }
 
 # ---------------------------------------------------------------------------
-# Help does not require RALPH_DB_URL
+# Help does not require RALPH_DB_PATH
 # ---------------------------------------------------------------------------
-@test "task --help works without RALPH_DB_URL" {
-    unset RALPH_DB_URL 2>/dev/null || true
+@test "task --help works without RALPH_DB_PATH" {
+    unset RALPH_DB_PATH 2>/dev/null || true
     run "$SCRIPT_DIR/lib/task" --help
     assert_success
     assert_output --partial "Usage: ralph task <command>"

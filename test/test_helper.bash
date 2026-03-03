@@ -22,7 +22,9 @@ fi
 export RALPH_SCOPE_REPO="test/repo"
 export RALPH_SCOPE_BRANCH="main"
 
-setup() {
+# Reusable setup/teardown — test files that need custom setup() should call
+# common_setup first, then add their own logic.
+common_setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
 
@@ -59,7 +61,7 @@ STUB
     cd "$TEST_WORK_DIR"
 }
 
-teardown() {
+common_teardown() {
     # Restore original PATH
     if [[ -n "$ORIGINAL_PATH" ]]; then
         export PATH="$ORIGINAL_PATH"
@@ -72,4 +74,12 @@ teardown() {
     if [[ -d "$STUB_DIR" ]]; then
         rm -rf "$STUB_DIR"
     fi
+}
+
+setup() {
+    common_setup
+}
+
+teardown() {
+    common_teardown
 }

@@ -6,6 +6,7 @@
 load test_helper
 
 setup() {
+    common_setup
     # Define two distinct scopes for isolation testing
     export SCOPE_A_REPO="owner/repo-alpha"
     export SCOPE_A_BRANCH="main"

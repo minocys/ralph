@@ -4,6 +4,8 @@
 load test_helper
 
 setup() {
+    common_setup
+
     # Seed a dummy task so task-peek returns data (prevents early loop exit)
     "$SCRIPT_DIR/lib/task" create dummy-001 "Dummy test task" >/dev/null 2>&1
 
@@ -14,12 +16,6 @@ echo '{"type":"result","subtype":"success","total_cost_usd":0.001,"num_turns":1}
 exit 0
 STUB
     chmod +x "$STUB_DIR/claude"
-
-    # Minimal specs so preflight passes
-    mkdir -p "$TEST_WORK_DIR/specs"
-    echo "# dummy spec" > "$TEST_WORK_DIR/specs/dummy.md"
-
-    cd "$TEST_WORK_DIR"
 }
 
 @test "build mode registers agent and displays agent ID in banner" {

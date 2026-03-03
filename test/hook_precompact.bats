@@ -4,13 +4,10 @@
 load test_helper
 
 setup() {
+    common_setup
     # Set up hook environment variables
     export RALPH_TASK_SCRIPT="$SCRIPT_DIR/lib/task"
     export RALPH_AGENT_ID="a1b2"
-
-    # Ensure schema is initialized by running a benign task command
-    "$SCRIPT_DIR/lib/task" create "pc-setup" "schema init" >/dev/null 2>&1
-    sqlite3 "$RALPH_DB_PATH" "DELETE FROM tasks WHERE slug='pc-setup' AND scope_repo='test/repo' AND scope_branch='main';"
 }
 
 # ---------------------------------------------------------------------------

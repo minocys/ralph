@@ -6,6 +6,7 @@
 load test_helper
 
 setup() {
+    common_setup
     # Hook environment variables
     export RALPH_TASK_SCRIPT="$SCRIPT_DIR/lib/task"
     export RALPH_AGENT_ID="a1b2"
@@ -15,10 +16,6 @@ setup() {
     export SCOPE_A_BRANCH="main"
     export SCOPE_B_REPO="owner/hook-beta"
     export SCOPE_B_BRANCH="main"
-
-    # Ensure schema is initialized
-    "$SCRIPT_DIR/lib/task" create "hs-setup" "schema init" >/dev/null 2>&1
-    sqlite3 "$RALPH_DB_PATH" "DELETE FROM tasks WHERE slug='hs-setup';"
 }
 
 # ---------------------------------------------------------------------------

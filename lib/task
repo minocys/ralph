@@ -795,7 +795,7 @@ SELECT json_object(
     'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = c.id), json('[]')),
     'steps', COALESCE(json(c.steps), json('[]')),
     'blocker_results', COALESCE((
-        SELECT json_group_object(bt.slug, bt.result)
+        SELECT json_group_object(bt.slug, json(bt.result))
         FROM task_deps td
         JOIN tasks bt ON bt.id = td.blocked_by
         WHERE td.task_id = c.id AND bt.result IS NOT NULL
