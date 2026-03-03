@@ -28,18 +28,18 @@ db_check() {
     fi
 
     # --- RALPH_DB_PATH resolution ---
-    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
-        # Resolve script directory following symlinks (handles ~/.local/bin/task symlink)
-        local _source="${BASH_SOURCE[0]}"
-        while [ -L "$_source" ]; do
-            local _dir
-            _dir="$(cd -P "$(dirname "$_source")" && pwd)"
-            _source="$(readlink "$_source")"
-            [[ "$_source" != /* ]] && _source="$_dir/$_source"
-        done
-        local _script_dir
-        _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
+    # Resolve script directory once, following symlinks (handles ~/.local/bin/task symlink)
+    local _source="${BASH_SOURCE[0]}"
+    while [ -L "$_source" ]; do
+        local _dir
+        _dir="$(cd -P "$(dirname "$_source")" && pwd)"
+        _source="$(readlink "$_source")"
+        [[ "$_source" != /* ]] && _source="$_dir/$_source"
+    done
+    local _script_dir
+    _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
 
+    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
         # Source .env as fallback if available (lib/task is one level below repo root)
         local _repo_dir="$_script_dir/.."
         if [[ -f "$_repo_dir/.env" ]]; then
@@ -49,15 +49,6 @@ db_check() {
     fi
     if [[ -z "${RALPH_DB_PATH:-}" ]]; then
         # Default to $REPO_ROOT/.ralph/tasks.db
-        local _source="${BASH_SOURCE[0]}"
-        while [ -L "$_source" ]; do
-            local _dir
-            _dir="$(cd -P "$(dirname "$_source")" && pwd)"
-            _source="$(readlink "$_source")"
-            [[ "$_source" != /* ]] && _source="$_dir/$_source"
-        done
-        local _script_dir
-        _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
         RALPH_DB_PATH="$_script_dir/../.ralph/tasks.db"
     fi
     # Ensure the directory exists
