@@ -249,6 +249,35 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
+# --lease validation
+# ---------------------------------------------------------------------------
+@test "task claim with non-numeric --lease exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" claim --lease abc
+    assert_failure
+    assert_output --partial "Error: --lease must be a non-negative integer"
+}
+
+@test "task claim with negative --lease exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" claim --lease -5
+    assert_failure
+    assert_output --partial "Error: --lease must be a non-negative integer"
+}
+
+@test "task claim with float --lease exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" claim --lease 1.5
+    assert_failure
+    assert_output --partial "Error: --lease must be a non-negative integer"
+}
+
+@test "task claim with valid --lease succeeds" {
+    "$SCRIPT_DIR/lib/task" create "t-lease-val" "Lease validation" -p 0
+
+    run "$SCRIPT_DIR/lib/task" claim --lease 300
+    assert_success
+    assert_output --partial "id: t-lease-val"
+}
+
+# ---------------------------------------------------------------------------
 # Targeted claim: task claim <id>
 # ---------------------------------------------------------------------------
 @test "task claim <id> claims specific eligible task regardless of priority" {

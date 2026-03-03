@@ -13,6 +13,24 @@ load test_helper
     assert_output --partial "missing task ID"
 }
 
+@test "task renew with non-numeric --lease exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" renew "some-task" --lease abc
+    assert_failure
+    assert_output --partial "Error: --lease must be a non-negative integer"
+}
+
+@test "task renew with negative --lease exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" renew "some-task" --lease -5
+    assert_failure
+    assert_output --partial "Error: --lease must be a non-negative integer"
+}
+
+@test "task renew with float --lease exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" renew "some-task" --lease 1.5
+    assert_failure
+    assert_output --partial "Error: --lease must be a non-negative integer"
+}
+
 # ---------------------------------------------------------------------------
 # Not found
 # ---------------------------------------------------------------------------

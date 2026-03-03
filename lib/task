@@ -742,6 +742,11 @@ cmd_claim() {
         esac
     done
 
+    # Validate --lease is a non-negative integer
+    if ! [[ "$lease" =~ ^[0-9]+$ ]]; then
+        echo "Error: --lease must be a non-negative integer, got: $lease" >&2
+        exit 1
+    fi
 
     local esc_agent
     esc_agent=$(sql_esc "$agent_id")
@@ -867,6 +872,12 @@ cmd_renew() {
     if [[ -z "$task_id" ]]; then
         echo "Error: missing task ID" >&2
         echo "Usage: ralph task renew <id> [--lease N]" >&2
+        exit 1
+    fi
+
+    # Validate --lease is a non-negative integer
+    if ! [[ "$lease" =~ ^[0-9]+$ ]]; then
+        echo "Error: --lease must be a non-negative integer, got: $lease" >&2
         exit 1
     fi
 
