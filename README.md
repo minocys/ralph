@@ -228,8 +228,7 @@ Ralph's build loop handles agent registration automatically — it calls `task a
 ralph.sh              # Main loop runner
 models.json           # Model alias → ID mapping
 install.sh            # Installer (symlinks skills + CLI + task)
-task                  # Task management CLI (PostgreSQL-backed)
-docker-compose.yml    # PostgreSQL dev database
+lib/task              # Task management CLI (SQLite-backed)
 specs/                # Specification files (one per topic of concern)
 skills/
   ralph-spec/         # JTBD → spec files
