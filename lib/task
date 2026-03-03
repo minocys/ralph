@@ -323,7 +323,7 @@ Plan Phase Commands:
   plan-status           Print summary: N open, N active, N done, N blocked, N deleted
 
 Build Phase Commands:
-  peek [-n 10]               Top N claimable + all active tasks (markdown-KV)
+  peek [-n 5]                Top N claimable + all active tasks (markdown-KV)
   claim [<id>] [--lease N]   Claim task (targeted by id, or highest-priority)
   renew <id> [--lease N]     Extend lease on an active task
   done <id> --result '<json>'  Mark task as done, store result
