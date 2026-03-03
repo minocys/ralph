@@ -910,7 +910,32 @@ cmd_done() {
     local esc_id
     esc_id=$(sql_esc "$task_id")
 
-    # Check task exists and get current status
+    # Build the UPDATE with optional result JSON
+    local result_clause=""
+    if [[ -n "$result_json" ]]; then
+        local esc_result
+        esc_result=$(sql_esc "$result_json")
+        result_clause=", result = '${esc_result}'"
+    fi
+
+    # Atomic: UPDATE only if status = 'active', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
+        UPDATE tasks
+        SET status = 'done',
+            updated_at = datetime('now')
+            ${result_clause}
+        WHERE $(scope_where "${esc_id}") AND status = 'active';
+        SELECT changes();
+    ")
+
+    if [[ "$output" == "1" ]]; then
+        echo "done $task_id"
+        return 0
+    fi
+
+    # UPDATE affected 0 rows — determine why
     local current_status
     current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
 
@@ -919,30 +944,8 @@ cmd_done() {
         exit 2
     fi
 
-    if [[ "$current_status" != "active" ]]; then
-        echo "Error: task '$task_id' is not active (status: $current_status)" >&2
-        exit 1
-    fi
-
-    # Build the UPDATE with optional result JSON
-    local result_clause
-    if [[ -n "$result_json" ]]; then
-        local esc_result
-        esc_result=$(sql_esc "$result_json")
-        result_clause=", result = '${esc_result}'"
-    else
-        result_clause=""
-    fi
-
-    sql_write "
-        UPDATE tasks
-        SET status = 'done',
-            updated_at = datetime('now')
-            ${result_clause}
-        WHERE $(scope_where "${esc_id}");
-    " > /dev/null
-
-    echo "done $task_id"
+    echo "Error: task '$task_id' is not active (status: $current_status)" >&2
+    exit 1
 }
 cmd_fail() {
     local task_id="${1:-}"
