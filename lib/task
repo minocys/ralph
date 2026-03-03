@@ -1287,6 +1287,11 @@ cmd_create() {
         esac
     done
 
+    # Validate -p (priority) is a non-negative integer
+    if ! [[ "$priority" =~ ^[0-9]+$ ]]; then
+        echo "Error: -p (priority) must be a non-negative integer, got: $priority" >&2
+        exit 1
+    fi
 
     local esc_id esc_title esc_desc esc_category esc_spec_ref esc_ref
     esc_id=$(sql_esc "$id")

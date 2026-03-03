@@ -153,3 +153,36 @@ blocker-b"
     assert_success
     assert_output "It's a task"
 }
+
+# ---------------------------------------------------------------------------
+# Priority (-p) integer validation
+# ---------------------------------------------------------------------------
+@test "task create with non-numeric -p exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" create "val-01" "Bad priority" -p abc
+    assert_failure
+    assert_output --partial "Error: -p (priority) must be a non-negative integer"
+}
+
+@test "task create with negative -p exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" create "val-02" "Negative priority" -p -1
+    assert_failure
+    assert_output --partial "Error: -p (priority) must be a non-negative integer"
+}
+
+@test "task create with float -p exits 1 with error" {
+    run "$SCRIPT_DIR/lib/task" create "val-03" "Float priority" -p 1.5
+    assert_failure
+    assert_output --partial "Error: -p (priority) must be a non-negative integer"
+}
+
+@test "task create with valid -p succeeds" {
+    run "$SCRIPT_DIR/lib/task" create "val-04" "Valid priority" -p 3
+    assert_success
+    assert_output "val-04"
+
+    run sqlite3 "$RALPH_DB_PATH" "
+        SELECT priority FROM tasks WHERE slug = 'val-04' AND scope_repo = 'test/repo' AND scope_branch = 'main';
+    "
+    assert_success
+    assert_output "3"
+}
