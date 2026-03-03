@@ -15,8 +15,6 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
     # shellcheck disable=SC1091
     . "$SCRIPT_DIR/.env"
 fi
-# Legacy PostgreSQL URL (used by tests not yet migrated to SQLite)
-export RALPH_DB_URL="${RALPH_DB_URL:-postgres://ralph:ralph@localhost:5466/ralph}"
 
 # Default scope for tests — set unconditionally at load time so that env vars
 # from the caller's shell (e.g. RALPH_SCOPE_REPO derived from git) are always
@@ -53,40 +51,9 @@ STUB
     export TEST_WORK_DIR
     export STUB_DIR
 
-    # RALPH_DB_URL is set at load time (above) from .env
-
     # Default scope for tests (overridable per-test)
     export RALPH_SCOPE_REPO="test/repo"
     export RALPH_SCOPE_BRANCH="main"
-
-    # Docker/pg_isready stubs so ensure_postgres() passes without real Docker
-    cat > "$STUB_DIR/docker" <<'DOCKERSTUB'
-#!/bin/bash
-case "$1" in
-    compose)
-        if [ "$2" = "version" ]; then
-            echo "Docker Compose version v2.24.0"
-        fi
-        exit 0
-        ;;
-    inspect)
-        if [ "$3" = "{{.State.Running}}" ]; then
-            echo "true"
-        elif [ "$3" = "{{.State.Health.Status}}" ]; then
-            echo "healthy"
-        fi
-        exit 0
-        ;;
-esac
-exit 0
-DOCKERSTUB
-    chmod +x "$STUB_DIR/docker"
-
-    cat > "$STUB_DIR/pg_isready" <<'PGSTUB'
-#!/bin/bash
-exit 0
-PGSTUB
-    chmod +x "$STUB_DIR/pg_isready"
 
     # Change to the temp working directory
     cd "$TEST_WORK_DIR"
