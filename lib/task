@@ -438,8 +438,9 @@ cmd_plan_sync() {
     done
 
     # Build the entire sync as a single SQL transaction — all reads and writes
-    # execute within BEGIN...COMMIT for atomicity (task-scheduling.md requirement)
-    local sql="BEGIN IMMEDIATE;"
+    # execute within BEGIN...COMMIT for atomicity (task-scheduling.md requirement).
+    # sql_write() wraps this in BEGIN IMMEDIATE...COMMIT with retry-on-BUSY logic.
+    local sql=""
 
     # Batch-fetch existing task statuses INSIDE the transaction (for counting, by slug within scope)
     sql+="
@@ -558,13 +559,10 @@ SELECT '_SYNC_COUNTS_|' ||
   (SELECT count(*) FROM _sync_pre WHERE status = 'done') || '|' ||
   (${#all_ids[@]} - (SELECT count(*) FROM _sync_pre));"
 
-    sql+="
-COMMIT;"
-
-    # Execute the entire transaction and capture tagged output
-    # Use .bail on for fail-fast behavior (abort on first error)
+    # Execute the entire transaction via sql_write() which wraps in
+    # BEGIN IMMEDIATE...COMMIT with .bail on and retry-on-BUSY logic.
     local tx_output
-    tx_output=$(printf '.bail on\n%s\n' "$sql" | sqlite_cmd)
+    tx_output=$(sql_write "$sql")
 
     # Parse counts from tagged output
     local inserted=0 updated=0 deleted=0 skipped=0
