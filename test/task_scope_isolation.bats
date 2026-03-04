@@ -2,46 +2,16 @@
 # test/task_scope_isolation.bats — Scope isolation tests for task commands
 # Verifies that tasks created in one scope (repo/branch) are invisible to
 # commands running in a different scope.
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
 
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
 setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-
+    common_setup
     # Define two distinct scopes for isolation testing
     export SCOPE_A_REPO="owner/repo-alpha"
     export SCOPE_A_BRANCH="main"
     export SCOPE_B_REPO="owner/repo-beta"
     export SCOPE_B_BRANCH="main"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
 }
 
 # ---------------------------------------------------------------------------
@@ -316,8 +286,8 @@ task_in_scope_b() {
 
     # Verify they are distinct DB rows (different UUIDs)
     local uuid_a uuid_b
-    uuid_a=$(psql "$RALPH_DB_URL" -tAX -c "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH'")
-    uuid_b=$(psql "$RALPH_DB_URL" -tAX -c "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH'")
+    uuid_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH'")
+    uuid_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH'")
     [[ "$uuid_a" != "$uuid_b" ]]
 }
 
@@ -410,4 +380,76 @@ task_in_scope_b() {
     assert_success
     assert_output --partial "$agent2"
     refute_output --partial "$agent1"
+}
+
+# ===========================================================================
+# task agent deregister — scope isolation
+# ===========================================================================
+
+@test "agent deregister only affects agents in current scope" {
+    # Register agent in scope A
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    # Register agent in scope B
+    run task_in_scope_b agent register
+    assert_success
+    local agent_b="$output"
+
+    # Deregister agent_a from scope A
+    run task_in_scope_a agent deregister "$agent_a"
+    assert_success
+
+    # agent_a should be stopped
+    local status_a
+    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
+    [[ "$status_a" == "stopped" ]]
+
+    # agent_b should still be active
+    local status_b
+    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b' AND scope_repo = '$SCOPE_B_REPO';")
+    [[ "$status_b" == "active" ]]
+}
+
+@test "agent deregister cannot deregister agent from different scope" {
+    # Register agent in scope A
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    # Try to deregister agent_a from scope B — should fail (not found)
+    run task_in_scope_b agent deregister "$agent_a"
+    assert_failure 2
+    assert_output --partial "not found"
+
+    # agent_a should still be active in scope A
+    local status_a
+    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
+    [[ "$status_a" == "active" ]]
+}
+
+@test "agent registered in scope A cannot be deregistered from scope B" {
+    # Register agents in each scope
+    run task_in_scope_a agent register
+    assert_success
+    local agent_a="$output"
+
+    run task_in_scope_b agent register
+    assert_success
+    local agent_b="$output"
+
+    # Try to deregister scope A's agent from scope B
+    run task_in_scope_b agent deregister "$agent_a"
+    assert_failure 2
+    assert_output --partial "not found"
+
+    # Both agents should remain in their original states
+    local status_a
+    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a';")
+    [[ "$status_a" == "active" ]]
+
+    local status_b
+    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b';")
+    [[ "$status_b" == "active" ]]
 }

@@ -9,7 +9,7 @@
 - `ralph.sh` is a thin subcommand dispatcher that routes to `plan`, `build`, or `task` based on the first positional argument (see `cli-subcommand-dispatch.md`)
 - The `lib/` directory contains:
   - `lib/config.sh` — `parse_args()`, `detect_backend()`, `resolve_model()`, `preflight()`. Sourced by plan and build subcommands.
-  - `lib/docker.sh` — `ensure_postgres()` and supporting functions (`check_docker_installed`, `ensure_env_file`, `is_container_running`, `wait_for_healthy`). Sourced by plan and build subcommands.
+  - `lib/session.sh` — `ensure_db()` and session setup functions. Sourced by plan and build subcommands.
   - `lib/signals.sh` — `setup_cleanup_trap()`, `setup_signal_handlers()`, `handle_int()`, `handle_term()`. Sourced by plan and build subcommands.
   - `lib/output.sh` — `JQ_FILTER` variable and `print_banner()`. Sourced by plan and build subcommands.
   - `lib/plan_loop.sh` — `setup_session()` (shared) and `run_plan_loop()`. Sourced by plan subcommand only.
@@ -19,8 +19,8 @@
 - `SCRIPT_DIR` is exported so all `lib/` modules and child processes can reference it.
 - All sourced `lib/` files share the same global namespace. Global variables use `UPPER_CASE`; function-local variables use the `local` keyword.
 - `lib/task` is not sourced — it is exec'd as a separate process by the `ralph task` subcommand.
-- The plan and build subcommands execute phases in order: (1) parse args, (2) detect backend / resolve model, (3) preflight checks, (4) ensure postgres, (5) session setup, (6) setup traps, (7) print banner, (8) run loop.
-- Existing BATS tests pass without modification; the shared `test_helper.bash` setup already prepends PATH-stub `docker` and `pg_isready` scripts so `ensure_postgres()` succeeds without a running Docker daemon.
+- The plan and build subcommands execute phases in order: (1) parse args, (2) detect backend / resolve model, (3) preflight checks, (4) ensure db, (5) session setup, (6) setup traps, (7) print banner, (8) run loop.
+- Existing BATS tests pass without modification; the shared `test_helper.bash` setup uses a temporary SQLite database so `ensure_db()` succeeds without external services.
 
 ## Constraints
 

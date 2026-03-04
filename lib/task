@@ -1,23 +1,45 @@
 #!/bin/bash
-# task — CLI for interacting with the Ralph task backlog via PostgreSQL
+# task — CLI for interacting with the Ralph task backlog via SQLite
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Database connection
 # ---------------------------------------------------------------------------
 db_check() {
-    if [[ -z "${RALPH_DB_URL:-}" ]]; then
-        # Resolve script directory following symlinks (handles ~/.local/bin/task symlink)
-        local _source="${BASH_SOURCE[0]}"
-        while [ -L "$_source" ]; do
-            local _dir
-            _dir="$(cd -P "$(dirname "$_source")" && pwd)"
-            _source="$(readlink "$_source")"
-            [[ "$_source" != /* ]] && _source="$_dir/$_source"
-        done
-        local _script_dir
-        _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
+    # --- sqlite3 availability check ---
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        echo "Error: sqlite3 is required but not installed." >&2
+        echo "  macOS:  sqlite3 ships with Xcode Command Line Tools" >&2
+        echo "  Linux:  sudo apt install sqlite3  (Debian/Ubuntu)" >&2
+        echo "          sudo dnf install sqlite   (Fedora/RHEL)" >&2
+        return 1
+    fi
 
+    # --- sqlite3 version check (>= 3.35 for RETURNING clause) ---
+    local _ver
+    _ver="$(sqlite3 --version | awk '{print $1}')"
+    local _major _minor
+    _major="${_ver%%.*}"
+    _minor="${_ver#*.}"; _minor="${_minor%%.*}"
+    if (( _major < 3 )) || { (( _major == 3 )) && (( _minor < 35 )); }; then
+        echo "Error: sqlite3 >= 3.35 is required (found $_ver)." >&2
+        echo "  RETURNING clause support requires version 3.35+." >&2
+        return 1
+    fi
+
+    # --- RALPH_DB_PATH resolution ---
+    # Resolve script directory once, following symlinks (handles ~/.local/bin/task symlink)
+    local _source="${BASH_SOURCE[0]}"
+    while [ -L "$_source" ]; do
+        local _dir
+        _dir="$(cd -P "$(dirname "$_source")" && pwd)"
+        _source="$(readlink "$_source")"
+        [[ "$_source" != /* ]] && _source="$_dir/$_source"
+    done
+    local _script_dir
+    _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
+
+    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
         # Source .env as fallback if available (lib/task is one level below repo root)
         local _repo_dir="$_script_dir/.."
         if [[ -f "$_repo_dir/.env" ]]; then
@@ -25,22 +47,73 @@ db_check() {
             . "$_repo_dir/.env"
         fi
     fi
-    if [[ -z "${RALPH_DB_URL:-}" ]]; then
-        echo "Error: RALPH_DB_URL is not set." >&2
-        echo "Fix: cp .env.example .env   (in the ralph repo root)" >&2
-        exit 1
+    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
+        # Default to $REPO_ROOT/.ralph/tasks.db
+        RALPH_DB_PATH="$_script_dir/../.ralph/tasks.db"
     fi
+    # Ensure the directory exists
+    local _db_dir
+    _db_dir="$(dirname "$RALPH_DB_PATH")"
+    mkdir -p "$_db_dir"
+    export RALPH_DB_PATH
 }
 
-psql_cmd() {
-    psql "$RALPH_DB_URL" -tAX "$@"
+sqlite_cmd() {
+    sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" "$@"
+}
+
+# sql_write: execute a write transaction with BEGIN IMMEDIATE, .bail on,
+# and retry-on-BUSY (exit code 5) with exponential backoff.
+# Usage: sql_write "INSERT INTO ...;" or echo "SQL" | sql_write
+# SQL is wrapped in BEGIN IMMEDIATE...COMMIT automatically.
+# Retries up to 3 times on SQLITE_BUSY after the pragma busy_timeout.
+sql_write() {
+    local sql
+    if [[ $# -gt 0 ]]; then
+        sql="$1"
+    else
+        sql="$(cat)"
+    fi
+
+    local wrapped
+    wrapped="$(printf '.bail on\nBEGIN IMMEDIATE;\n%s\nCOMMIT;\n' "$sql")"
+
+    local max_retries=3
+    local attempt=0
+    local backoff_ms=(100 300 900)
+    local rc=0
+
+    while true; do
+        rc=0
+        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" || rc=$?
+        if [[ $rc -eq 0 ]]; then
+            return 0
+        elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then
+            # SQLITE_BUSY — sleep and retry
+            local ms="${backoff_ms[$attempt]}"
+            sleep "$(awk "BEGIN{printf \"%.3f\", $ms/1000}")"
+            (( attempt++ ))
+        else
+            return $rc
+        fi
+    done
 }
 
 # sql_esc: double single quotes for SQL string literals
 sql_esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
-# Build a PostgreSQL TEXT[] literal from a JSON array of strings.
-# Usage: build_steps_literal "$json_array"   →   ARRAY['s1','s2']::TEXT[]
+# generate_uuid: produce a lowercase UUID v4 string.
+# macOS ships uuidgen (uppercase); Linux exposes /proc/sys/kernel/random/uuid.
+generate_uuid() {
+    if [[ -f /proc/sys/kernel/random/uuid ]]; then
+        cat /proc/sys/kernel/random/uuid
+    else
+        uuidgen | tr '[:upper:]' '[:lower:]'
+    fi
+}
+
+# Build a SQL-safe JSON array string from a JSON array of strings.
+# Usage: build_steps_literal "$json_array"   →   '["s1","s2"]'  (SQL-quoted)
 # Returns "NULL" for empty/zero-length arrays.
 build_steps_literal() {
     local json="$1"
@@ -50,16 +123,12 @@ build_steps_literal() {
         printf 'NULL'
         return
     fi
-    local val="ARRAY["
-    for ((i=0; i<count; i++)); do
-        local content esc
-        content=$(printf '%s' "$json" | jq -r ".[$i]")
-        esc=$(sql_esc "$content")
-        [[ $i -gt 0 ]] && val+=","
-        val+="'${esc}'"
-    done
-    val+="]::TEXT[]"
-    printf '%s' "$val"
+    # Produce a compact JSON array and SQL-escape it
+    local compact
+    compact=$(printf '%s' "$json" | jq -c '.')
+    local esc
+    esc=$(sql_esc "$compact")
+    printf "'%s'" "$esc"
 }
 
 # ---------------------------------------------------------------------------
@@ -165,7 +234,7 @@ render_task_md() {
         "## Task \(.id)",
         "id: \(.id)",
         ((.t // .title // null) | if . != null and . != "" then "title: \(.)" else empty end),
-        ((.p // .priority // null) | if . != null then "priority: \(.)" else empty end),
+        ((if has("p") then .p elif has("priority") then .priority else null end) | if . != null then "priority: \(.)" else empty end),
         ((.s // .status // null) | if . != null and . != "" then "status: \(.)" else empty end),
         ((.cat // .category // null) | if . != null and . != "" then "category: \(.)" else empty end),
         (.spec | if . != null and . != "" then "spec: \(.)" else empty end),
@@ -183,55 +252,54 @@ render_task_md() {
 # Schema management
 # ---------------------------------------------------------------------------
 ensure_schema() {
-    psql_cmd -c "
-    SET client_min_messages TO WARNING;
-    CREATE TABLE IF NOT EXISTS tasks (
-        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        slug            TEXT NOT NULL,
-        scope_repo      TEXT NOT NULL,
-        scope_branch    TEXT NOT NULL,
-        title           TEXT NOT NULL,
-        description     TEXT,
-        category        TEXT,
-        priority        INT DEFAULT 2,
-        status          TEXT DEFAULT 'open',
-        spec_ref        TEXT,
-        ref             TEXT,
-        result          JSONB,
-        assignee        TEXT,
-        lease_expires_at TIMESTAMPTZ,
-        retry_count     INT DEFAULT 0,
-        fail_reason     TEXT,
-        steps           TEXT[],
-        created_at      TIMESTAMPTZ DEFAULT now(),
-        updated_at      TIMESTAMPTZ,
-        deleted_at      TIMESTAMPTZ,
-        UNIQUE(scope_repo, scope_branch, slug)
-    );
+    sqlite_cmd <<'SQL' > /dev/null
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+PRAGMA busy_timeout=5000;
 
-    CREATE INDEX IF NOT EXISTS idx_tasks_scope_status
-        ON tasks(scope_repo, scope_branch, status, priority, created_at);
+CREATE TABLE IF NOT EXISTS tasks (
+    id              TEXT PRIMARY KEY,
+    slug            TEXT NOT NULL,
+    scope_repo      TEXT NOT NULL,
+    scope_branch    TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    category        TEXT,
+    priority        INTEGER DEFAULT 2,
+    status          TEXT DEFAULT 'open',
+    spec_ref        TEXT,
+    ref             TEXT,
+    result          TEXT,
+    assignee        TEXT,
+    lease_expires_at TEXT,
+    retry_count     INTEGER DEFAULT 0,
+    fail_reason     TEXT,
+    steps           TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT,
+    deleted_at      TEXT,
+    UNIQUE(scope_repo, scope_branch, slug)
+);
 
-    CREATE TABLE IF NOT EXISTS task_deps (
-        task_id    UUID REFERENCES tasks(id) ON DELETE CASCADE,
-        blocked_by UUID REFERENCES tasks(id) ON DELETE CASCADE,
-        PRIMARY KEY (task_id, blocked_by)
-    );
+CREATE INDEX IF NOT EXISTS idx_tasks_scope_status
+    ON tasks(scope_repo, scope_branch, status, priority, created_at);
 
-    CREATE TABLE IF NOT EXISTS agents (
-        id           TEXT PRIMARY KEY,
-        pid          INT,
-        hostname     TEXT,
-        scope_repo   TEXT NOT NULL DEFAULT '',
-        scope_branch TEXT NOT NULL DEFAULT '',
-        started_at   TIMESTAMPTZ DEFAULT now(),
-        status       TEXT DEFAULT 'active'
-    );
+CREATE TABLE IF NOT EXISTS task_deps (
+    task_id    TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+    blocked_by TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, blocked_by)
+);
 
-    -- Idempotent migration: add scope columns to agents if upgrading from unscoped schema
-    ALTER TABLE agents ADD COLUMN IF NOT EXISTS scope_repo   TEXT NOT NULL DEFAULT '';
-    ALTER TABLE agents ADD COLUMN IF NOT EXISTS scope_branch TEXT NOT NULL DEFAULT '';
-    " > /dev/null
+CREATE TABLE IF NOT EXISTS agents (
+    id           TEXT PRIMARY KEY,
+    pid          INTEGER,
+    hostname     TEXT,
+    scope_repo   TEXT NOT NULL DEFAULT '',
+    scope_branch TEXT NOT NULL DEFAULT '',
+    started_at   TEXT DEFAULT (datetime('now')),
+    status       TEXT DEFAULT 'active'
+);
+SQL
 }
 
 # ---------------------------------------------------------------------------
@@ -246,7 +314,7 @@ Plan Phase Commands:
   plan-status           Print summary: N open, N active, N done, N blocked, N deleted
 
 Build Phase Commands:
-  peek [-n 10]               Top N claimable + all active tasks (markdown-KV)
+  peek [-n 5]                Top N claimable + all active tasks (markdown-KV)
   claim [<id>] [--lease N]   Claim task (targeted by id, or highest-priority)
   renew <id> [--lease N]     Extend lease on an active task
   done <id> --result '<json>'  Mark task as done, store result
@@ -270,7 +338,7 @@ Agent Commands:
   agent deregister <id>       Mark agent as stopped
 
 Environment:
-  RALPH_DB_URL   PostgreSQL connection string (required)
+  RALPH_DB_PATH  SQLite database path (default: .ralph/tasks.db)
 EOF
 }
 
@@ -361,13 +429,15 @@ cmd_plan_sync() {
     done
 
     # Build the entire sync as a single SQL transaction — all reads and writes
-    # execute within BEGIN...COMMIT for atomicity (task-scheduling.md requirement)
-    local sql="BEGIN;"
+    # execute within BEGIN...COMMIT for atomicity (task-scheduling.md requirement).
+    # sql_write() wraps this in BEGIN IMMEDIATE...COMMIT with retry-on-BUSY logic.
+    local sql=""
 
     # Batch-fetch existing task statuses INSIDE the transaction (for counting, by slug within scope)
     sql+="
-CREATE TEMP TABLE _sync_pre ON COMMIT DROP AS
-  SELECT slug, status FROM tasks WHERE slug IN (${in_clause}) AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}';"
+CREATE TEMP TABLE IF NOT EXISTS _sync_pre (slug TEXT, status TEXT);
+DELETE FROM _sync_pre;
+INSERT INTO _sync_pre SELECT slug, status FROM tasks WHERE slug IN (${in_clause}) AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}';"
 
     # Process each task from stdin — upsert via INSERT ... ON CONFLICT (scoped)
     for line in "${lines[@]}"; do
@@ -401,20 +471,30 @@ CREATE TEMP TABLE _sync_pre ON COMMIT DROP AS
         local steps_val
         steps_val=$(build_steps_literal "$steps_json")
 
-        # Upsert: slug is user-facing id, scope columns scope the task, UUID auto-generated
+        # Upsert: slug is user-facing id, scope columns scope the task, UUID generated in bash
+        local uuid
+        uuid=$(generate_uuid)
         sql+="
-INSERT INTO tasks (slug, scope_repo, scope_branch, title, description, category, priority, spec_ref, ref, steps, updated_at)
-VALUES ('${esc_id}', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, ${steps_val}, now())
+INSERT INTO tasks (id, slug, scope_repo, scope_branch, title, description, category, priority, spec_ref, ref, steps, updated_at)
+VALUES ('${uuid}', '${esc_id}', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}', '${esc_title}', ${desc_val}, ${cat_val}, ${priority}, ${spec_val}, ${ref_val}, ${steps_val}, datetime('now'))
 ON CONFLICT (scope_repo, scope_branch, slug) DO UPDATE SET
-  title = EXCLUDED.title,
-  description = EXCLUDED.description,
-  category = EXCLUDED.category,
-  priority = EXCLUDED.priority,
-  spec_ref = EXCLUDED.spec_ref,
-  ref = EXCLUDED.ref,
-  steps = EXCLUDED.steps,
-  updated_at = now()
-WHERE tasks.status != 'done';"
+  title = excluded.title,
+  description = excluded.description,
+  category = excluded.category,
+  priority = excluded.priority,
+  spec_ref = excluded.spec_ref,
+  ref = excluded.ref,
+  steps = excluded.steps,
+  updated_at = datetime('now')
+WHERE tasks.status != 'done'
+  AND (tasks.title IS NOT excluded.title
+       OR tasks.description IS NOT excluded.description
+       OR tasks.category IS NOT excluded.category
+       OR tasks.priority IS NOT excluded.priority
+       OR tasks.spec_ref IS NOT excluded.spec_ref
+       OR tasks.ref IS NOT excluded.ref
+       OR tasks.steps IS NOT excluded.steps);
+SELECT '_UPSERT_|${esc_id}|' || changes();"
 
         # Replace deps (guarded: only for non-done tasks; resolve slugs to UUIDs)
         sql+="
@@ -453,41 +533,54 @@ INSERT INTO task_deps (task_id, blocked_by)
         done
 
         # Inline orphan soft-delete scoped to current repo/branch
+        # SQLite does not support UPDATE inside CTE, so use changes() after UPDATE
         sql+="
-WITH _orphaned AS (
-  UPDATE tasks SET status = 'deleted', deleted_at = now(), updated_at = now()
+UPDATE tasks SET status = 'deleted', deleted_at = datetime('now'), updated_at = datetime('now')
   WHERE spec_ref = '${esc_spec_del}'
     AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}'
     AND slug NOT IN (${id_in_list})
-    AND status != 'done'
-  RETURNING id
-)
-SELECT '_SYNC_DEL_|' || count(*) FROM _orphaned;"
+    AND status != 'done';
+SELECT '_SYNC_DEL_|' || changes();"
     done
 
-    # Compute insert/update/skip counts from within the transaction
+    # Compute insert/skip counts from within the transaction
+    # (updated count is derived from per-upsert changes() tags emitted above)
     sql+="
 SELECT '_SYNC_COUNTS_|' ||
   (SELECT count(*) FROM _sync_pre WHERE status = 'done') || '|' ||
-  (SELECT count(*) FROM _sync_pre WHERE status != 'done') || '|' ||
   (${#all_ids[@]} - (SELECT count(*) FROM _sync_pre));"
 
-    sql+="
-COMMIT;"
-
-    # Execute the entire transaction and capture tagged output
+    # Execute the entire transaction via sql_write() which wraps in
+    # BEGIN IMMEDIATE...COMMIT with .bail on and retry-on-BUSY logic.
     local tx_output
-    tx_output=$(printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1)
+    tx_output=$(sql_write "$sql")
 
     # Parse counts from tagged output
     local inserted=0 updated=0 deleted=0 skipped=0
+
+    # Sum per-upsert changes() for actual updates (slug existed in _sync_pre with status != 'done')
+    # _UPSERT_|<slug>|<changes> lines emitted after each upsert
+    local upsert_line
+    while IFS= read -r upsert_line; do
+        [[ -z "$upsert_line" ]] && continue
+        local u_changes
+        u_changes=$(printf '%s' "$upsert_line" | cut -d'|' -f3)
+        updated=$((updated + u_changes))
+    done < <(printf '%s\n' "$tx_output" | grep '^_UPSERT_|')
+
     local counts_line
     counts_line=$(printf '%s\n' "$tx_output" | grep '^_SYNC_COUNTS_|' | head -1)
     if [[ -n "$counts_line" ]]; then
         skipped=$(printf '%s' "$counts_line" | cut -d'|' -f2)
-        updated=$(printf '%s' "$counts_line" | cut -d'|' -f3)
-        inserted=$(printf '%s' "$counts_line" | cut -d'|' -f4)
+        inserted=$(printf '%s' "$counts_line" | cut -d'|' -f3)
     fi
+
+    # Subtract skipped (done) tasks from updated — their _UPSERT_ changes() is 0
+    # but also subtract any new inserts that were counted in _UPSERT_ changes()
+    # _UPSERT_ changes() = 1 for both inserts and real updates, so:
+    # actual updated = total _UPSERT_ changes - inserted
+    updated=$((updated - inserted))
+
     local del_line
     while IFS= read -r del_line; do
         [[ -z "$del_line" ]] && continue
@@ -509,13 +602,13 @@ cmd_plan_status() {
     # Count tasks by status, with "blocked" computed as tasks that have
     # at least one unresolved blocker (blocker status not in done/deleted)
     local result
-    result=$(psql_cmd -c "
+    result=$(sqlite_cmd "
         SELECT
-            COALESCE(SUM(CASE WHEN s.status = 'open'    AND NOT s.is_blocked THEN 1 ELSE 0 END), 0) AS open_count,
-            COALESCE(SUM(CASE WHEN s.status = 'active'  AND NOT s.is_blocked THEN 1 ELSE 0 END), 0) AS active_count,
-            COALESCE(SUM(CASE WHEN s.status = 'done'    THEN 1 ELSE 0 END), 0) AS done_count,
-            COALESCE(SUM(CASE WHEN s.is_blocked          THEN 1 ELSE 0 END), 0) AS blocked_count,
-            COALESCE(SUM(CASE WHEN s.status = 'deleted'  THEN 1 ELSE 0 END), 0) AS deleted_count
+            COALESCE(SUM(CASE WHEN s.status = 'open'    AND NOT s.is_blocked THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.status = 'active'  AND NOT s.is_blocked THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.status = 'done'    THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.is_blocked          THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.status = 'deleted'  THEN 1 ELSE 0 END), 0)
         FROM (
             SELECT t.id, t.status,
                    EXISTS (
@@ -546,8 +639,8 @@ cmd_peek() {
 
     # Query 1: Claimable tasks — open + unblocked, or active with expired lease (scoped)
     local claimable
-    claimable=$(psql_cmd -c "
-        SELECT json_build_object(
+    claimable=$(sqlite_cmd "
+        SELECT json_object(
             'id', t.slug,
             't', t.title,
             'd', t.description,
@@ -555,12 +648,13 @@ cmd_peek() {
             's', 'open',
             'cat', t.category,
             'spec', t.spec_ref,
-            'steps', COALESCE(to_json(t.steps), '[]'::json),
-            'deps', COALESCE((SELECT json_agg(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), '[]'::json)
+            'ref', t.ref,
+            'steps', COALESCE(json(t.steps), json('[]')),
+            'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), json('[]'))
         )
         FROM tasks t
         WHERE $(scope_filter "t")
-          AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
+          AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < datetime('now')))
           AND NOT EXISTS (
               SELECT 1 FROM task_deps td
               JOIN tasks blocker ON blocker.id = td.blocked_by
@@ -573,8 +667,8 @@ cmd_peek() {
 
     # Query 2: Active tasks with valid leases — no N limit (scoped)
     local active
-    active=$(psql_cmd -c "
-        SELECT json_build_object(
+    active=$(sqlite_cmd "
+        SELECT json_object(
             'id', t.slug,
             't', t.title,
             'd', t.description,
@@ -582,14 +676,15 @@ cmd_peek() {
             's', 'active',
             'cat', t.category,
             'spec', t.spec_ref,
-            'steps', COALESCE(to_json(t.steps), '[]'::json),
-            'deps', COALESCE((SELECT json_agg(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), '[]'::json),
+            'ref', t.ref,
+            'steps', COALESCE(json(t.steps), json('[]')),
+            'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), json('[]')),
             'assignee', t.assignee
         )
         FROM tasks t
         WHERE $(scope_filter "t")
           AND t.status = 'active'
-          AND t.lease_expires_at >= now()
+          AND t.lease_expires_at >= datetime('now')
         ORDER BY t.priority ASC, t.created_at ASC;
     ")
 
@@ -636,133 +731,111 @@ cmd_claim() {
         esac
     done
 
+    # Validate --lease is a non-negative integer
+    if ! [[ "$lease" =~ ^[0-9]+$ ]]; then
+        echo "Error: --lease must be a non-negative integer, got: $lease" >&2
+        exit 1
+    fi
 
     local esc_agent
     esc_agent=$(sql_esc "$agent_id")
 
     local result
 
+    # SQLite claim: separate SELECT → UPDATE → SELECT inside BEGIN IMMEDIATE
+    # (SQLite does not support UPDATE inside CTE or FOR UPDATE SKIP LOCKED)
+    local eligible_where
     if [[ -n "$target_id" ]]; then
-        # Targeted claim: claim a specific task by slug within scope
         local esc_target
         esc_target=$(sql_esc "$target_id")
-
-        result=$(psql_cmd -c "
-            WITH eligible AS (
-                SELECT t.id
-                FROM tasks t
-                WHERE $(scope_where_t "t" "${esc_target}")
-                  AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
-                  AND NOT EXISTS (
-                      SELECT 1 FROM task_deps td
-                      JOIN tasks blocker ON blocker.id = td.blocked_by
-                      WHERE td.task_id = t.id
-                        AND blocker.status NOT IN ('done', 'deleted')
-                  )
-                FOR UPDATE OF t SKIP LOCKED
-            ),
-            claimed AS (
-                UPDATE tasks
-                SET status = 'active',
-                    assignee = '${esc_agent}',
-                    lease_expires_at = now() + interval '${lease} seconds',
-                    retry_count = CASE
-                        WHEN tasks.status = 'active' THEN tasks.retry_count + 1
-                        ELSE tasks.retry_count
-                    END,
-                    updated_at = now()
-                FROM eligible
-                WHERE tasks.id = eligible.id
-                RETURNING tasks.*
-            )
-            SELECT json_build_object(
-                'id', c.slug,
-                't', c.title,
-                'd', c.description,
-                'p', c.priority,
-                's', c.status,
-                'cat', c.category,
-                'spec', c.spec_ref,
-                'ref', c.ref,
-                'assignee', c.assignee,
-                'lease_expires_at', c.lease_expires_at,
-                'retry_count', c.retry_count,
-                'deps', COALESCE((SELECT json_agg(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = c.id), '[]'::json),
-                'steps', COALESCE(to_json(c.steps), '[]'::json),
-                'blocker_results', COALESCE((
-                    SELECT json_object_agg(bt.slug, bt.result)
-                    FROM task_deps td
-                    JOIN tasks bt ON bt.id = td.blocked_by
-                    WHERE td.task_id = c.id AND bt.result IS NOT NULL
-                ), '{}'::json)
-            )
-            FROM claimed c;
-        ")
-
-        if [[ -z "$result" ]]; then
-            echo "Task not eligible" >&2
-            exit 2
-        fi
+        eligible_where="$(scope_where_t "t" "${esc_target}")"
     else
-        # Untargeted claim: claim highest-priority eligible task within scope
-        result=$(psql_cmd -c "
-            WITH eligible AS (
-                SELECT t.id
-                FROM tasks t
-                WHERE $(scope_filter "t")
-                  AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < now()))
-                  AND NOT EXISTS (
-                      SELECT 1 FROM task_deps td
-                      JOIN tasks blocker ON blocker.id = td.blocked_by
-                      WHERE td.task_id = t.id
-                        AND blocker.status NOT IN ('done', 'deleted')
-                  )
-                ORDER BY t.priority ASC, t.created_at ASC
-                LIMIT 1
-                FOR UPDATE OF t SKIP LOCKED
-            ),
-            claimed AS (
-                UPDATE tasks
-                SET status = 'active',
-                    assignee = '${esc_agent}',
-                    lease_expires_at = now() + interval '${lease} seconds',
-                    retry_count = CASE
-                        WHEN tasks.status = 'active' THEN tasks.retry_count + 1
-                        ELSE tasks.retry_count
-                    END,
-                    updated_at = now()
-                FROM eligible
-                WHERE tasks.id = eligible.id
-                RETURNING tasks.*
-            )
-            SELECT json_build_object(
-                'id', c.slug,
-                't', c.title,
-                'd', c.description,
-                'p', c.priority,
-                's', c.status,
-                'cat', c.category,
-                'spec', c.spec_ref,
-                'ref', c.ref,
-                'assignee', c.assignee,
-                'lease_expires_at', c.lease_expires_at,
-                'retry_count', c.retry_count,
-                'deps', COALESCE((SELECT json_agg(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = c.id), '[]'::json),
-                'steps', COALESCE(to_json(c.steps), '[]'::json),
-                'blocker_results', COALESCE((
-                    SELECT json_object_agg(bt.slug, bt.result)
-                    FROM task_deps td
-                    JOIN tasks bt ON bt.id = td.blocked_by
-                    WHERE td.task_id = c.id AND bt.result IS NOT NULL
-                ), '{}'::json)
-            )
-            FROM claimed c;
-        ")
+        eligible_where="$(scope_filter "t")"
+    fi
 
-        if [[ -z "$result" ]]; then
-            echo "No eligible tasks" >&2
-            exit 2
+    # Atomic claim: SELECT eligible → UPDATE → SELECT result in one BEGIN IMMEDIATE transaction.
+    # Uses a temp table because SQLite does not support UPDATE inside CTE or FOR UPDATE SKIP LOCKED.
+    local tx_sql="
+.bail on
+BEGIN IMMEDIATE;
+CREATE TEMP TABLE IF NOT EXISTS _claim_candidate (task_uuid TEXT);
+DELETE FROM _claim_candidate;
+INSERT INTO _claim_candidate
+SELECT id FROM tasks t
+WHERE ${eligible_where}
+  AND (t.status = 'open' OR (t.status = 'active' AND t.lease_expires_at < datetime('now')))
+  AND NOT EXISTS (
+      SELECT 1 FROM task_deps td
+      JOIN tasks blocker ON blocker.id = td.blocked_by
+      WHERE td.task_id = t.id
+        AND blocker.status NOT IN ('done', 'deleted')
+  )
+ORDER BY t.priority ASC, t.created_at ASC
+LIMIT 1;
+UPDATE tasks
+SET status = 'active',
+    assignee = '${esc_agent}',
+    lease_expires_at = datetime('now', '+${lease} seconds'),
+    retry_count = CASE
+        WHEN tasks.status = 'active' THEN tasks.retry_count + 1
+        ELSE tasks.retry_count
+    END,
+    updated_at = datetime('now')
+WHERE id = (SELECT task_uuid FROM _claim_candidate)
+  AND status IN ('open', 'active');
+SELECT json_object(
+    'id', c.slug,
+    't', c.title,
+    'd', c.description,
+    'p', c.priority,
+    's', c.status,
+    'cat', c.category,
+    'spec', c.spec_ref,
+    'ref', c.ref,
+    'assignee', c.assignee,
+    'lease_expires_at', c.lease_expires_at,
+    'retry_count', c.retry_count,
+    'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = c.id), json('[]')),
+    'steps', COALESCE(json(c.steps), json('[]')),
+    'blocker_results', COALESCE((
+        SELECT json_group_object(bt.slug, json(bt.result))
+        FROM task_deps td
+        JOIN tasks bt ON bt.id = td.blocked_by
+        WHERE td.task_id = c.id AND bt.result IS NOT NULL
+    ), json('{}'))
+)
+FROM tasks c
+WHERE c.id = (SELECT task_uuid FROM _claim_candidate);
+COMMIT;"
+
+    # Execute the claim transaction with retry-on-BUSY (exit code 5) to handle
+    # concurrent agents contending for BEGIN IMMEDIATE locks.
+    local max_retries=3
+    local attempt=0
+    local backoff_ms=(100 300 900)
+    local rc=0
+    result=""
+    while true; do
+        rc=0
+        result=$(printf '%s\n' "$tx_sql" | sqlite_cmd 2>/dev/null) || rc=$?
+        if [[ $rc -eq 0 ]]; then
+            break
+        elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then
+            local ms="${backoff_ms[$attempt]}"
+            sleep "$(awk "BEGIN{printf \"%.3f\", $ms/1000}")"
+            (( attempt++ ))
+        else
+            break
         fi
+    done
+
+    if [[ -z "$result" ]]; then
+        if [[ -n "$target_id" ]]; then
+            echo "Task not eligible" >&2
+        else
+            echo "No eligible tasks" >&2
+        fi
+        exit 2
     fi
 
     render_task_md "$result"
@@ -791,30 +864,37 @@ cmd_renew() {
         exit 1
     fi
 
+    # Validate --lease is a non-negative integer
+    if ! [[ "$lease" =~ ^[0-9]+$ ]]; then
+        echo "Error: --lease must be a non-negative integer, got: $lease" >&2
+        exit 1
+    fi
+
     local esc_id esc_agent
     esc_id=$(sql_esc "$task_id")
     esc_agent=$(sql_esc "$agent_id")
 
-    # Single atomic UPDATE — eliminates TOCTOU race between check and update
-    local updated
-    updated=$(psql_cmd -q -c "
+    # Atomic: UPDATE only if status = 'active', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
         UPDATE tasks
-        SET lease_expires_at = now() + interval '${lease} seconds',
-            updated_at = now()
+        SET lease_expires_at = datetime('now', '+${lease} seconds'),
+            updated_at = datetime('now')
         WHERE $(scope_where "${esc_id}")
           AND assignee = '${esc_agent}'
-          AND status = 'active'
-        RETURNING slug
+          AND status = 'active';
+        SELECT changes();
     ")
 
-    if [[ -n "$updated" ]]; then
+    if [[ "$output" == "1" ]]; then
         echo "renewed $task_id"
         return 0
     fi
 
     # UPDATE matched no rows — diagnose the reason
     local status
-    status=$(psql_cmd -c "SELECT status FROM tasks WHERE $(scope_where "${esc_id}")")
+    status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
     if [[ -z "$status" ]]; then
         echo "Error: task '$task_id' not found" >&2
         exit 2
@@ -856,39 +936,42 @@ cmd_done() {
     local esc_id
     esc_id=$(sql_esc "$task_id")
 
-    # Check task exists and get current status
+    # Build the UPDATE with optional result JSON
+    local result_clause=""
+    if [[ -n "$result_json" ]]; then
+        local esc_result
+        esc_result=$(sql_esc "$result_json")
+        result_clause=", result = '${esc_result}'"
+    fi
+
+    # Atomic: UPDATE only if status = 'active', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
+        UPDATE tasks
+        SET status = 'done',
+            updated_at = datetime('now')
+            ${result_clause}
+        WHERE $(scope_where "${esc_id}") AND status = 'active';
+        SELECT changes();
+    ")
+
+    if [[ "$output" == "1" ]]; then
+        echo "done $task_id"
+        return 0
+    fi
+
+    # UPDATE affected 0 rows — determine why
     local current_status
-    current_status=$(psql_cmd -c "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
+    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
 
     if [[ -z "$current_status" ]]; then
         echo "Error: task '$task_id' not found" >&2
         exit 2
     fi
 
-    if [[ "$current_status" != "active" ]]; then
-        echo "Error: task '$task_id' is not active (status: $current_status)" >&2
-        exit 1
-    fi
-
-    # Build the UPDATE with optional result JSONB
-    local result_clause
-    if [[ -n "$result_json" ]]; then
-        local esc_result
-        esc_result=$(sql_esc "$result_json")
-        result_clause=", result = '${esc_result}'::jsonb"
-    else
-        result_clause=""
-    fi
-
-    psql_cmd -c "
-        UPDATE tasks
-        SET status = 'done',
-            updated_at = now()
-            ${result_clause}
-        WHERE $(scope_where "${esc_id}");
-    " > /dev/null
-
-    echo "done $task_id"
+    echo "Error: task '$task_id' is not active (status: $current_status)" >&2
+    exit 1
 }
 cmd_fail() {
     local task_id="${1:-}"
@@ -913,20 +996,6 @@ cmd_fail() {
     local esc_id
     esc_id=$(sql_esc "$task_id")
 
-    # Check task exists and get current status
-    local current_status
-    current_status=$(psql_cmd -c "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
-
-    if [[ -z "$current_status" ]]; then
-        echo "Error: task '$task_id' not found" >&2
-        exit 2
-    fi
-
-    if [[ "$current_status" != "active" ]]; then
-        echo "Error: task '$task_id' is not active (status: $current_status)" >&2
-        exit 1
-    fi
-
     local esc_reason
     esc_reason=$(sql_esc "$reason")
 
@@ -936,18 +1005,37 @@ cmd_fail() {
         fail_reason_sql="'${esc_reason}'"
     fi
 
-    psql_cmd -c "
+    # Atomic: UPDATE only if status = 'active', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
         UPDATE tasks
         SET status = 'open',
             assignee = NULL,
             lease_expires_at = NULL,
             retry_count = retry_count + 1,
             fail_reason = ${fail_reason_sql},
-            updated_at = now()
-        WHERE $(scope_where "${esc_id}");
-    " > /dev/null
+            updated_at = datetime('now')
+        WHERE $(scope_where "${esc_id}") AND status = 'active';
+        SELECT changes();
+    ")
 
-    echo "failed $task_id"
+    if [[ "$output" == "1" ]]; then
+        echo "failed $task_id"
+        return 0
+    fi
+
+    # UPDATE affected 0 rows — determine why
+    local current_status
+    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
+
+    if [[ -z "$current_status" ]]; then
+        echo "Error: task '$task_id' not found" >&2
+        exit 2
+    fi
+
+    echo "Error: task '$task_id' is not active (status: $current_status)" >&2
+    exit 1
 }
 cmd_list() {
     local status_filter=""
@@ -999,8 +1087,8 @@ cmd_list() {
     if [[ "$markdown_output" -eq 1 ]]; then
         # Markdown-KV output via render_task_md (scoped)
         local jsonl
-        jsonl=$(psql_cmd -c "
-            SELECT json_build_object(
+        jsonl=$(sqlite_cmd "
+            SELECT json_object(
                 'id', t.slug,
                 't', t.title,
                 'd', t.description,
@@ -1010,8 +1098,8 @@ cmd_list() {
                 'spec', t.spec_ref,
                 'ref', t.ref,
                 'assignee', t.assignee,
-                'deps', COALESCE((SELECT json_agg(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), '[]'::json),
-                'steps', COALESCE(to_json(t.steps), '[]'::json)
+                'deps', COALESCE((SELECT json_group_array(bt.slug) FROM task_deps td JOIN tasks bt ON bt.id = td.blocked_by WHERE td.task_id = t.id), json('[]')),
+                'steps', COALESCE(json(t.steps), json('[]'))
             )
             FROM tasks t
             ${where_clause}
@@ -1036,7 +1124,7 @@ cmd_list() {
     else
         # Table output: ID, P, S, CAT, TITLE, AGENT (scoped)
         local result
-        result=$(psql_cmd -c "
+        result=$(sqlite_cmd "
             SELECT t.slug, t.priority, t.status, COALESCE(t.category, '-'), t.title, COALESCE(t.assignee, '-')
             FROM tasks t
             ${where_clause}
@@ -1074,7 +1162,7 @@ cmd_show() {
 
     # Query the task
     local task_row
-    task_row=$(psql_cmd -c "
+    task_row=$(sqlite_cmd "
         SELECT slug, title, description, category, priority, status, spec_ref, ref,
                result, assignee, lease_expires_at, retry_count, fail_reason, created_at, updated_at, deleted_at
         FROM tasks WHERE $(scope_where "$(sql_esc "$id")");
@@ -1109,10 +1197,10 @@ cmd_show() {
 
     # Query steps from tasks.steps TEXT[] column
     local steps
-    steps=$(psql_cmd -c "
-        SELECT unnest(steps) FROM tasks
+    steps=$(sqlite_cmd "
+        SELECT je.value FROM tasks, json_each(tasks.steps) je
         WHERE $(scope_where "$(sql_esc "$id")")
-        AND steps IS NOT NULL;
+        AND tasks.steps IS NOT NULL;
     ")
 
     if [[ -n "$steps" ]]; then
@@ -1126,7 +1214,7 @@ cmd_show() {
 
     # Query dependencies (resolve slug to UUID for task_deps lookup, display slug)
     local deps
-    deps=$(psql_cmd -c "
+    deps=$(sqlite_cmd "
         SELECT bt.slug, bt.status
         FROM task_deps td
         JOIN tasks bt ON bt.id = td.blocked_by
@@ -1144,7 +1232,7 @@ cmd_show() {
     # With --with-deps: show blocker task results
     if [[ "$with_deps" -eq 1 ]]; then
         local blocker_results
-        blocker_results=$(psql_cmd -c "
+        blocker_results=$(sqlite_cmd "
             SELECT bt.slug, bt.result
             FROM task_deps td
             JOIN tasks bt ON bt.id = td.blocked_by
@@ -1200,6 +1288,11 @@ cmd_create() {
         esac
     done
 
+    # Validate -p (priority) is a non-negative integer
+    if ! [[ "$priority" =~ ^[0-9]+$ ]]; then
+        echo "Error: -p (priority) must be a non-negative integer, got: $priority" >&2
+        exit 1
+    fi
 
     local esc_id esc_title esc_desc esc_category esc_spec_ref esc_ref
     esc_id=$(sql_esc "$id")
@@ -1215,11 +1308,12 @@ cmd_create() {
         steps_val=$(build_steps_literal "$steps_json")
     fi
 
-    # Build INSERT for tasks (id auto-generated as UUID, slug is user-facing identifier)
+    # Build INSERT for tasks (UUID generated in bash, slug is user-facing identifier)
+    local uuid
+    uuid=$(generate_uuid)
     local sql
-    sql="BEGIN;
-INSERT INTO tasks (slug, scope_repo, scope_branch, title, description, category, priority, spec_ref, ref, steps, updated_at)
-VALUES ('${esc_id}', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}', '${esc_title}'"
+    sql="INSERT INTO tasks (id, slug, scope_repo, scope_branch, title, description, category, priority, spec_ref, ref, steps, updated_at)
+VALUES ('${uuid}', '${esc_id}', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}', '${esc_title}'"
     if [[ -n "$description" ]]; then
         sql+=", '${esc_desc}'"
     else
@@ -1242,7 +1336,7 @@ VALUES ('${esc_id}', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}', '${esc_title}'"
         sql+=", NULL"
     fi
     sql+=", ${steps_val}"
-    sql+=", now());"
+    sql+=", datetime('now'));"
 
     # Insert dependencies (resolve slugs to UUIDs via subqueries)
     if [[ -n "$deps" ]]; then
@@ -1256,10 +1350,7 @@ INSERT INTO task_deps (task_id, blocked_by) VALUES ($(slug_uuid_subq "${esc_id}"
         done
     fi
 
-    sql+="
-COMMIT;"
-
-    printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1 > /dev/null
+    sql_write "$sql" > /dev/null
     echo "$id"
 }
 cmd_update() {
@@ -1296,20 +1387,6 @@ cmd_update() {
     local esc_id
     esc_id=$(sql_esc "$id")
 
-    # Check task exists and is not done
-    local current_status
-    current_status=$(psql_cmd -c "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
-
-    if [[ -z "$current_status" ]]; then
-        echo "Error: task '$id' not found" >&2
-        exit 2
-    fi
-
-    if [[ "$current_status" == "done" ]]; then
-        echo "Error: task '$id' is done and cannot be updated" >&2
-        exit 1
-    fi
-
     # Build SET clause dynamically
     local set_parts=()
     if [[ "$has_title" -eq 1 ]]; then
@@ -1324,31 +1401,43 @@ cmd_update() {
     if [[ "$has_status" -eq 1 ]]; then
         set_parts+=("status = '$(sql_esc "$status")'")
     fi
-    # Always set updated_at
-    set_parts+=("updated_at = now()")
-
-    local set_clause
-    set_clause=$(IFS=', '; echo "${set_parts[*]}")
-
-    local sql="BEGIN;"
-    sql+="
-UPDATE tasks SET ${set_clause} WHERE $(scope_where "${esc_id}");"
-
-    # If --steps provided, update tasks.steps TEXT[] column
     if [[ "$has_steps" -eq 1 ]]; then
         local steps_val="NULL"
         if [[ -n "$steps_json" ]]; then
             steps_val=$(build_steps_literal "$steps_json")
         fi
-        sql+="
-UPDATE tasks SET steps = ${steps_val} WHERE $(scope_where "${esc_id}");"
+        set_parts+=("steps = ${steps_val}")
+    fi
+    # Always set updated_at
+    set_parts+=("updated_at = datetime('now')")
+
+    local set_clause
+    set_clause=$(IFS=', '; echo "${set_parts[*]}")
+
+    # Atomic: UPDATE only if status != 'done', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
+        UPDATE tasks SET ${set_clause}
+        WHERE $(scope_where "${esc_id}") AND status != 'done';
+        SELECT changes();
+    ")
+
+    if [[ "$output" == "1" ]]; then
+        echo "updated $id"
+        return 0
     fi
 
-    sql+="
-COMMIT;"
+    # UPDATE affected 0 rows — determine why
+    local current_status
+    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
 
-    printf '%s\n' "$sql" | psql_cmd --set ON_ERROR_STOP=1 > /dev/null
-    echo "updated $id"
+    if [[ -z "$current_status" ]]; then
+        echo "Error: task '$id' not found" >&2
+        exit 2
+    fi
+    echo "Error: task '$id' is done and cannot be updated" >&2
+    exit 1
 }
 cmd_delete() {
     local id="${1:-}"
@@ -1365,7 +1454,7 @@ cmd_delete() {
 
     # Check task exists
     local current_status
-    current_status=$(psql_cmd -c "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
+    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
 
     if [[ -z "$current_status" ]]; then
         echo "Error: task '$id' not found" >&2
@@ -1373,9 +1462,9 @@ cmd_delete() {
     fi
 
     # Soft delete: set status to 'deleted', set deleted_at and updated_at
-    psql_cmd -c "
+    sql_write "
         UPDATE tasks
-        SET status = 'deleted', deleted_at = now(), updated_at = now()
+        SET status = 'deleted', deleted_at = datetime('now'), updated_at = datetime('now')
         WHERE $(scope_where "${esc_id}");
     " > /dev/null
 
@@ -1396,7 +1485,7 @@ cmd_deps() {
 
     # Check task exists
     local task_exists
-    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE $(scope_where "${esc_id}");")
+    task_exists=$(sqlite_cmd "SELECT id FROM tasks WHERE $(scope_where "${esc_id}");")
     if [[ -z "$task_exists" ]]; then
         echo "Error: task '$id' not found" >&2
         exit 2
@@ -1404,7 +1493,7 @@ cmd_deps() {
 
     # Recursive CTE to walk the full dependency tree (use UUID internally, display slug)
     local tree_output
-    tree_output=$(psql_cmd -c "
+    tree_output=$(sqlite_cmd "
         WITH RECURSIVE dep_tree AS (
             SELECT td.blocked_by, t.slug, t.status, t.title, 1 AS depth, td.task_id AS parent
             FROM task_deps td
@@ -1465,21 +1554,21 @@ cmd_block() {
 
     # Check both tasks exist
     local task_exists
-    task_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE $(scope_where "${esc_id}");")
+    task_exists=$(sqlite_cmd "SELECT id FROM tasks WHERE $(scope_where "${esc_id}");")
     if [[ -z "$task_exists" ]]; then
         echo "Error: task '$id' not found" >&2
         exit 2
     fi
 
     local blocker_exists
-    blocker_exists=$(psql_cmd -c "SELECT id FROM tasks WHERE $(scope_where "${esc_blocker}");")
+    blocker_exists=$(sqlite_cmd "SELECT id FROM tasks WHERE $(scope_where "${esc_blocker}");")
     if [[ -z "$blocker_exists" ]]; then
         echo "Error: blocker task '$blocker_id' not found" >&2
         exit 2
     fi
 
     # Insert dependency (resolve slugs to UUIDs)
-    psql_cmd -c "
+    sql_write "
         INSERT INTO task_deps (task_id, blocked_by)
         VALUES ($(slug_uuid_subq "${esc_id}"), $(slug_uuid_subq "${esc_blocker}"))
         ON CONFLICT DO NOTHING;
@@ -1516,15 +1605,15 @@ cmd_unblock() {
     esc_id=$(sql_esc "$id")
     esc_blocker=$(sql_esc "$blocker_id")
 
-    # Delete the dependency (resolve slugs to UUIDs)
-    local result
-    result=$(psql_cmd -c "
+    # Delete the dependency (resolve slugs to UUIDs) and check if row existed
+    local deleted_id
+    deleted_id=$(sqlite_cmd "
         DELETE FROM task_deps
-        WHERE task_id = $(slug_uuid_subq "${esc_id}") AND blocked_by = $(slug_uuid_subq "${esc_blocker}");
+        WHERE task_id = $(slug_uuid_subq "${esc_id}") AND blocked_by = $(slug_uuid_subq "${esc_blocker}")
+        RETURNING task_id;
     ")
 
-    # Check if any row was deleted (DELETE N returns "DELETE N")
-    if [[ "$result" == "DELETE 0" ]]; then
+    if [[ -z "$deleted_id" ]]; then
         echo "Error: dependency not found" >&2
         exit 2
     fi
@@ -1541,9 +1630,10 @@ cmd_agent_register() {
         # Generate random 4-char hex ID
         agent_id=$(head -c 2 /dev/urandom | od -An -tx1 | tr -d ' \n')
 
-        # Try to insert; ON CONFLICT means collision — retry
+        # Try to insert via sql_write (BEGIN IMMEDIATE + retry-on-BUSY);
+        # ON CONFLICT means ID collision — retry with a new ID
         local result
-        result=$(psql "$RALPH_DB_URL" -tAX -v ON_ERROR_STOP=1 -c "
+        result=$(sql_write "
             INSERT INTO agents (id, pid, hostname, scope_repo, scope_branch)
             VALUES ('$(sql_esc "$agent_id")', $pid, '$(sql_esc "$host")', '${ESC_SCOPE_REPO}', '${ESC_SCOPE_BRANCH}')
             ON CONFLICT (id) DO NOTHING
@@ -1562,7 +1652,7 @@ cmd_agent_register() {
 
 cmd_agent_list() {
     local result
-    result=$(psql_cmd -c "
+    result=$(sqlite_cmd "
         SELECT id, pid, hostname, started_at, status
         FROM agents
         WHERE status = 'active'
@@ -1593,16 +1683,16 @@ cmd_agent_deregister() {
     local esc_id
     esc_id=$(sql_esc "$id")
 
-    # Check agent exists
+    # Check agent exists in current scope
     local current
-    current=$(psql_cmd -c "SELECT id FROM agents WHERE id = '${esc_id}';")
+    current=$(sqlite_cmd "SELECT id FROM agents WHERE id = '${esc_id}' AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}';")
 
     if [[ -z "$current" ]]; then
         echo "Error: agent '$id' not found" >&2
         exit 2
     fi
 
-    psql_cmd -c "UPDATE agents SET status = 'stopped' WHERE id = '${esc_id}';" > /dev/null
+    sql_write "UPDATE agents SET status = 'stopped' WHERE id = '${esc_id}' AND scope_repo = '${ESC_SCOPE_REPO}' AND scope_branch = '${ESC_SCOPE_BRANCH}';" > /dev/null
 
     echo "deregistered $id"
 }

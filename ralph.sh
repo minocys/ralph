@@ -47,8 +47,6 @@ case "$SUBCMD" in
         shift
         # shellcheck source=lib/config.sh
         . "$SCRIPT_DIR/lib/config.sh"
-        # shellcheck source=lib/docker.sh
-        . "$SCRIPT_DIR/lib/docker.sh"
         # shellcheck source=lib/signals.sh
         . "$SCRIPT_DIR/lib/signals.sh"
         # shellcheck source=lib/output.sh
@@ -75,7 +73,6 @@ case "$SUBCMD" in
         resolve_model
         preflight
         load_env
-        ensure_postgres
         setup_session
         setup_cleanup_trap
         setup_signal_handlers
@@ -88,8 +85,6 @@ case "$SUBCMD" in
         shift
         # shellcheck source=lib/config.sh
         . "$SCRIPT_DIR/lib/config.sh"
-        # shellcheck source=lib/docker.sh
-        . "$SCRIPT_DIR/lib/docker.sh"
         # shellcheck source=lib/signals.sh
         . "$SCRIPT_DIR/lib/signals.sh"
         # shellcheck source=lib/output.sh
@@ -110,7 +105,6 @@ case "$SUBCMD" in
         resolve_model
         preflight
         load_env
-        ensure_postgres
         setup_session
         setup_cleanup_trap
         setup_signal_handlers

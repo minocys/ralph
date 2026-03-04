@@ -18,7 +18,7 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 - A task is eligible for claiming if it:
   - Has status `open`, OR has status `active` with `lease_expires_at` in the past (expired lease)
   - Has no unresolved blockers (all tasks in its `blocked_by` set are `done` or `deleted`)
-  - Is not currently leased by another agent (enforced by `SELECT FOR UPDATE SKIP LOCKED`)
+  - Is not currently leased by another agent (enforced by `BEGIN IMMEDIATE` transactions)
 - Priority ordering: lower number = higher priority (0 before 1 before 2)
 - Tiebreaker: `created_at` ascending (oldest first)
 
@@ -26,7 +26,7 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 - `ralph task claim` (no ID argument) selects the highest-priority eligible task automatically
 - The claim operation must be a single atomic transaction that:
-  1. Selects the next eligible task with `FOR UPDATE SKIP LOCKED`
+  1. Selects the next eligible task within a `BEGIN IMMEDIATE` transaction
   2. Sets status to `active`, assignee to the agent ID, `lease_expires_at` to `now() + lease duration`
   3. If reclaiming from an expired lease, increments `retry_count`
   4. Updates `updated_at`
@@ -86,8 +86,8 @@ Lease-based claiming, DAG-aware scheduling, and idempotent plan synchronization 
 
 ## Constraints
 
-- All scheduling queries must execute within a single PostgreSQL transaction
-- `ralph task claim` must not succeed for two concurrent agents on the same task — `SELECT FOR UPDATE SKIP LOCKED` guarantees this
+- All scheduling queries must execute within a single SQLite transaction
+- `ralph task claim` must not succeed for two concurrent agents on the same task — `BEGIN IMMEDIATE` guarantees this
 - No task queue polling or wait mechanisms — agents call `ralph task claim` on demand
 - Plan-sync must be idempotent — running it twice with the same input produces no changes on the second run
 

@@ -1,9 +1,11 @@
 #!/bin/bash
-# lib/build_loop.sh — build-mode session setup and iteration loop for ralph.sh
+# lib/build_loop.sh — build-mode iteration loop for ralph.sh
 #
 # Provides:
-#   setup_session()    — initialize session state (iteration counter, branch, tmpfile, scope, agent)
+#   setup_session()    — initialize session state + register build agent
 #   run_build_loop()   — execute the build-mode iteration loop
+#
+# Requires lib/session.sh (provides setup_session_core, sourced below).
 #
 # Globals set by setup_session:
 #   ITERATION, CURRENT_BRANCH, TMPFILE, TASK_SCRIPT, AGENT_ID
@@ -17,28 +19,14 @@
 # Note: INTERRUPTED and PIPELINE_PID are modified by signal handlers in
 # lib/signals.sh and must remain global (not declared local here).
 
-# setup_session: initialize session state for the main loop
-# Shared between plan and build modes — both files include this function.
+# shellcheck source=lib/session.sh
+. "$SCRIPT_DIR/lib/session.sh"
+
+# setup_session: extend the shared setup with build-mode agent registration.
+# Overrides the function from session.sh — must be defined after sourcing.
 setup_session() {
-    ITERATION=0
-    CURRENT_BRANCH=$(git branch --show-current)
-    TMPFILE=$(mktemp)
-    AGENT_ID=""
-
-    TASK_SCRIPT="$SCRIPT_DIR/lib/task"
-    export RALPH_TASK_SCRIPT="$TASK_SCRIPT"
-
-    # Derive and export scope so all subprocesses (task, claude) inherit it.
-    # Uses `task _get-scope` to avoid duplicating URL-parsing logic.
-    if [ -x "$TASK_SCRIPT" ]; then
-        local scope_output
-        if scope_output=$("$TASK_SCRIPT" _get-scope 2>/dev/null); then
-            export RALPH_SCOPE_REPO
-            RALPH_SCOPE_REPO=$(echo "$scope_output" | grep '^repo:' | cut -d: -f2-)
-            export RALPH_SCOPE_BRANCH
-            RALPH_SCOPE_BRANCH=$(echo "$scope_output" | grep '^branch:' | cut -d: -f2-)
-        fi
-    fi
+    # Shared initialisation (iteration, branch, tmpfile, scope)
+    setup_session_core
 
     # Register agent in build mode if task script is available
     if [ -x "$TASK_SCRIPT" ]; then
@@ -104,16 +92,17 @@ run_build_loop() {
             exit 130
         fi
 
-        # Crash-safety fallback: fail active tasks assigned to this agent
+        # Crash-safety fallback: fail all active tasks assigned to this agent
         if [ -x "$TASK_SCRIPT" ] && [ -n "$AGENT_ID" ]; then
             local active_output
             active_output=$("$TASK_SCRIPT" list --status active --assignee "$AGENT_ID" --markdown 2>/dev/null || true)
-            # Extract task slug from the first "id: <slug>" line in the markdown-KV output.
-            local ACTIVE_ID
-            ACTIVE_ID=$(echo "$active_output" | awk '/^id: /{print substr($0,5); exit}')
-            if [ -n "$ACTIVE_ID" ]; then
-                "$TASK_SCRIPT" fail "$ACTIVE_ID" --reason 'session exited without completing task' 2>/dev/null || true
-            fi
+            # Extract all task slugs from "id: <slug>" lines in the markdown-KV output.
+            local active_id
+            echo "$active_output" | awk '/^id: /{print substr($0,5)}' | while IFS= read -r active_id; do
+                if [ -n "$active_id" ]; then
+                    "$TASK_SCRIPT" fail "$active_id" --reason 'session exited without completing task' 2>/dev/null || true
+                fi
+            done
         fi
 
         # Check plan-status: exit if all tasks complete

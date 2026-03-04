@@ -1,40 +1,7 @@
 #!/usr/bin/env bats
 # test/task_plan_sync.bats — Tests for the task plan-sync command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
-
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
-setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
-}
 
 # ---------------------------------------------------------------------------
 # Empty input
@@ -80,7 +47,7 @@ teardown() {
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 1, updated: 1, deleted: 0, skipped (done): 0"
+    assert_output "inserted: 1, updated: 0, deleted: 0, skipped (done): 0"
 
     # Verify steps
     run "$SCRIPT_DIR/lib/task" show ps-dep-02
@@ -123,8 +90,8 @@ teardown() {
     "$SCRIPT_DIR/lib/task" create ps-rep-01 "Blocker A" -r my-spec >/dev/null
     "$SCRIPT_DIR/lib/task" create ps-rep-02 "Blocker B" -r my-spec >/dev/null
     "$SCRIPT_DIR/lib/task" create ps-rep-03 "Main task" -r my-spec --deps "ps-rep-01" >/dev/null
-    # Set initial steps directly via SQL (create command updated separately)
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET steps = ARRAY['Old step']::TEXT[] WHERE slug = 'ps-rep-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    # Set initial steps directly via SQL
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"Old step\"]' WHERE slug = 'ps-rep-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     local input
     input='{"id":"ps-rep-01","t":"Blocker A","spec":"my-spec"}
@@ -133,7 +100,7 @@ teardown() {
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 3, deleted: 0, skipped (done): 0"
+    assert_output "inserted: 0, updated: 1, deleted: 0, skipped (done): 0"
 
     # Verify new steps replaced old
     run "$SCRIPT_DIR/lib/task" show ps-rep-03
@@ -187,7 +154,7 @@ teardown() {
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 1, deleted: 1, skipped (done): 0"
+    assert_output "inserted: 0, updated: 0, deleted: 1, skipped (done): 0"
 
     # Verify ps-del-02 is soft deleted
     run "$SCRIPT_DIR/lib/task" show ps-del-02
@@ -233,10 +200,10 @@ teardown() {
     assert_success
     assert_output "inserted: 1, updated: 0, deleted: 0, skipped (done): 0"
 
-    # Second sync with same input — task exists, gets updated (but values are the same)
+    # Second sync with same input — no columns changed, so updated count is 0
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 1, deleted: 0, skipped (done): 0"
+    assert_output "inserted: 0, updated: 0, deleted: 0, skipped (done): 0"
 
     # Verify task is still correct
     run "$SCRIPT_DIR/lib/task" show ps-idem-01
@@ -261,7 +228,7 @@ teardown() {
 
     run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
     assert_success
-    assert_output "inserted: 0, updated: 2, deleted: 1, skipped (done): 0"
+    assert_output "inserted: 0, updated: 0, deleted: 1, skipped (done): 0"
 
     # ps-multi-02 should be deleted
     run "$SCRIPT_DIR/lib/task" show ps-multi-02

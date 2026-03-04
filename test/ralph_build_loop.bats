@@ -100,27 +100,6 @@ STUB
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
 
-    # Docker/pg_isready stubs so ensure_postgres passes in copied ralph.sh
-    cat > "$STUB_DIR/docker" <<'DOCKERSTUB'
-#!/bin/bash
-case "$1" in
-    compose)
-        if [ "$2" = "version" ]; then echo "Docker Compose version v2.24.0"; fi
-        exit 0 ;;
-    inspect)
-        if [ "$3" = "{{.State.Running}}" ]; then echo "true"
-        elif [ "$3" = "{{.State.Health.Status}}" ]; then echo "healthy"; fi
-        exit 0 ;;
-esac
-exit 0
-DOCKERSTUB
-    chmod +x "$STUB_DIR/docker"
-    cat > "$STUB_DIR/pg_isready" <<'PGSTUB'
-#!/bin/bash
-exit 0
-PGSTUB
-    chmod +x "$STUB_DIR/pg_isready"
-
     cd "$TEST_WORK_DIR"
 }
 
@@ -260,6 +239,26 @@ STUB
     run cat "$TEST_WORK_DIR/fail_calls.log"
     assert_output --partial "t1"
     assert_output --partial "session exited without completing task"
+}
+
+@test "build mode fails all active tasks after claude exits" {
+    create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
+        $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001\n\n## Task t2\nid: t2\ntitle: Task two\nstatus: active\nassignee: t001'
+
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
+    assert_success
+
+    # Verify fail was called for both tasks
+    [ -f "$TEST_WORK_DIR/fail_calls.log" ]
+    run cat "$TEST_WORK_DIR/fail_calls.log"
+    assert_output --partial "t1"
+    assert_output --partial "t2"
+
+    # Verify fail was called exactly twice
+    local count
+    count=$(wc -l < "$TEST_WORK_DIR/fail_calls.log")
+    [ "$count" -eq 2 ]
 }
 
 @test "build mode crash-safety is no-op when no active tasks" {

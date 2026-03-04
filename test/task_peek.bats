@@ -1,40 +1,7 @@
 #!/usr/bin/env bats
 # test/task_peek.bats — Tests for the task peek command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
-
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
-setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
-}
 
 # ---------------------------------------------------------------------------
 # Empty state
@@ -247,16 +214,49 @@ teardown() {
 
     # Verify tasks are still status=open in DB
     local db_status
-    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
+    db_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
-    db_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug='t-nl2' AND scope_repo='test/repo' AND scope_branch='main'")
+    db_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='t-nl2' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
     # Verify assignee is still NULL
     local db_assignee
-    db_assignee=$(psql "$RALPH_DB_URL" -tAX -c "SELECT assignee FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
+    db_assignee=$(sqlite3 "$RALPH_DB_PATH" "SELECT assignee FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ -z "$db_assignee" ]]
+}
+
+# ---------------------------------------------------------------------------
+# Ref field
+# ---------------------------------------------------------------------------
+@test "task peek includes ref field for tasks that have one" {
+    "$SCRIPT_DIR/lib/task" create "t-ref" "Task with ref" -p 1 --ref "lib/task:cmd_peek"
+
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^ref: lib/task:cmd_peek'
+}
+
+@test "task peek omits ref field for tasks without one" {
+    "$SCRIPT_DIR/lib/task" create "t-noref" "Task without ref" -p 1
+
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    # ref line should not appear
+    ! echo "$output" | grep -q '^ref:'
+}
+
+@test "task peek includes ref field for active tasks" {
+    "$SCRIPT_DIR/lib/task" create "t-aref" "Active with ref" -p 0 --ref "lib/signals.sh:42"
+
+    "$SCRIPT_DIR/lib/task" claim --agent "a1b2" >/dev/null
+
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^ref: lib/signals.sh:42'
 }
 
 # ---------------------------------------------------------------------------

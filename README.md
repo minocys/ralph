@@ -40,8 +40,7 @@ Discuss JTBD → ralph-spec → ralph plan → ralph
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [jq](https://jqlang.github.io/jq/)
-- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL task database)
-- [psql](https://www.postgresql.org/docs/current/app-psql.html) (PostgreSQL client)
+- [sqlite3](https://www.sqlite.org/) ≥ 3.35 (for RETURNING clause support)
 
 ## Installation
 
@@ -121,7 +120,7 @@ See [agents.md](https://agents.md) for the format and examples.
 
 ## Task Management
 
-The `task` CLI is a PostgreSQL-backed command-line tool for managing work items across the plan and build phases. It enables multi-agent coordination with atomic operations, lease-based claiming, and DAG-aware dependency scheduling.
+The `task` CLI is a SQLite-backed command-line tool for managing work items across the plan and build phases. It enables multi-agent coordination with atomic operations, lease-based claiming, and DAG-aware dependency scheduling.
 
 ### Plan Phase Commands
 
@@ -228,8 +227,7 @@ Ralph's build loop handles agent registration automatically — it calls `task a
 ralph.sh              # Main loop runner
 models.json           # Model alias → ID mapping
 install.sh            # Installer (symlinks skills + CLI + task)
-task                  # Task management CLI (PostgreSQL-backed)
-docker-compose.yml    # PostgreSQL dev database
+lib/task              # Task management CLI (SQLite-backed)
 specs/                # Specification files (one per topic of concern)
 skills/
   ralph-spec/         # JTBD → spec files
@@ -248,28 +246,19 @@ test/
                       #   plan_sync, plan_status, agent_*)
 ```
 
-## Development Database
+## Database
 
-The `task` CLI requires PostgreSQL. A Docker Compose file is provided for local development with PostgreSQL 17:
+The `task` CLI uses SQLite for persistent storage. The database file is created automatically on first invocation at `.ralph/tasks.db` (git-ignored).
 
 ```sh
-# Start PostgreSQL
-docker compose up -d
+# Override the default database location (optional)
+export RALPH_DB_PATH="/path/to/custom/tasks.db"
 
-# Set the connection URL (required for task CLI)
-export RALPH_DB_URL="postgres://ralph:ralph@localhost:5499/ralph"
-
-# Verify the connection
-task plan-status
-
-# Stop (data persists across restarts)
-docker compose down
-
-# Stop and wipe data
-docker compose down -v
+# Verify the database
+ralph task plan-status
 ```
 
-The `RALPH_DB_URL` environment variable must be set for all `task` commands. The database schema (tables: `tasks`, `task_steps`, `task_deps`, `agents`) is created automatically on first invocation.
+The database schema (tables: `tasks`, `task_deps`, `agents`) is created automatically on first invocation. WAL mode is enabled for concurrent read access.
 
 ## Testing
 
@@ -302,12 +291,12 @@ bats --tap test/
 ```
 
 ```sh
-# Run task-specific tests (requires running PostgreSQL)
+# Run task-specific tests
 bats test/task_create.bats
 bats test/task_claim.bats
 ```
 
-The test suite covers argument parsing, preflight checks, model/backend resolution, and the full task CLI (CRUD, dependencies, claiming, plan sync, agents). Shell tests run in isolation using temporary directories and stub the `claude` CLI. Task tests require a running PostgreSQL instance via `RALPH_DB_URL`.
+The test suite covers argument parsing, preflight checks, model/backend resolution, and the full task CLI (CRUD, dependencies, claiming, plan sync, agents). Shell tests run in isolation using temporary directories with per-test SQLite databases and stub the `claude` CLI.
 
 ## Acknowledgements
 

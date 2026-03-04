@@ -1,40 +1,7 @@
 #!/usr/bin/env bats
 # test/task_agent_register.bats — Tests for the task agent register command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
-
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
-setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
-}
 
 # ---------------------------------------------------------------------------
 # Basic registration
@@ -59,7 +26,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT id FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT id FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "$agent_id"
 }
@@ -69,7 +36,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT pid FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT pid FROM agents WHERE id = '$agent_id';"
     assert_success
     # PID should be a positive integer
     [[ "${output}" =~ ^[0-9]+$ ]]
@@ -80,7 +47,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT hostname FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT hostname FROM agents WHERE id = '$agent_id';"
     assert_success
     # Hostname should be non-empty
     [[ -n "${output}" ]]
@@ -91,7 +58,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "active"
 }
@@ -101,9 +68,9 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT started_at IS NOT NULL FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT started_at IS NOT NULL FROM agents WHERE id = '$agent_id';"
     assert_success
-    assert_output "t"
+    assert_output "1"
 }
 
 @test "agent register records scope_repo from env" {
@@ -111,7 +78,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT scope_repo FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT scope_repo FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "test/repo"
 }
@@ -121,7 +88,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT scope_branch FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT scope_branch FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "main"
 }
@@ -132,7 +99,7 @@ teardown() {
     assert_success
     local agent_id="$output"
 
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT scope_repo || '|' || scope_branch FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT scope_repo || '|' || scope_branch FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "custom/repo|feature-branch"
 }
@@ -167,7 +134,7 @@ teardown() {
     local id2="$output"
 
     # Both should exist in the database
-    run psql "$RALPH_DB_URL" -tAX -c "SELECT count(*) FROM agents WHERE id IN ('$id1', '$id2');"
+    run sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM agents WHERE id IN ('$id1', '$id2');"
     assert_success
     assert_output "2"
 }
@@ -185,4 +152,55 @@ teardown() {
     run "$SCRIPT_DIR/lib/task" agent bogus
     assert_failure
     assert_output --partial "Error: unknown agent subcommand"
+}
+
+# ---------------------------------------------------------------------------
+# Concurrent registration (BEGIN IMMEDIATE guard)
+# ---------------------------------------------------------------------------
+@test "concurrent agent registrations all succeed without SQLITE_BUSY errors" {
+    local count=4
+    local i
+    local pids=()
+
+    for (( i = 1; i <= count; i++ )); do
+        (
+            rc=0
+            "$SCRIPT_DIR/lib/task" agent register \
+                > "$TEST_WORK_DIR/agent_reg${i}.out" 2>&1 || rc=$?
+            echo "$rc" > "$TEST_WORK_DIR/agent_reg${i}.rc"
+        ) &
+        pids+=($!)
+    done
+
+    # Wait for all background processes
+    for pid in "${pids[@]}"; do
+        wait "$pid" || true
+    done
+
+    # All should succeed (exit 0)
+    for (( i = 1; i <= count; i++ )); do
+        local rc
+        rc=$(cat "$TEST_WORK_DIR/agent_reg${i}.rc")
+        [[ "$rc" == "0" ]]
+    done
+
+    # All should return valid 4-char hex IDs
+    local ids=()
+    for (( i = 1; i <= count; i++ )); do
+        local out
+        out=$(cat "$TEST_WORK_DIR/agent_reg${i}.out")
+        [[ "$out" =~ ^[0-9a-f]{4}$ ]]
+        ids+=("$out")
+    done
+
+    # All IDs should be unique
+    local unique_count
+    unique_count=$(printf '%s\n' "${ids[@]}" | sort -u | wc -l | tr -d ' ')
+    [[ "$unique_count" -eq "$count" ]]
+
+    # Database should have exactly $count active agents
+    local db_count
+    db_count=$(sqlite3 "$RALPH_DB_PATH" \
+        "SELECT COUNT(*) FROM agents WHERE status = 'active' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [[ "$db_count" -eq "$count" ]]
 }

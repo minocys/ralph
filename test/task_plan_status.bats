@@ -1,40 +1,7 @@
 #!/usr/bin/env bats
 # test/task_plan_status.bats — Tests for the task plan-status command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
-
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
-setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
-}
 
 # ---------------------------------------------------------------------------
 # Empty database

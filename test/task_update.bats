@@ -1,40 +1,7 @@
 #!/usr/bin/env bats
 # test/task_update.bats — Tests for the task update command
-# Requires: running PostgreSQL (docker compose up -d)
 
 load test_helper
-
-# ---------------------------------------------------------------------------
-# Helper: check if PostgreSQL is reachable
-# ---------------------------------------------------------------------------
-db_available() {
-    [[ -n "${RALPH_DB_URL:-}" ]] && psql "$RALPH_DB_URL" -tAX -c "SELECT 1" >/dev/null 2>&1
-}
-
-setup() {
-    TEST_WORK_DIR="$(mktemp -d)"
-    STUB_DIR="$(mktemp -d)"
-    export TEST_WORK_DIR STUB_DIR
-
-    if ! db_available; then
-        skip "PostgreSQL not available (set RALPH_DB_URL and start database)"
-    fi
-
-    TEST_SCHEMA="test_$(date +%s)_$$"
-    export TEST_SCHEMA
-
-    psql "$RALPH_DB_URL" -tAX -c "CREATE SCHEMA $TEST_SCHEMA" >/dev/null 2>&1
-    export RALPH_DB_URL_ORIG="$RALPH_DB_URL"
-    export RALPH_DB_URL="${RALPH_DB_URL}?options=-csearch_path%3D${TEST_SCHEMA}"
-}
-
-teardown() {
-    if [[ -n "${TEST_SCHEMA:-}" ]] && [[ -n "${RALPH_DB_URL_ORIG:-}" ]]; then
-        psql "$RALPH_DB_URL_ORIG" -tAX -c "DROP SCHEMA IF EXISTS $TEST_SCHEMA CASCADE" >/dev/null 2>&1
-    fi
-    [[ -d "${TEST_WORK_DIR:-}" ]] && rm -rf "$TEST_WORK_DIR"
-    [[ -d "${STUB_DIR:-}" ]] && rm -rf "$STUB_DIR"
-}
 
 # ---------------------------------------------------------------------------
 # Argument validation
@@ -74,7 +41,7 @@ teardown() {
 @test "task update on done task exits 1" {
     "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     # Directly set status to done
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET status = 'done' WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     run "$SCRIPT_DIR/lib/task" update "test/01" --title "New title"
     assert_failure
     [ "$status" -eq 1 ]
@@ -91,7 +58,7 @@ teardown() {
     assert_output "updated test/01"
 
     local new_title
-    new_title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_title" = "Updated title" ]
 }
 
@@ -101,7 +68,7 @@ teardown() {
     assert_success
 
     local new_pri
-    new_pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_pri=$(sqlite3 "$RALPH_DB_PATH" "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_pri" = "0" ]
 }
 
@@ -111,7 +78,7 @@ teardown() {
     assert_success
 
     local new_desc
-    new_desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_desc=$(sqlite3 "$RALPH_DB_PATH" "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_desc" = "New desc" ]
 }
 
@@ -121,19 +88,19 @@ teardown() {
     assert_success
 
     local new_status
-    new_status=$(psql "$RALPH_DB_URL" -tAX -c "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_status" = "active" ]
 }
 
 @test "task update always sets updated_at" {
     "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     # Clear updated_at to verify it gets set
-    psql "$RALPH_DB_URL" -tAX -c "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'" >/dev/null
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     "$SCRIPT_DIR/lib/task" update "test/01" --title "New"
 
     local updated
-    updated=$(psql "$RALPH_DB_URL" -tAX -c "SELECT updated_at IS NOT NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    [ "$updated" = "t" ]
+    updated=$(sqlite3 "$RALPH_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$updated" = "1" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -144,7 +111,7 @@ teardown() {
 
     # Verify initial steps
     local count_before
-    count_before=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    count_before=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_before" = "2" ]
 
     # Replace steps
@@ -152,11 +119,11 @@ teardown() {
     assert_success
 
     local count_after
-    count_after=$(psql "$RALPH_DB_URL" -tAX -c "SELECT array_length(steps, 1) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    count_after=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_after" = "3" ]
 
     local first_step
-    first_step=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps[1] FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    first_step=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$first_step" = "new step A" ]
 }
 
@@ -166,8 +133,8 @@ teardown() {
     assert_success
 
     local steps_null
-    steps_null=$(psql "$RALPH_DB_URL" -tAX -c "SELECT steps IS NULL FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    [ "$steps_null" = "t" ]
+    steps_null=$(sqlite3 "$RALPH_DB_PATH" "SELECT CASE WHEN steps IS NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$steps_null" = "1" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -179,12 +146,63 @@ teardown() {
     assert_success
 
     local title pri desc
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    pri=$(psql "$RALPH_DB_URL" -tAX -c "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    desc=$(psql "$RALPH_DB_URL" -tAX -c "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    pri=$(sqlite3 "$RALPH_DB_PATH" "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    desc=$(sqlite3 "$RALPH_DB_PATH" "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "New title" ]
     [ "$pri" = "0" ]
     [ "$desc" = "New desc" ]
+}
+
+@test "task update --title and --steps together applies both in single UPDATE" {
+    "$SCRIPT_DIR/lib/task" create "test/01" "Original" -s '["old step"]'
+    run "$SCRIPT_DIR/lib/task" update "test/01" --title "Combined" --steps '["new step A","new step B"]'
+    assert_success
+
+    local title steps_count first_step
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    first_step=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$title" = "Combined" ]
+    [ "$steps_count" = "2" ]
+    [ "$first_step" = "new step A" ]
+}
+
+@test "task update --steps alone updates only steps" {
+    "$SCRIPT_DIR/lib/task" create "test/01" "Keep this title" -s '["old step"]'
+    run "$SCRIPT_DIR/lib/task" update "test/01" --steps '["only step"]'
+    assert_success
+
+    local title steps_count
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$title" = "Keep this title" ]
+    [ "$steps_count" = "1" ]
+}
+
+# ---------------------------------------------------------------------------
+# Special characters
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Concurrency — TOCTOU race detection
+# ---------------------------------------------------------------------------
+@test "cmd_update on a task marked done concurrently exits 1" {
+    "$SCRIPT_DIR/lib/task" create "test/race-01" "Race Task"
+
+    # Mark done concurrently — simulate another agent completing the task
+    # between the moment cmd_update builds the UPDATE and when it executes.
+    # The atomic WHERE status != 'done' guard should cause the UPDATE to
+    # affect 0 rows, and cmd_update should exit 1.
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+
+    run "$SCRIPT_DIR/lib/task" update "test/race-01" --title "Should fail"
+    assert_failure 1
+    assert_output --partial "done and cannot be updated"
+
+    # Verify title was NOT changed
+    local title
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$title" = "Race Task" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -196,6 +214,6 @@ teardown() {
     assert_success
 
     local title
-    title=$(psql "$RALPH_DB_URL" -tAX -c "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "It's a test" ]
 }

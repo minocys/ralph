@@ -20,7 +20,7 @@ Replace the `task_steps` table with a `TEXT[]` column on the `tasks` table and r
 ### Update plan-sync
 
 - Steps in JSONL input change from `[{"content":"..."}]` to `["step1","step2"]` (plain string array)
-- `plan-sync` must write steps as a PostgreSQL TEXT[] literal (e.g., `ARRAY['step1','step2']`) instead of inserting into `task_steps`
+- `plan-sync` must write steps as a JSON array string (e.g., `'["step1","step2"]'`) instead of inserting into `task_steps`
 - On update, `plan-sync` must overwrite the `steps` column directly
 
 ### Update create
@@ -64,7 +64,7 @@ Replace the `task_steps` table with a `TEXT[]` column on the `tasks` table and r
 
 - No database migration system — `ensure_schema` uses `CREATE TABLE IF NOT EXISTS`, so the schema change requires a fresh database or manual `ALTER TABLE`
 - Steps are informational only after this change — they guide the builder but are not tracked for completion
-- The `steps` column stores a Postgres `TEXT[]` array, not JSONB
+- The `steps` column stores a JSON array as TEXT
 - Existing data in `task_steps` will be lost when the table is dropped (acceptable — tasks are ephemeral per planning cycle)
 
 ## Out of Scope

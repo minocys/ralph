@@ -9,8 +9,8 @@ Restructure ralph.sh from a sequential orchestrator into a thin subcommand dispa
 - ralph.sh must detect the first positional argument as the subcommand
 - Recognized subcommands: `plan`, `build`, `task`
 - `ralph task <args>` must exec directly to `lib/task` with remaining arguments, bypassing all other setup
-- `ralph plan <flags>` must source shared libs (config.sh, docker.sh, signals.sh, output.sh) and plan_loop.sh, then parse flags and run the plan loop
-- `ralph build <flags>` must source shared libs (config.sh, docker.sh, signals.sh, output.sh) and build_loop.sh, then parse flags and run the build loop
+- `ralph plan <flags>` must source shared libs (config.sh, session.sh, signals.sh, output.sh) and plan_loop.sh, then parse flags and run the plan loop
+- `ralph build <flags>` must source shared libs (config.sh, session.sh, signals.sh, output.sh) and build_loop.sh, then parse flags and run the build loop
 - `ralph` (no arguments), `ralph --help`, and `ralph -h` must print top-level help and exit 0
 - Unknown subcommands must print an error to stderr and exit 1
 
@@ -39,7 +39,7 @@ Restructure ralph.sh from a sequential orchestrator into a thin subcommand dispa
 ### Module sourcing
 
 - `ralph task` must not source any lib/ modules — it exec's directly to lib/task
-- `ralph plan` and `ralph build` must source: lib/config.sh, lib/docker.sh, lib/signals.sh, lib/output.sh
+- `ralph plan` and `ralph build` must source: lib/config.sh, lib/session.sh, lib/signals.sh, lib/output.sh
 - `ralph plan` must additionally source lib/plan_loop.sh
 - `ralph build` must additionally source lib/build_loop.sh
 

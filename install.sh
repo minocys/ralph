@@ -12,6 +12,25 @@ if ! command -v jq &>/dev/null; then
     exit 1
 fi
 
+if ! command -v sqlite3 &>/dev/null; then
+    echo "Error: sqlite3 is required but not installed."
+    echo "  macOS:  sqlite3 ships with Xcode Command Line Tools"
+    echo "  Linux:  sudo apt install sqlite3  (Debian/Ubuntu)"
+    echo "          sudo dnf install sqlite   (Fedora/RHEL)"
+    exit 1
+fi
+
+# Verify sqlite3 version >= 3.35 (required for RETURNING clause)
+_sqlite_ver="$(sqlite3 --version | awk '{print $1}')"
+_sqlite_major="${_sqlite_ver%%.*}"
+_sqlite_minor="${_sqlite_ver#*.}"; _sqlite_minor="${_sqlite_minor%%.*}"
+if [ "$_sqlite_major" -lt 3 ] 2>/dev/null || { [ "$_sqlite_major" -eq 3 ] && [ "$_sqlite_minor" -lt 35 ]; }; then
+    echo "Error: sqlite3 >= 3.35 is required (found $_sqlite_ver)."
+    echo "  RETURNING clause support requires version 3.35+."
+    exit 1
+fi
+echo "  sqlite3 $_sqlite_ver OK"
+
 echo "Installing ralph from $REPO_DIR"
 
 # Create target directories if they don't exist
