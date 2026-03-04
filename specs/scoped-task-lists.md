@@ -64,7 +64,7 @@ Scoped task lists add `scope_repo` and `scope_branch` columns to the database. E
 ## Constraints
 
 - Requires a git repository with an `origin` remote and a checked-out branch — not usable outside of git
-- The `psql` CLI remains the only database access mechanism — no ORM or connection pooling
+- The `sqlite3` CLI remains the only database access mechanism — no ORM or connection pooling
 - Schema migration must be idempotent — `ensure_schema()` handles both fresh installs and upgrades from the unscoped schema
 - The `slug` column replaces the role of `id` in all external interfaces; the UUID `id` is strictly internal
 - Environment variable overrides (`RALPH_SCOPE_REPO`, `RALPH_SCOPE_BRANCH`) take precedence over git auto-detection — this allows testing and non-standard workflows

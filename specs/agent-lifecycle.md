@@ -1,6 +1,6 @@
 # Agent Lifecycle
 
-Agent identification and registration for multi-agent task orchestration across ephemeral Docker containers.
+Agent identification and registration for multi-agent task orchestration across concurrent build sessions.
 
 ## Requirements
 
@@ -29,4 +29,4 @@ Agent identification and registration for multi-agent task orchestration across 
 - Agent-to-agent communication or coordination beyond task claiming
 - Authentication or authorization of agents
 - Agent health monitoring or dashboards
-- PID-based liveness detection (unreliable across containers; leases replace this)
+- PID-based liveness detection (unreliable across sessions; leases replace this)

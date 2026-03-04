@@ -1,3 +1,5 @@
+> **Deprecated:** This spec has been superseded by [docker-removal.md](docker-removal.md). It is retained for historical reference only.
+
 # Docker Auto-Start
 
 ## Overview

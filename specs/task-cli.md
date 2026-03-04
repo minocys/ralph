@@ -4,8 +4,8 @@ Bash command-line interface for agents and the ralph planner to interact with th
 
 ## Requirements
 
-- Implement as a bash script (`lib/task`) that operates on PostgreSQL via `psql`, invoked via `ralph task <command>`
-- Read connection string from `RALPH_DB_URL` environment variable
+- Implement as a bash script (`lib/task`) that operates on SQLite via `sqlite3`, invoked via `ralph task <command>`
+- Read database path from `RALPH_DB_PATH` environment variable
 - Initialize the database schema automatically on first invocation
 - Provide phase-specific and shared commands:
 
@@ -67,10 +67,10 @@ task-store/01   0 done   feat Create PostgreSQL schema            -
 
 ## Constraints
 
-- Bash only — no Python, Node, or compiled dependencies beyond `psql`
-- All database operations via `psql` with parameterized queries where possible
+- Bash only — no Python, Node, or compiled dependencies beyond `sqlite3`
+- All database operations via `sqlite3`
 - The script must be portable across macOS and Linux (bash 3.2+)
-- `ralph task claim` must not succeed for two concurrent agents on the same task — PostgreSQL's `SELECT FOR UPDATE SKIP LOCKED` guarantees this
+- `ralph task claim` must not succeed for two concurrent agents on the same task — SQLite's `BEGIN IMMEDIATE` transactions guarantee this
 
 ## Out of Scope
 

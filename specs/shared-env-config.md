@@ -1,3 +1,5 @@
+> **Deprecated:** This spec has been superseded by [sqlite-data-store.md](sqlite-data-store.md). It is retained for historical reference only.
+
 # Shared Environment Configuration
 
 ## Overview
