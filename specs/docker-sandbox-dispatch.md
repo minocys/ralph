@@ -47,7 +47,7 @@ Ralph plan and build loops run directly on the host, sharing the host's Docker d
 ## Constraints
 
 - `ralph.sh` must remain a pure bash script (bash 3.2+, jq only external dependency).
-- The `--docker` flag is mutually exclusive with direct host execution — when `--docker` is present, the host ralph does not source lib modules, start local PostgreSQL, or run loops. It delegates entirely to the sandbox.
+- The `--docker` flag is mutually exclusive with direct host execution — when `--docker` is present, the host ralph does not source lib modules or run loops. It delegates entirely to the sandbox.
 - The `docker sandbox` CLI is an experimental Docker Desktop plugin (v4.58+). Ralph does not vendor or manage the plugin itself.
 
 ## Out of Scope

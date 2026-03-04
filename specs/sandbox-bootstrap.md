@@ -2,7 +2,7 @@
 
 ## Overview
 
-When a Docker sandbox is created for the first time, it needs ralph installed, PostgreSQL running, and environment configured before any ralph command can execute. This one-time bootstrap runs after sandbox creation and persists across stop/start cycles.
+When a Docker sandbox is created for the first time, it needs ralph installed, `sqlite3` available, and environment configured before any ralph command can execute. This one-time bootstrap runs after sandbox creation and persists across stop/start cycles.
 
 ## Requirements
 
@@ -25,17 +25,15 @@ When a Docker sandbox is created for the first time, it needs ralph installed, P
   4. Copy the `skills/` directory to `~/.claude/skills/`.
   5. Copy the `hooks/` directory to a writable location and configure Claude Code hooks.
   6. Install `jq` if not already present (the claude-code template may include it; install as fallback).
-  7. Install `psql` client for database access (`postgresql-client` package).
+  7. Install `sqlite3` if not already present (`sudo apt-get update && sudo apt-get install -y sqlite3`). Verify version >= 3.35 (required for `RETURNING` clause support).
 - The install must adapt `ralph.sh`'s `SCRIPT_DIR` resolution so it points to the writable copy location, not the read-only mount.
 
-### PostgreSQL setup
+### SQLite verification
 
-- A Docker Compose file is generated at `~/.ralph/docker-compose.yml` inside the sandbox during bootstrap.
-- The compose file defines a `ralph-task-db` service using `postgres:17-alpine` with the same configuration as the host compose file: port 5499, credentials `ralph/ralph/ralph`, healthcheck, and a data volume.
-- The compose file includes an `init` volume mount that points to the schema SQL file copied during installation.
-- The `.env` file is generated at `~/.ralph/.env` inside the sandbox with the same defaults as `.env.example`.
-- PostgreSQL is started via `docker compose -f ~/.ralph/docker-compose.yml up -d` inside the sandbox.
-- The bootstrap waits for PostgreSQL to be healthy before completing (same healthcheck polling as the host's `ensure_postgres()`).
+- After installing `sqlite3`, the bootstrap must verify the version meets the minimum requirement (3.35) using the same check as `install.sh` on the host: `sqlite3 --version` and parse the major.minor version.
+- If the installed version is below 3.35, the bootstrap must exit 1 with an error message stating the minimum required version.
+- No database file is created during bootstrap — SQLite databases are created on-demand by `ensure_db()` when ralph runs its first command inside the sandbox.
+- No healthcheck, no polling, no compose files — SQLite is immediately available once the binary is on PATH.
 
 ### Bootstrap marker
 
@@ -44,28 +42,20 @@ When a Docker sandbox is created for the first time, it needs ralph installed, P
 - If the marker exists, bootstrap is skipped entirely (idempotent re-entry).
 - This allows `docker sandbox run` to restart a stopped sandbox without re-running bootstrap.
 
-### PostgreSQL lifecycle on restart
+### SQLite persistence on restart
 
-- When a stopped sandbox is restarted, the internal Docker daemon resumes. Containers that were running inside the sandbox when it stopped are restarted automatically by Docker.
-- The dispatch code does not need to explicitly restart PostgreSQL after a sandbox restart — Docker's restart policy handles this.
-- The `ensure_postgres()` function called by ralph inside the sandbox provides a secondary healthcheck before proceeding.
-
-### RALPH_SKIP_DOCKER passthrough
-
-- When ralph runs inside the sandbox, it should NOT try to manage an external Docker container for PostgreSQL via the host's `docker-compose.yml`. The sandbox has its own compose setup.
-- The internal ralph installation must be configured so that `ensure_postgres()` uses the sandbox-local compose file (`~/.ralph/docker-compose.yml`), not the read-only mount's compose file.
+- When a stopped sandbox is restarted, the sandbox filesystem is preserved. The SQLite database file (`.ralph/tasks.db` inside the target repo directory) persists across stop/start cycles automatically.
+- No explicit database startup or recovery is needed after a sandbox restart — SQLite is a file, not a server.
+- The `ensure_db()` function called by ralph inside the sandbox creates the database and schema if the file does not yet exist, and is a no-op if it already exists.
 
 ## Constraints
 
 - Bootstrap must complete in a single `docker sandbox exec` session (or a small number of sequential execs). Each exec is a separate process invocation.
-- The sandbox's internal Docker daemon starts automatically with the sandbox VM — no manual daemon startup is needed.
-- The `postgres:17-alpine` image must be pulled inside the sandbox (the sandbox has its own image registry, separate from the host).
-- The first PostgreSQL start inside a sandbox may be slow due to image pull. This is a one-time cost.
 - The `claude-code` template runs as non-root `agent` user with `sudo` access. Installation commands that need root (e.g., `apt-get install`) must use `sudo`.
+- The sandbox's internal Docker daemon starts automatically with the sandbox VM but is not used by ralph itself (ralph uses SQLite, not a containerized database).
 
 ## Out of Scope
 
 - Upgrading ralph inside an existing sandbox (user recreates the sandbox for updates).
-- Custom PostgreSQL configuration (tuning, extensions).
-- Persisting the PostgreSQL data volume across sandbox removal (sandbox removal deletes everything).
 - Building custom sandbox templates with ralph pre-baked.
+- Pre-creating or seeding the SQLite database during bootstrap (it is created on first use by ralph).

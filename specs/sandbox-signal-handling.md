@@ -29,7 +29,7 @@ When ralph runs inside a Docker sandbox via `--docker`, the host ralph process i
 ### Sandbox continuity
 
 - After the host ralph process detaches (via Ctrl+C or natural exit), the sandbox remains in the running state.
-- Internal processes (PostgreSQL, any running ralph loops) continue executing inside the sandbox.
+- Internal processes (any running ralph loops) continue executing inside the sandbox.
 - The user can re-attach by running the same `ralph --docker <subcommand>` command again, which will exec a new ralph process in the existing running sandbox.
 
 ## Constraints
