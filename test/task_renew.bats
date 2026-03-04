@@ -162,6 +162,47 @@ load test_helper
 # ---------------------------------------------------------------------------
 # Special characters
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Concurrency — sql_write retry on SQLITE_BUSY
+# ---------------------------------------------------------------------------
+@test "concurrent renew during SQLITE_BUSY returns retry success" {
+    "$SCRIPT_DIR/lib/task" create "renew-busy-01" "Busy Renew Task"
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-busy-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+
+    export RALPH_AGENT_ID="agent1"
+
+    # Hold a write lock via a FIFO — sqlite3 keeps the transaction open
+    # while its stdin is still readable.
+    local fifo="$TEST_WORK_DIR/lock.fifo"
+    mkfifo "$fifo"
+    {
+        printf 'BEGIN IMMEDIATE;\n'
+        sleep 2
+        printf 'COMMIT;\n'
+    } > "$fifo" &
+    local feeder_pid=$!
+    sqlite3 "$RALPH_DB_PATH" < "$fifo" &
+    local lock_pid=$!
+    sleep 0.2  # Let the locker acquire the lock
+
+    # Renew should succeed after sql_write retries past the BUSY
+    # (sql_write has busy_timeout=5000 + up to 3 retries)
+    run "$SCRIPT_DIR/lib/task" renew "renew-busy-01"
+    assert_success
+    assert_output "renewed renew-busy-01"
+
+    wait "$lock_pid" 2>/dev/null || true
+    wait "$feeder_pid" 2>/dev/null || true
+
+    # Verify lease was actually extended
+    local remaining
+    remaining=$(sqlite3 "$RALPH_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-busy-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [[ "$remaining" -gt 500 ]]
+}
+
+# ---------------------------------------------------------------------------
+# Special characters
+# ---------------------------------------------------------------------------
 @test "task renew handles special characters in task ID" {
     "$SCRIPT_DIR/lib/task" create "renew/special-01" "Special ID Task"
     sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew/special-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"

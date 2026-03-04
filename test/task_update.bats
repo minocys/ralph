@@ -183,6 +183,31 @@ load test_helper
 # ---------------------------------------------------------------------------
 # Special characters
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Concurrency — TOCTOU race detection
+# ---------------------------------------------------------------------------
+@test "cmd_update on a task marked done concurrently exits 1" {
+    "$SCRIPT_DIR/lib/task" create "test/race-01" "Race Task"
+
+    # Mark done concurrently — simulate another agent completing the task
+    # between the moment cmd_update builds the UPDATE and when it executes.
+    # The atomic WHERE status != 'done' guard should cause the UPDATE to
+    # affect 0 rows, and cmd_update should exit 1.
+    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+
+    run "$SCRIPT_DIR/lib/task" update "test/race-01" --title "Should fail"
+    assert_failure 1
+    assert_output --partial "done and cannot be updated"
+
+    # Verify title was NOT changed
+    local title
+    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    [ "$title" = "Race Task" ]
+}
+
+# ---------------------------------------------------------------------------
+# Special characters
+# ---------------------------------------------------------------------------
 @test "task update handles single quotes in title" {
     "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     run "$SCRIPT_DIR/lib/task" update "test/01" --title "It's a test"

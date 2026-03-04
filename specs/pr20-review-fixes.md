@@ -1,6 +1,6 @@
 # PR #20 Review Fixes
 
-Address 7 issues identified during code review of the PostgreSQL-to-SQLite migration PR (#20).
+Address 9 issues identified during code review of the PostgreSQL-to-SQLite migration PR (#20).
 
 ## Overview
 
@@ -44,6 +44,24 @@ The SQLite migration (58 tasks across `sqlite-data-store`, `sqlite-concurrency`,
 - Location: `lib/task` -- `cmd_agent_register`
 - The concurrency spec requires all write operations to use `BEGIN IMMEDIATE`
 - Fix: Route the INSERT through `sql_write` or wrap in `BEGIN IMMEDIATE`
+
+**Issue #8: `cmd_renew` uses `sqlite_cmd` instead of `sql_write` for its UPDATE**
+
+- Location: `lib/task` -- `cmd_renew`, lines 878-887
+- The UPDATE uses `sqlite_cmd` (plain autocommit) instead of `sql_write` (`BEGIN IMMEDIATE` with retry-on-BUSY)
+- `specs/sqlite-concurrency.md` line 41 requires: "ralph task renew must use BEGIN IMMEDIATE for their write transactions"
+- Every other write command (`cmd_done`, `cmd_fail`, `cmd_create`, `cmd_claim`, `cmd_plan_sync`, `cmd_agent_register`, `cmd_agent_deregister`) already uses `sql_write`
+- The current code also uses `RETURNING slug` which is a PostgreSQL-ism; should use `SELECT changes()` like `cmd_done`/`cmd_fail`
+- Fix: Replace the `sqlite_cmd` call with `sql_write` following the `cmd_done` pattern: `UPDATE ... WHERE ... AND status = 'active'; SELECT changes();` and check output for `"1"`
+
+**Issue #9: `cmd_update` has a TOCTOU race between status check and write**
+
+- Location: `lib/task` -- `cmd_update`, lines 1391 (read) and 1430 (write)
+- A separate `sqlite_cmd SELECT status` (line 1391) checks if the task is done, then a separate `sql_write UPDATE` (line 1430) performs the write
+- Between these two calls, a concurrent `cmd_done` could mark the task as done, and `cmd_update` would overwrite it
+- `cmd_done` and `cmd_fail` explicitly avoid this with an inline comment: "Atomic: UPDATE only if status = 'active', then check changes() in same transaction. Avoids TOCTOU race between status check and update."
+- The `sql_write` output is discarded (`> /dev/null`), so `cmd_update` cannot detect a zero-row update
+- Fix: Add `AND status != 'done'` to the UPDATE WHERE clause, append `SELECT changes()`, check output for success, and use a diagnostic read only on failure
 
 ### LOW PRIORITY
 

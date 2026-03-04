@@ -874,19 +874,20 @@ cmd_renew() {
     esc_id=$(sql_esc "$task_id")
     esc_agent=$(sql_esc "$agent_id")
 
-    # Single atomic UPDATE — eliminates TOCTOU race between check and update
-    local updated
-    updated=$(sqlite_cmd "
+    # Atomic: UPDATE only if status = 'active', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
         UPDATE tasks
         SET lease_expires_at = datetime('now', '+${lease} seconds'),
             updated_at = datetime('now')
         WHERE $(scope_where "${esc_id}")
           AND assignee = '${esc_agent}'
-          AND status = 'active'
-        RETURNING slug;
+          AND status = 'active';
+        SELECT changes();
     ")
 
-    if [[ -n "$updated" ]]; then
+    if [[ "$output" == "1" ]]; then
         echo "renewed $task_id"
         return 0
     fi
@@ -1386,20 +1387,6 @@ cmd_update() {
     local esc_id
     esc_id=$(sql_esc "$id")
 
-    # Check task exists and is not done
-    local current_status
-    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
-
-    if [[ -z "$current_status" ]]; then
-        echo "Error: task '$id' not found" >&2
-        exit 2
-    fi
-
-    if [[ "$current_status" == "done" ]]; then
-        echo "Error: task '$id' is done and cannot be updated" >&2
-        exit 1
-    fi
-
     # Build SET clause dynamically
     local set_parts=()
     if [[ "$has_title" -eq 1 ]]; then
@@ -1427,8 +1414,30 @@ cmd_update() {
     local set_clause
     set_clause=$(IFS=', '; echo "${set_parts[*]}")
 
-    sql_write "UPDATE tasks SET ${set_clause} WHERE $(scope_where "${esc_id}");" > /dev/null
-    echo "updated $id"
+    # Atomic: UPDATE only if status != 'done', then check changes() in same transaction.
+    # Avoids TOCTOU race between status check and update.
+    local output
+    output=$(sql_write "
+        UPDATE tasks SET ${set_clause}
+        WHERE $(scope_where "${esc_id}") AND status != 'done';
+        SELECT changes();
+    ")
+
+    if [[ "$output" == "1" ]]; then
+        echo "updated $id"
+        return 0
+    fi
+
+    # UPDATE affected 0 rows — determine why
+    local current_status
+    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
+
+    if [[ -z "$current_status" ]]; then
+        echo "Error: task '$id' not found" >&2
+        exit 2
+    fi
+    echo "Error: task '$id' is done and cannot be updated" >&2
+    exit 1
 }
 cmd_delete() {
     local id="${1:-}"
