@@ -34,11 +34,11 @@ db_check() {
         return 1
     fi
 
-    RALPH_DB_PATH="$_git_root/.ralph/tasks.db"
+    DB_PATH="$_git_root/.ralph/tasks.db"
 
     # Ensure the .ralph/ directory exists
     local _db_dir
-    _db_dir="$(dirname "$RALPH_DB_PATH")"
+    _db_dir="$(dirname "$DB_PATH")"
     mkdir -p "$_db_dir"
 
     # Auto-create .ralph/.gitignore (idempotent)
@@ -48,7 +48,7 @@ db_check() {
 }
 
 sqlite_cmd() {
-    sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" "$@"
+    sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$DB_PATH" "$@"
 }
 
 # sql_write: execute a write transaction with BEGIN IMMEDIATE, .bail on,
@@ -74,7 +74,7 @@ sql_write() {
 
     while true; do
         rc=0
-        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" || rc=$?
+        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$DB_PATH" || rc=$?
         if [[ $rc -eq 0 ]]; then
             return 0
         elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then

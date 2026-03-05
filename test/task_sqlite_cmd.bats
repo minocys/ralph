@@ -2,14 +2,17 @@
 load test_helper
 
 # ---------------------------------------------------------------------------
-# sqlite_cmd – runs sqlite3 with standard flags against RALPH_DB_PATH
+# sqlite_cmd – runs sqlite3 with standard flags against DB_PATH
 # ---------------------------------------------------------------------------
 
 setup() {
-    # Create a temp directory for the test database
+    # Create a temp directory and git repo so db_check() can derive DB_PATH
     TEST_WORK_DIR="$(mktemp -d)"
-    export RALPH_DB_PATH="$TEST_WORK_DIR/test.db"
+    git -C "$TEST_WORK_DIR" init --quiet
+    git -C "$TEST_WORK_DIR" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR" config user.name "Test"
     export TEST_WORK_DIR
+    cd "$TEST_WORK_DIR"
 }
 
 teardown() {
