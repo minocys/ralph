@@ -43,7 +43,7 @@ load test_helper
 
     # Verify status in DB
     local status
-    status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';")
+    status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';")
     [[ "$status" == "stopped" ]]
 }
 
@@ -117,11 +117,11 @@ load test_helper
 
     # id1 should be stopped, id2 should still be active
     local status1
-    status1=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$id1';")
+    status1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$id1';")
     [[ "$status1" == "stopped" ]]
 
     local status2
-    status2=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$id2';")
+    status2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$id2';")
     [[ "$status2" == "active" ]]
 }
 
@@ -137,7 +137,7 @@ load test_helper
 
     # Verify active
     local status
-    status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';")
+    status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';")
     [[ "$status" == "active" ]]
 
     # Deregister
@@ -145,11 +145,11 @@ load test_helper
     assert_success
 
     # Verify stopped
-    status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';")
+    status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';")
     [[ "$status" == "stopped" ]]
 
     # Verify record still exists (not deleted)
     local count
-    count=$(sqlite3 "$RALPH_DB_PATH" "SELECT COUNT(*) FROM agents WHERE id = '$agent_id';")
+    count=$(sqlite3 "$TEST_DB_PATH" "SELECT COUNT(*) FROM agents WHERE id = '$agent_id';")
     [[ "$count" -eq 1 ]]
 }

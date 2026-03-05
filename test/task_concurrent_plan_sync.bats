@@ -38,7 +38,7 @@ run_parallel_syncs() {
 # ---------------------------------------------------------------------------
 count_tasks_by_status() {
     local status="$1"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE scope_repo = 'test/repo'
            AND scope_branch = 'main'
@@ -49,7 +49,7 @@ count_tasks_by_status() {
 # Helper: count total non-deleted tasks within test scope
 # ---------------------------------------------------------------------------
 count_live_tasks() {
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE scope_repo = 'test/repo'
            AND scope_branch = 'main'
@@ -60,7 +60,7 @@ count_live_tasks() {
 # Helper: check for duplicate slugs within test scope
 # ---------------------------------------------------------------------------
 count_duplicate_slugs() {
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM (
              SELECT slug, COUNT(*) as cnt FROM tasks
              WHERE scope_repo = 'test/repo'
@@ -130,7 +130,7 @@ count_duplicate_slugs() {
 
     # The shared task should exist exactly once
     local shared_count
-    shared_count=$(sqlite3 "$RALPH_DB_PATH" \
+    shared_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE slug = 'cps-ov-01'
            AND scope_repo = 'test/repo'
@@ -139,7 +139,7 @@ count_duplicate_slugs() {
 
     # The shared task should have a valid title (one of the two inputs won)
     local title
-    title=$(sqlite3 "$RALPH_DB_PATH" \
+    title=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT title FROM tasks
          WHERE slug = 'cps-ov-01'
            AND scope_repo = 'test/repo'
@@ -177,7 +177,7 @@ count_duplicate_slugs() {
     # depends on execution order. We just verify consistency.
     # Total tasks with this spec_ref (any status):
     local total
-    total=$(sqlite3 "$RALPH_DB_PATH" \
+    total=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE spec_ref = 'dj-spec'
            AND scope_repo = 'test/repo'
@@ -186,7 +186,7 @@ count_duplicate_slugs() {
 
     # At least 2 should be open (the winner's tasks), at most 4
     local open_count
-    open_count=$(sqlite3 "$RALPH_DB_PATH" \
+    open_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE spec_ref = 'dj-spec'
            AND scope_repo = 'test/repo'
@@ -228,7 +228,7 @@ count_duplicate_slugs() {
 
     # cps-pre-01 should exist exactly once
     local pre01_count
-    pre01_count=$(sqlite3 "$RALPH_DB_PATH" \
+    pre01_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE slug = 'cps-pre-01'
            AND scope_repo = 'test/repo'
@@ -268,7 +268,7 @@ count_duplicate_slugs() {
 
     # The shared task exists exactly once
     local shared_count
-    shared_count=$(sqlite3 "$RALPH_DB_PATH" \
+    shared_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE slug = 'cps-tri-01'
            AND scope_repo = 'test/repo'
@@ -303,7 +303,7 @@ count_duplicate_slugs() {
 
     # The blocker task exists exactly once
     local blocker_count
-    blocker_count=$(sqlite3 "$RALPH_DB_PATH" \
+    blocker_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks
          WHERE slug = 'cps-dep-01'
            AND scope_repo = 'test/repo'
@@ -312,7 +312,7 @@ count_duplicate_slugs() {
 
     # Foreign key integrity: no orphaned task_deps rows
     local orphan_deps
-    orphan_deps=$(sqlite3 "$RALPH_DB_PATH" \
+    orphan_deps=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM task_deps d
          WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = d.task_id)
             OR NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = d.blocked_by)")

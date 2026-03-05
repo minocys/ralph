@@ -181,7 +181,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task claim includes steps in output" {
     "$SCRIPT_DIR/lib/task" create "t-steps" "Steps task" -p 0
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"step one\",\"step two\"]' WHERE slug = 't-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET steps = '[\"step one\",\"step two\"]' WHERE slug = 't-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     run "$SCRIPT_DIR/lib/task" claim
     assert_success
@@ -200,7 +200,7 @@ load test_helper
     assert_success
 
     # Set the blocker to done with a result via direct SQL
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE slug='t-dep-a' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done', result='{\"commit\":\"abc123\"}' WHERE slug='t-dep-a' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Now claim dep-b
     run "$SCRIPT_DIR/lib/task" claim
@@ -228,7 +228,7 @@ load test_helper
 @test "task claim with all tasks done exits 2" {
     "$SCRIPT_DIR/lib/task" create "t-alldone" "All done" -p 0
     "$SCRIPT_DIR/lib/task" claim >/dev/null
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='t-alldone' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='t-alldone' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/lib/task" claim
     assert_failure 2
@@ -362,12 +362,12 @@ load test_helper
 @test "task claim <id> returns blocker_results and steps like untargeted claim" {
     "$SCRIPT_DIR/lib/task" create "t-dep-tgt-a" "Dep A" -p 0
     "$SCRIPT_DIR/lib/task" create "t-dep-tgt-b" "Dep B" -p 0
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"step one\",\"step two\"]' WHERE slug = 't-dep-tgt-b' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET steps = '[\"step one\",\"step two\"]' WHERE slug = 't-dep-tgt-b' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     "$SCRIPT_DIR/lib/task" block "t-dep-tgt-b" --by "t-dep-tgt-a"
 
     # Claim and complete dep-a with a result
     "$SCRIPT_DIR/lib/task" claim >/dev/null
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE slug='t-dep-tgt-a' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done', result='{\"commit\":\"def456\"}' WHERE slug='t-dep-tgt-a' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Targeted claim of dep-b
     run "$SCRIPT_DIR/lib/task" claim t-dep-tgt-b
@@ -440,6 +440,6 @@ load test_helper
 
     # Verify the task is claimed exactly once in the database
     local active_count
-    active_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT COUNT(*) FROM tasks WHERE slug = 't-race' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
+    active_count=$(sqlite3 "$TEST_DB_PATH" "SELECT COUNT(*) FROM tasks WHERE slug = 't-race' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }

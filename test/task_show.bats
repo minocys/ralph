@@ -47,7 +47,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task show displays steps" {
     "$SCRIPT_DIR/lib/task" create "show-steps" "Task with steps" > /dev/null
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"First step\",\"Second step\"]' WHERE slug = 'show-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET steps = '[\"First step\",\"Second step\"]' WHERE slug = 'show-steps' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     run "$SCRIPT_DIR/lib/task" show "show-steps"
     assert_success
@@ -79,7 +79,7 @@ load test_helper
     "$SCRIPT_DIR/lib/task" create "show-wd" "Dependent task" --deps "res-a" > /dev/null
 
     # Set blocker to done with result
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         UPDATE tasks SET status = 'done', result = '{\"commit\": \"abc123\"}' WHERE slug = 'res-a' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
 
@@ -106,7 +106,7 @@ load test_helper
     "$SCRIPT_DIR/lib/task" create "res-b" "Blocker with result" > /dev/null
     "$SCRIPT_DIR/lib/task" create "show-nwd" "Dependent task" --deps "res-b" > /dev/null
 
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         UPDATE tasks SET status = 'done', result = '{\"commit\": \"def456\"}' WHERE slug = 'res-b' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
 

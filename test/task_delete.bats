@@ -32,7 +32,7 @@ load test_helper
     assert_output "deleted test/01"
 
     local task_status
-    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    task_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$task_status" = "deleted" ]
 }
 
@@ -41,18 +41,18 @@ load test_helper
     "$SCRIPT_DIR/lib/task" delete "test/01"
 
     local deleted_at
-    deleted_at=$(sqlite3 "$RALPH_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    deleted_at=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$deleted_at" = "1" ]
 }
 
 @test "task delete sets updated_at timestamp" {
     "$SCRIPT_DIR/lib/task" create "test/01" "A task to delete"
     # Clear updated_at to verify it gets set
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     "$SCRIPT_DIR/lib/task" delete "test/01"
 
     local updated_at
-    updated_at=$(sqlite3 "$RALPH_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    updated_at=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$updated_at" = "1" ]
 }
 
@@ -89,7 +89,7 @@ load test_helper
     assert_output "deleted test/it's"
 
     local task_status
-    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    task_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$task_status" = "deleted" ]
 }
 
@@ -102,12 +102,12 @@ load test_helper
 
     # Task should still exist in the database
     local count
-    count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count" = "1" ]
 
     # Original fields should be preserved
     local title
-    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "Soft deleted task" ]
 }
 

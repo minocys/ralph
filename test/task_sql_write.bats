@@ -24,7 +24,7 @@ setup() {
     eval "$(sed -n '/^sql_write()/,/^}/p' "$SCRIPT_DIR/lib/task")"
 
     db_check
-    export RALPH_DB_PATH
+    export TEST_DB_PATH
     # Create a simple table for testing writes
     sqlite_cmd "CREATE TABLE IF NOT EXISTS test_tbl (id TEXT PRIMARY KEY, val TEXT);"
 }
@@ -125,7 +125,7 @@ INSERT INTO test_tbl (id, val) VALUES ('h', 'dupe');"
     sqlite_cmd "PRAGMA journal_mode=WAL;"
 
     # Start a long-running write transaction in the background that holds the lock
-    sqlite3 "$RALPH_DB_PATH" "BEGIN IMMEDIATE; INSERT INTO test_tbl VALUES ('lock','held'); SELECT writeable_sleep(1);" &>/dev/null &
+    sqlite3 "$TEST_DB_PATH" "BEGIN IMMEDIATE; INSERT INTO test_tbl VALUES ('lock','held'); SELECT writeable_sleep(1);" &>/dev/null &
     local bg_pid=$!
 
     # Give the background process a moment to acquire the lock

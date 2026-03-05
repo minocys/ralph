@@ -28,9 +28,9 @@ common_setup() {
     git -C "$TEST_WORK_DIR" config user.name "Test"
 
     # db_check() derives: <git-root>/.ralph/tasks.db
-    # Set RALPH_DB_PATH here for test assertions (e.g., direct sqlite3 queries).
-    # lib/task ignores this env var — it always uses git rev-parse.
-    export RALPH_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
+    # TEST_DB_PATH is a convenience variable for test assertions (direct sqlite3 queries).
+    # It is NOT an env var consumed by lib/task — just a shorthand for the expected path.
+    export TEST_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
 
     # Minimal specs/ directory with a dummy spec so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"

@@ -99,7 +99,7 @@ load test_helper
     local id2="$output"
 
     # Manually stop one agent
-    sqlite3 "$RALPH_DB_PATH" "UPDATE agents SET status = 'stopped' WHERE id = '$id1';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE agents SET status = 'stopped' WHERE id = '$id1';"
 
     run "$SCRIPT_DIR/lib/task" agent list
     assert_success

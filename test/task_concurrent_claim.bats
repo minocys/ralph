@@ -66,7 +66,7 @@ run_parallel_claims() {
 
     # Database has exactly one active claim
     local active_count
-    active_count=$(sqlite3 "$RALPH_DB_PATH" \
+    active_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks WHERE slug = 't-race' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }
@@ -91,7 +91,7 @@ run_parallel_claims() {
 
     # Database has exactly one active claim
     local active_count
-    active_count=$(sqlite3 "$RALPH_DB_PATH" \
+    active_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks WHERE slug = 't-triple' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }
@@ -122,7 +122,7 @@ run_parallel_claims() {
 
     # Database has exactly two active claims, no duplicates
     local active_count
-    active_count=$(sqlite3 "$RALPH_DB_PATH" \
+    active_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks WHERE scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 2 ]]
 }
@@ -151,7 +151,7 @@ run_parallel_claims() {
 
     # Database has exactly one active claim
     local active_count
-    active_count=$(sqlite3 "$RALPH_DB_PATH" \
+    active_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks WHERE slug = 't-target' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }
@@ -166,7 +166,7 @@ run_parallel_claims() {
 
     # Check the assignee is set to exactly one agent (not both, not empty)
     local assignee
-    assignee=$(sqlite3 "$RALPH_DB_PATH" \
+    assignee=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT assignee FROM tasks WHERE slug = 't-assign' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
 
     # Assignee should be one of agent-1 or agent-2, not blank
@@ -174,7 +174,7 @@ run_parallel_claims() {
 
     # Only one row with active status
     local active_count
-    active_count=$(sqlite3 "$RALPH_DB_PATH" \
+    active_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM tasks WHERE slug = 't-assign' AND scope_repo = 'test/repo' AND scope_branch = 'main' AND status = 'active'")
     [[ "$active_count" -eq 1 ]]
 }

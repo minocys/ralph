@@ -14,7 +14,7 @@ setup() {
     git -C "$TEST_WORK_DIR" config user.name "Test"
 
     # db_check() derives path from git root: <git-root>/.ralph/tasks.db
-    export RALPH_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
+    export TEST_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
     export RALPH_SCOPE_REPO="test/repo"
     export RALPH_SCOPE_BRANCH="main"
 
@@ -33,7 +33,7 @@ teardown() {
 # tasks table: new columns exist
 # ---------------------------------------------------------------------------
 @test "tasks table has slug column" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_table_info('tasks') WHERE name='slug';
     "
     assert_success
@@ -41,7 +41,7 @@ teardown() {
 }
 
 @test "tasks table has scope_repo column" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_table_info('tasks') WHERE name='scope_repo';
     "
     assert_success
@@ -49,7 +49,7 @@ teardown() {
 }
 
 @test "tasks table has scope_branch column" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_table_info('tasks') WHERE name='scope_branch';
     "
     assert_success
@@ -60,7 +60,7 @@ teardown() {
 # tasks.id column type is TEXT (SQLite equivalent of UUID)
 # ---------------------------------------------------------------------------
 @test "tasks.id column is TEXT type" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT type FROM pragma_table_info('tasks') WHERE name='id';
     "
     assert_success
@@ -69,7 +69,7 @@ teardown() {
 
 @test "tasks.id has no default (UUID generated in bash)" {
     # In SQLite, id is TEXT PRIMARY KEY with no DEFAULT — UUID is generated in bash
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT dflt_value FROM pragma_table_info('tasks') WHERE name='id';
     "
     assert_success
@@ -80,7 +80,7 @@ teardown() {
 # NOT NULL constraints on slug, scope_repo, scope_branch
 # ---------------------------------------------------------------------------
 @test "tasks.slug is NOT NULL" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT CASE WHEN \"notnull\" = 1 THEN 'NO' ELSE 'YES' END
         FROM pragma_table_info('tasks') WHERE name='slug';
     "
@@ -89,7 +89,7 @@ teardown() {
 }
 
 @test "tasks.scope_repo is NOT NULL" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT CASE WHEN \"notnull\" = 1 THEN 'NO' ELSE 'YES' END
         FROM pragma_table_info('tasks') WHERE name='scope_repo';
     "
@@ -98,7 +98,7 @@ teardown() {
 }
 
 @test "tasks.scope_branch is NOT NULL" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT CASE WHEN \"notnull\" = 1 THEN 'NO' ELSE 'YES' END
         FROM pragma_table_info('tasks') WHERE name='scope_branch';
     "
@@ -113,7 +113,7 @@ teardown() {
     # In SQLite, UNIQUE constraints create automatic indexes.
     # Check that an index exists covering scope_repo, scope_branch, slug.
     # Use PRAGMA index_list to find unique indexes, then index_info to check columns.
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT count(*) FROM (
             SELECT il.name AS idx_name
             FROM pragma_index_list('tasks') il
@@ -130,12 +130,12 @@ teardown() {
 
 @test "UNIQUE constraint rejects duplicate slug within same scope" {
     # Insert first row
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440010', 'task-01', 'owner/repo', 'main', 'First');
     "
     # Duplicate slug in same scope should fail
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440011', 'task-01', 'owner/repo', 'main', 'Duplicate');
     "
@@ -143,12 +143,12 @@ teardown() {
 }
 
 @test "UNIQUE constraint allows same slug in different scope" {
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440010', 'task-01', 'owner/repo', 'main', 'First');
     "
     # Same slug but different branch should succeed
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440012', 'task-01', 'owner/repo', 'feature', 'Second');
     "
@@ -159,7 +159,7 @@ teardown() {
 # Index on (scope_repo, scope_branch, status, priority, created_at)
 # ---------------------------------------------------------------------------
 @test "index idx_tasks_scope_status exists" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM sqlite_master
         WHERE type='index'
           AND tbl_name='tasks'
@@ -170,7 +170,7 @@ teardown() {
 }
 
 @test "idx_tasks_scope_status covers correct columns" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_index_info('idx_tasks_scope_status') ORDER BY seqno;
     "
     assert_success
@@ -185,7 +185,7 @@ teardown() {
 # task_deps columns are TEXT type (SQLite equivalent of UUID)
 # ---------------------------------------------------------------------------
 @test "task_deps.task_id is TEXT type" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT type FROM pragma_table_info('task_deps') WHERE name='task_id';
     "
     assert_success
@@ -193,7 +193,7 @@ teardown() {
 }
 
 @test "task_deps.blocked_by is TEXT type" {
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT type FROM pragma_table_info('task_deps') WHERE name='blocked_by';
     "
     assert_success
@@ -204,7 +204,7 @@ teardown() {
 # task_deps cascade delete still works with TEXT ids
 # ---------------------------------------------------------------------------
 @test "task_deps cascade delete works with TEXT ids" {
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         PRAGMA foreign_keys=ON;
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440001', 'dep-1', 'owner/repo', 'main', 'Dep Test 1');
@@ -214,7 +214,7 @@ teardown() {
         VALUES ('550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002');
         DELETE FROM tasks WHERE id = '550e8400-e29b-41d4-a716-446655440002';
     "
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT count(*) FROM task_deps
         WHERE task_id = '550e8400-e29b-41d4-a716-446655440001';
     "

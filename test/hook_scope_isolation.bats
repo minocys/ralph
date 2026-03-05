@@ -58,11 +58,11 @@ hook_session_end_in_scope_b() {
 @test "precompact hook only fails active task in its own scope" {
     # Create active tasks in both scopes, assigned to our agent
     task_in_scope_a create "hpc-01" "Alpha task"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hpc-01' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';"
 
     task_in_scope_b create "hpc-02" "Beta task"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hpc-02' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';"
 
     # Run precompact hook in scope A
@@ -71,19 +71,19 @@ hook_session_end_in_scope_b() {
 
     # Scope A task must be failed (back to open)
     local status_a
-    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='hpc-01' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';")
+    status_a=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='hpc-01' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';")
     [ "$status_a" = "open" ]
 
     # Scope B task must remain active (untouched by scope A hook)
     local status_b
-    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='hpc-02' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
+    status_b=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='hpc-02' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
     [ "$status_b" = "active" ]
 }
 
 @test "precompact hook outputs continue:true when no active task in scope" {
     # Create active task only in scope B
     task_in_scope_b create "hpc-03" "Beta only"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hpc-03' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';"
 
     # Run precompact hook in scope A (nothing active here)
@@ -93,13 +93,13 @@ hook_session_end_in_scope_b() {
 
     # Scope B task must remain active
     local status_b
-    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='hpc-03' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
+    status_b=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='hpc-03' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
     [ "$status_b" = "active" ]
 }
 
 @test "precompact hook outputs continue:false JSON for active task in scope" {
     task_in_scope_a create "hpc-04" "Alpha active"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hpc-04' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';"
 
     run bash -c 'RALPH_SCOPE_REPO="$SCOPE_A_REPO" RALPH_SCOPE_BRANCH="$SCOPE_A_BRANCH" "$SCRIPT_DIR/hooks/precompact.sh" 2>/dev/null'
@@ -115,11 +115,11 @@ hook_session_end_in_scope_b() {
 @test "session end hook only fails active task in its own scope" {
     # Create active tasks in both scopes, assigned to our agent
     task_in_scope_a create "hse-01" "Alpha task"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hse-01' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';"
 
     task_in_scope_b create "hse-02" "Beta task"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hse-02' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';"
 
     # Run session_end hook in scope A
@@ -128,19 +128,19 @@ hook_session_end_in_scope_b() {
 
     # Scope A task must be failed (back to open)
     local status_a
-    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='hse-01' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';")
+    status_a=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='hse-01' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';")
     [ "$status_a" = "open" ]
 
     # Scope B task must remain active (untouched by scope A hook)
     local status_b
-    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='hse-02' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
+    status_b=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='hse-02' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
     [ "$status_b" = "active" ]
 }
 
 @test "session end hook is a no-op when no active task in scope" {
     # Create active task only in scope B
     task_in_scope_b create "hse-03" "Beta only"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hse-03' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';"
 
     # Run session_end hook in scope A (nothing active here)
@@ -149,18 +149,18 @@ hook_session_end_in_scope_b() {
 
     # Scope B task must remain active
     local status_b
-    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='hse-03' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
+    status_b=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='hse-03' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
     [ "$status_b" = "active" ]
 }
 
 @test "session end hook increments retry_count only for task in scope" {
     # Create active tasks in both scopes
     task_in_scope_a create "hse-04" "Alpha retry"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hse-04' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';"
 
     task_in_scope_b create "hse-05" "Beta retry"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='hse-05' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';"
 
     # Run session_end hook in scope A
@@ -169,11 +169,11 @@ hook_session_end_in_scope_b() {
 
     # Scope A retry_count must be incremented
     local retry_a
-    retry_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='hse-04' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';")
+    retry_a=$(sqlite3 "$TEST_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='hse-04' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH';")
     [ "$retry_a" = "1" ]
 
     # Scope B retry_count must remain 0 (untouched)
     local retry_b
-    retry_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='hse-05' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
+    retry_b=$(sqlite3 "$TEST_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='hse-05' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH';")
     [ "$retry_b" = "0" ]
 }

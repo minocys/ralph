@@ -54,7 +54,7 @@ load test_helper
 
     # Verify in database
     local dep_count
-    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -68,7 +68,7 @@ load test_helper
 
     # Still only one row
     local dep_count
-    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -106,7 +106,7 @@ load test_helper
     assert_success
 
     local dep_count
-    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 }
 
@@ -156,7 +156,7 @@ load test_helper
 
     # Verify removed from database
     local dep_count
-    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'blocker/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }
 
@@ -171,11 +171,11 @@ load test_helper
 
     # blocker/01 removed, blocker/02 still there
     local dep_count
-    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "1" ]
 
     local remaining
-    remaining=$(sqlite3 "$RALPH_DB_PATH" "SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    remaining=$(sqlite3 "$TEST_DB_PATH" "SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$remaining" = "blocker/02" ]
 }
 
@@ -203,6 +203,6 @@ load test_helper
     assert_success
 
     local dep_count
-    dep_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
+    dep_count=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM task_deps WHERE task_id = (SELECT id FROM tasks WHERE slug = 'test/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main') AND blocked_by = (SELECT id FROM tasks WHERE slug = 'block/it''s' AND scope_repo = 'test/repo' AND scope_branch = 'main')")
     [ "$dep_count" = "0" ]
 }

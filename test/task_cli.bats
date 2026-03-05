@@ -58,7 +58,7 @@ load test_helper
 # Unknown subcommand
 # ---------------------------------------------------------------------------
 @test "task with unknown subcommand exits 1" {
-    # Unknown commands don't need RALPH_DB_URL since they fail before db_check
+    # Unknown commands fail before db_check
     run "$SCRIPT_DIR/lib/task" bogus-command
     assert_failure
     assert_output --partial "Error: unknown command 'bogus-command'"
@@ -72,30 +72,21 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
-# Default RALPH_DB_PATH: commands work without explicit path (auto-creates DB)
+# Git-root DB derivation: commands auto-create DB at <git-root>/.ralph/tasks.db
 # ---------------------------------------------------------------------------
-@test "task create without explicit RALPH_DB_PATH still validates args" {
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
-    chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_PATH 2>/dev/null || true
-    run "$TEST_WORK_DIR/task" create
+@test "task create with git-root DB still validates args" {
+    run "$SCRIPT_DIR/lib/task" create
     assert_failure
     assert_output --partial "missing task ID"
 }
 
-@test "task list without explicit RALPH_DB_PATH succeeds" {
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
-    chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_PATH 2>/dev/null || true
-    run "$TEST_WORK_DIR/task" list
+@test "task list with git-root DB succeeds" {
+    run "$SCRIPT_DIR/lib/task" list
     assert_success
 }
 
-@test "task claim without explicit RALPH_DB_PATH exits 2 (no tasks)" {
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/task"
-    chmod +x "$TEST_WORK_DIR/task"
-    unset RALPH_DB_PATH 2>/dev/null || true
-    run "$TEST_WORK_DIR/task" claim
+@test "task claim with git-root DB exits 2 (no tasks)" {
+    run "$SCRIPT_DIR/lib/task" claim
     [ "$status" -eq 2 ]
 }
 
@@ -109,10 +100,9 @@ load test_helper
 }
 
 # ---------------------------------------------------------------------------
-# Help does not require RALPH_DB_PATH
+# Help does not require database
 # ---------------------------------------------------------------------------
-@test "task --help works without RALPH_DB_PATH" {
-    unset RALPH_DB_PATH 2>/dev/null || true
+@test "task --help works without database" {
     run "$SCRIPT_DIR/lib/task" --help
     assert_success
     assert_output --partial "Usage: ralph task <command>"

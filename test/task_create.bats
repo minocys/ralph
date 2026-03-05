@@ -27,7 +27,7 @@ load test_helper
     assert_output "test-01"
 
     # Verify task exists in DB
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT slug || '|' || title || '|' || priority || '|' || status || '|' || retry_count FROM tasks WHERE slug = 'test-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
@@ -38,7 +38,7 @@ load test_helper
     run "$SCRIPT_DIR/lib/task" create "test-ts" "Timestamp test"
     assert_success
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT CASE WHEN updated_at IS NOT NULL THEN 'set' ELSE 'null' END FROM tasks WHERE slug = 'test-ts' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
@@ -58,7 +58,7 @@ load test_helper
     assert_success
     assert_output "feat-01"
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT slug || '|' || title || '|' || description || '|' || category || '|' || priority || '|' || spec_ref || '|' || ref
         FROM tasks WHERE slug = 'feat-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
@@ -74,7 +74,7 @@ load test_helper
         -s '["First step","Second step","Third step"]'
     assert_success
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT value FROM tasks, json_each(tasks.steps) WHERE slug = 'step-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
@@ -94,7 +94,7 @@ Third step"
     run "$SCRIPT_DIR/lib/task" create "dep-01" "Dependent task" --deps "blocker-a,blocker-b"
     assert_success
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT t.slug FROM task_deps td JOIN tasks t ON t.id = td.blocked_by WHERE td.task_id = (SELECT id FROM tasks WHERE slug = 'dep-01' AND scope_repo = 'test/repo' AND scope_branch = 'main') ORDER BY t.slug;
     "
     assert_success
@@ -109,7 +109,7 @@ blocker-b"
     run "$SCRIPT_DIR/lib/task" create "def-01" "Default check"
     assert_success
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT priority || '|' || status FROM tasks WHERE slug = 'def-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
@@ -120,7 +120,7 @@ blocker-b"
     run "$SCRIPT_DIR/lib/task" create "null-01" "Null fields test"
     assert_success
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT
             CASE WHEN description IS NULL THEN 'null' ELSE description END || '|' ||
             CASE WHEN category IS NULL THEN 'null' ELSE category END
@@ -147,7 +147,7 @@ blocker-b"
     assert_success
     assert_output "quote-01"
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT title FROM tasks WHERE slug = 'quote-01' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success
@@ -180,7 +180,7 @@ blocker-b"
     assert_success
     assert_output "val-04"
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT priority FROM tasks WHERE slug = 'val-04' AND scope_repo = 'test/repo' AND scope_branch = 'main';
     "
     assert_success

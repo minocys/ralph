@@ -91,7 +91,7 @@ load test_helper
     "$SCRIPT_DIR/lib/task" create ps-rep-02 "Blocker B" -r my-spec >/dev/null
     "$SCRIPT_DIR/lib/task" create ps-rep-03 "Main task" -r my-spec --deps "ps-rep-01" >/dev/null
     # Set initial steps directly via SQL
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET steps = '[\"Old step\"]' WHERE slug = 'ps-rep-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET steps = '[\"Old step\"]' WHERE slug = 'ps-rep-03' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     local input
     input='{"id":"ps-rep-01","t":"Blocker A","spec":"my-spec"}
