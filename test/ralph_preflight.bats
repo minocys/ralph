@@ -18,6 +18,13 @@ load test_helper
     assert_output --partial "No specs found"
 }
 
+@test "ralph plan startup does not fail without .env file" {
+    # Ensure no .env file exists in SCRIPT_DIR
+    rm -f "$SCRIPT_DIR/.env"
+    run "$SCRIPT_DIR/ralph.sh" plan -n 1
+    assert_success
+}
+
 @test "missing sqlite3 exits 1 with actionable error" {
     # Build a PATH with symlinks to everything except sqlite3
     local NO_SQLITE_DIR
