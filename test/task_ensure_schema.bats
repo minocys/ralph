@@ -9,8 +9,13 @@ load test_helper
 # ---------------------------------------------------------------------------
 setup() {
     TEST_WORK_DIR="$(mktemp -d)"
-    export RALPH_DB_PATH="$TEST_WORK_DIR/test.db"
     export TEST_WORK_DIR
+    # Create a temp git repo so db_check() can derive the DB path
+    mkdir -p "$TEST_WORK_DIR/repo"
+    git -C "$TEST_WORK_DIR/repo" init --quiet
+    git -C "$TEST_WORK_DIR/repo" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR/repo" config user.name "Test"
+    cd "$TEST_WORK_DIR/repo"
 }
 
 teardown() {

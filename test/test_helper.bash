@@ -10,12 +10,6 @@ load "$TEST_DIR/libs/bats-support/load"
 load "$TEST_DIR/libs/bats-assert/load"
 load "$TEST_DIR/libs/bats-file/load"
 
-# Source .env from project root for database config (matches runtime behavior)
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
-    # shellcheck disable=SC1091
-    . "$SCRIPT_DIR/.env"
-fi
-
 # Default scope for tests — set unconditionally at load time so that env vars
 # from the caller's shell (e.g. RALPH_SCOPE_REPO derived from git) are always
 # overridden. Individual tests can re-export per-test if needed.
@@ -28,8 +22,15 @@ common_setup() {
     # Create a temp working directory so tests don't touch the real project
     TEST_WORK_DIR="$(mktemp -d)"
 
-    # Each test gets its own fresh SQLite database
-    export RALPH_DB_PATH="$TEST_WORK_DIR/tasks.db"
+    # Initialize a git repo so db_check() can derive the database path
+    git -C "$TEST_WORK_DIR" init --quiet
+    git -C "$TEST_WORK_DIR" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR" config user.name "Test"
+
+    # db_check() derives: <git-root>/.ralph/tasks.db
+    # Set RALPH_DB_PATH here for test assertions (e.g., direct sqlite3 queries).
+    # lib/task ignores this env var — it always uses git rev-parse.
+    export RALPH_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
 
     # Minimal specs/ directory with a dummy spec so preflight passes
     mkdir -p "$TEST_WORK_DIR/specs"

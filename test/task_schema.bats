@@ -4,12 +4,21 @@
 load test_helper
 
 setup() {
-    # Call the shared setup (creates TEST_WORK_DIR with RALPH_DB_PATH, STUB_DIR, etc.)
-    # We rely on the default setup from test_helper which sets RALPH_DB_PATH
     TEST_WORK_DIR="$(mktemp -d)"
     STUB_DIR="$(mktemp -d)"
     export TEST_WORK_DIR STUB_DIR
-    export RALPH_DB_PATH="$TEST_WORK_DIR/tasks.db"
+
+    # Initialize git repo so db_check() can derive database path
+    git -C "$TEST_WORK_DIR" init --quiet
+    git -C "$TEST_WORK_DIR" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR" config user.name "Test"
+
+    # db_check() derives path from git root: <git-root>/.ralph/tasks.db
+    export RALPH_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
+    export RALPH_SCOPE_REPO="test/repo"
+    export RALPH_SCOPE_BRANCH="main"
+
+    cd "$TEST_WORK_DIR"
 
     # Ensure the schema exists by invoking a command that triggers ensure_schema
     "$SCRIPT_DIR/lib/task" create "dummy" "dummy" >/dev/null 2>&1 || true

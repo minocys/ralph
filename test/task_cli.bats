@@ -38,10 +38,10 @@ load test_helper
     assert_output --partial "agent deregister"
 }
 
-@test "task --help lists RALPH_DB_PATH in environment section" {
+@test "task --help lists database path info" {
     run "$SCRIPT_DIR/lib/task" --help
     assert_success
-    assert_output --partial "RALPH_DB_PATH"
+    assert_output --partial "git root"
 }
 
 # ---------------------------------------------------------------------------
