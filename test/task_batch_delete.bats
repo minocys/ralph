@@ -246,3 +246,238 @@ _setup_mixed_status_tasks() {
     [ "$ua1" = "1" ]
     [ "$ua2" = "1" ]
 }
+
+# ===========================================================================
+# --spec and --category filters: functional tests
+# Spec: specs/task-batch-delete.md#combinable-filters
+# ===========================================================================
+
+# Helper: create tasks with varying spec_ref and category values.
+# Creates 6 open tasks across two specs and two categories:
+#   sf/cli-feat-1   — spec_ref=task-cli.md, category=feat
+#   sf/cli-feat-2   — spec_ref=task-cli.md, category=feat
+#   sf/cli-test-1   — spec_ref=task-cli.md, category=test
+#   sf/bd-feat-1    — spec_ref=task-batch-delete.md, category=feat
+#   sf/bd-test-1    — spec_ref=task-batch-delete.md, category=test
+#   sf/nospec-1     — no spec_ref, no category
+_setup_spec_category_tasks() {
+    "$SCRIPT_DIR/lib/task" create "sf/cli-feat-1"  "CLI feature 1"  -r task-cli.md -c feat
+    "$SCRIPT_DIR/lib/task" create "sf/cli-feat-2"  "CLI feature 2"  -r task-cli.md -c feat
+    "$SCRIPT_DIR/lib/task" create "sf/cli-test-1"  "CLI test 1"     -r task-cli.md -c test
+    "$SCRIPT_DIR/lib/task" create "sf/bd-feat-1"   "BD feature 1"   -r task-batch-delete.md -c feat
+    "$SCRIPT_DIR/lib/task" create "sf/bd-test-1"   "BD test 1"      -r task-batch-delete.md -c test
+    "$SCRIPT_DIR/lib/task" create "sf/nospec-1"    "No spec task"
+}
+
+# ---------------------------------------------------------------------------
+# --status open --spec: filters to matching spec_ref only
+# ---------------------------------------------------------------------------
+@test "batch delete: --status open --spec filters to matching spec_ref only" {
+    _setup_spec_category_tasks
+
+    run "$SCRIPT_DIR/lib/task" delete --status open --spec task-cli.md
+    assert_success
+    assert_output "deleted 3 tasks"
+
+    # Verify task-cli.md tasks are deleted
+    local s1 s2 s3
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+    [ "$s3" = "deleted" ]
+
+    # Verify task-batch-delete.md and no-spec tasks are untouched
+    local s4 s5 s6
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/nospec-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s4" = "open" ]
+    [ "$s5" = "open" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --status open --category: filters to matching category only
+# ---------------------------------------------------------------------------
+@test "batch delete: --status open --category filters to matching category only" {
+    _setup_spec_category_tasks
+
+    run "$SCRIPT_DIR/lib/task" delete --status open --category feat
+    assert_success
+    assert_output "deleted 3 tasks"
+
+    # Verify feat tasks are deleted
+    local s1 s2 s3
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+    [ "$s3" = "deleted" ]
+
+    # Verify test and no-category tasks are untouched
+    local s4 s5 s6
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/nospec-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s4" = "open" ]
+    [ "$s5" = "open" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --status open --spec X --category Y: AND logic
+# ---------------------------------------------------------------------------
+@test "batch delete: --status open --spec --category applies AND logic" {
+    _setup_spec_category_tasks
+
+    run "$SCRIPT_DIR/lib/task" delete --status open --spec task-cli.md --category feat
+    assert_success
+    assert_output "deleted 2 tasks"
+
+    # Verify only task-cli.md + feat tasks are deleted
+    local s1 s2
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+
+    # Verify task-cli.md + test is NOT deleted (wrong category)
+    local s3
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s3" = "open" ]
+
+    # Verify task-batch-delete.md + feat is NOT deleted (wrong spec)
+    local s4
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s4" = "open" ]
+
+    # Verify remaining tasks are untouched
+    local s5 s6
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/nospec-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s5" = "open" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm --spec: deletes only tasks with that spec
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm --spec deletes only tasks with that spec" {
+    _setup_spec_category_tasks
+
+    # Move some tasks to different statuses to verify --all crosses status boundaries
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='active' WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm --spec task-cli.md
+    assert_success
+    assert_output "deleted 3 tasks"
+
+    # Verify all task-cli.md tasks are deleted regardless of original status
+    local s1 s2 s3
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+    [ "$s3" = "deleted" ]
+
+    # Verify non-matching spec tasks are untouched
+    local s4 s5 s6
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/nospec-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s4" = "open" ]
+    [ "$s5" = "open" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm --category: deletes only tasks with that category
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm --category deletes only tasks with that category" {
+    _setup_spec_category_tasks
+
+    # Move some tasks to different statuses
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='active' WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm --category test
+    assert_success
+    assert_output "deleted 2 tasks"
+
+    # Verify test-category tasks are deleted
+    local s1 s2
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+
+    # Verify non-test tasks are untouched
+    local s3 s4 s5 s6
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/nospec-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s3" = "open" ]
+    [ "$s4" = "done" ]
+    [ "$s5" = "active" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm --spec --category: AND logic across all statuses
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm --spec --category applies AND logic" {
+    _setup_spec_category_tasks
+
+    # Move one matching task to done status
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm --spec task-cli.md --category feat
+    assert_success
+    assert_output "deleted 2 tasks"
+
+    # Verify only task-cli.md + feat tasks are deleted
+    local s1 s2
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+
+    # Verify other tasks are untouched
+    local s3 s4 s5 s6
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/cli-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/bd-test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='sf/nospec-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s3" = "open" ]
+    [ "$s4" = "open" ]
+    [ "$s5" = "open" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --spec with no matching tasks returns 0 count
+# ---------------------------------------------------------------------------
+@test "batch delete: --status open --spec with no matches returns 0" {
+    _setup_spec_category_tasks
+
+    run "$SCRIPT_DIR/lib/task" delete --status open --spec nonexistent-spec.md
+    assert_success
+    assert_output "deleted 0 tasks"
+}
+
+# ---------------------------------------------------------------------------
+# --category with no matching tasks returns 0 count
+# ---------------------------------------------------------------------------
+@test "batch delete: --status open --category with no matches returns 0" {
+    _setup_spec_category_tasks
+
+    run "$SCRIPT_DIR/lib/task" delete --status open --category nonexistent
+    assert_success
+    assert_output "deleted 0 tasks"
+}
