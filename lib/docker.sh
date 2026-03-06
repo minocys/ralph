@@ -3,7 +3,7 @@
 #
 # Functions:
 #   derive_sandbox_name  - Derive deterministic sandbox name from repo+branch
-#   lookup_sandbox       - Check sandbox state (running, stopped, or not found)
+#   check_sandbox_state  - Check sandbox state (running, stopped, or not found)
 
 # derive_sandbox_name: produce a deterministic sandbox name from repo+branch
 # Pattern: ralph-{owner}-{repo}-{branch}, sanitized and truncated to 63 chars
@@ -70,9 +70,9 @@ derive_sandbox_name() {
     echo "$name"
 }
 
-# lookup_sandbox: check if a sandbox exists and its state
+# check_sandbox_state: check if a sandbox exists and its state
 # Returns: "running", "stopped", or "" (not found)
-lookup_sandbox() {
+check_sandbox_state() {
     local name="$1"
     local state
 

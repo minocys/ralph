@@ -2,7 +2,7 @@
 # test/docker_sandbox_name.bats — tests for derive_sandbox_name() in lib/docker.sh
 #
 # Covers: basic name derivation, SSH/HTTPS URLs, special characters,
-#         63-char truncation, env var overrides, error cases, lookup_sandbox.
+#         63-char truncation, env var overrides, error cases, check_sandbox_state.
 
 load test_helper
 
@@ -10,7 +10,7 @@ load test_helper
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Source docker.sh to get derive_sandbox_name and lookup_sandbox
+# Source docker.sh to get derive_sandbox_name and check_sandbox_state
 source_docker_sh() {
     source "$SCRIPT_DIR/lib/docker.sh"
 }
@@ -351,10 +351,10 @@ setup() {
 }
 
 # ---------------------------------------------------------------------------
-# lookup_sandbox
+# check_sandbox_state
 # ---------------------------------------------------------------------------
 
-@test "lookup_sandbox: running sandbox returns 'running'" {
+@test "check_sandbox_state: running sandbox returns 'running'" {
     source_docker_sh
     # Mock docker CLI
     cat > "$STUB_DIR/docker" <<'STUB'
@@ -362,53 +362,53 @@ setup() {
 echo '[{"Name":"test-sandbox","Status":"running"}]'
 STUB
     chmod +x "$STUB_DIR/docker"
-    run lookup_sandbox "test-sandbox"
+    run check_sandbox_state "test-sandbox"
     assert_success
     assert_output "running"
 }
 
-@test "lookup_sandbox: stopped sandbox returns 'stopped'" {
+@test "check_sandbox_state: stopped sandbox returns 'stopped'" {
     source_docker_sh
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
 echo '[{"Name":"test-sandbox","Status":"stopped"}]'
 STUB
     chmod +x "$STUB_DIR/docker"
-    run lookup_sandbox "test-sandbox"
+    run check_sandbox_state "test-sandbox"
     assert_success
     assert_output "stopped"
 }
 
-@test "lookup_sandbox: exited sandbox returns 'stopped'" {
+@test "check_sandbox_state: exited sandbox returns 'stopped'" {
     source_docker_sh
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
 echo '[{"Name":"test-sandbox","Status":"exited"}]'
 STUB
     chmod +x "$STUB_DIR/docker"
-    run lookup_sandbox "test-sandbox"
+    run check_sandbox_state "test-sandbox"
     assert_success
     assert_output "stopped"
 }
 
-@test "lookup_sandbox: not found returns empty string" {
+@test "check_sandbox_state: not found returns empty string" {
     source_docker_sh
     cat > "$STUB_DIR/docker" <<'STUB'
 #!/bin/bash
 echo '[]'
 STUB
     chmod +x "$STUB_DIR/docker"
-    run lookup_sandbox "nonexistent"
+    run check_sandbox_state "nonexistent"
     assert_success
     assert_output ""
 }
 
-@test "lookup_sandbox: docker not available returns empty string" {
+@test "check_sandbox_state: docker not available returns empty string" {
     source_docker_sh
     # No docker in PATH — remove any stub
     rm -f "$STUB_DIR/docker"
     # Ensure no real docker either by restricting PATH
-    run lookup_sandbox "any-name"
+    run check_sandbox_state "any-name"
     assert_success
     assert_output ""
 }

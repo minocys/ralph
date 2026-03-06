@@ -159,7 +159,7 @@ case "$SUBCMD" in
         # Derive sandbox name from repo+branch
         SANDBOX_NAME="$(derive_sandbox_name)"
         # Check sandbox state
-        SANDBOX_STATE="$(lookup_sandbox "$SANDBOX_NAME")"
+        SANDBOX_STATE="$(check_sandbox_state "$SANDBOX_NAME")"
         case "$SANDBOX_STATE" in
             running)
                 # Sandbox exists and is running — exec directly
