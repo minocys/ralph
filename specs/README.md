@@ -33,3 +33,4 @@
 | [docker-removal.md](docker-removal.md) | Remove Docker, docker-compose, and PostgreSQL infrastructure (supersedes docker-auto-start) |
 | [per-repo-task-database.md](per-repo-task-database.md) | Store each repository's task database inside that repository via `git rev-parse --show-toplevel`, removing `RALPH_DB_PATH` |
 | [task-batch-delete.md](task-batch-delete.md) | Filter-based batch soft-delete for tasks by status, spec ref, and category |
+| [pr20-review-fixes.md](pr20-review-fixes.md) | Fix SQL injection, missing concurrency guards, and code duplication found in SQLite migration PR review |
