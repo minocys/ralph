@@ -166,7 +166,7 @@ case "$SUBCMD" in
                 ;;
             stopped)
                 # Sandbox exists but stopped — start it
-                docker sandbox start "$SANDBOX_NAME"
+                docker sandbox run "$SANDBOX_NAME"
                 ;;
             "")
                 # No sandbox — create and bootstrap
