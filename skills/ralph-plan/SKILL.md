@@ -1,12 +1,11 @@
 ---
 name: ralph-plan
-description: Studies specs (expectations) and codebase (reality), creates tasks for implementation to close the gap. 
-argument-hint: [current-task-dag]
+description: Studies specs (expectations) and codebase (reality), creates tasks for implementation to close the gap.
 ---
 
 # TASK
 0a. Study `specs/*` with up to 250 parallel Sonnet subagents to learn the application specifications.
-0b. Study the current plan DAG (if present) to understand the plan so far. The DAG is provided in markdown-KV format — each task is a `## Task {id}` section with `key: value` lines (id, title, priority, status, category, spec, ref, assignee, deps, steps). Empty fields are omitted. DAG input: $ARGUMENTS[0]
+0b. Study the "Current Plan DAG" (if present) to understand the plan so far.
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
@@ -24,12 +23,13 @@ argument-hint: [current-task-dag]
 
 Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at `specs/FILENAME.md`. Spec filenames must be short kebab-case slugs (e.g., `task-cli.md`, `build-loop-control.md`) because they become `spec_ref` values and task ID prefixes (`{spec-slug}/{seq}`). If you create a new element then emit the plan as JSONL to `ralph task plan-sync` using a subagent.
 
-## Context
+# Current Plan DAG
+!`ralph task list --all --markdown`
 
-| Term             | Definition                                                    |
-| ---------------- | ------------------------------------------------------------- |
-| Job to be Done   | High-level user need or outcome                               |
-| Topic of Concern | A distinct aspect or component within a JTBD                  |
-| Spec             | Requirements doc for one topic of concern (`specs/<name>.md`) |
-| Task             | Unit of work derived from comparing specs to code             |
+# Glossary
+
+Job to be Done (JTBD): High-level user need or outcome
+Topic of Concern: A distinct aspect or component within a JTBD
+Spec: Requirements doc for one topic of concern (`specs/<name>.md`)
+Task: Unit of work derived from comparing specs to code
 

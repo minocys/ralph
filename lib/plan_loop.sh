@@ -26,19 +26,9 @@ setup_session() {
 # needed — the planner does not claim tasks.
 run_plan_loop() {
     for (( i=1; i<=MAX_ITERATIONS; i++ )); do
-        # Pre-fetch: get current task DAG for planner
-        local LIST_ALL_MD=""
-        if [ -x "$TASK_SCRIPT" ]; then
-            LIST_ALL_MD=$("$TASK_SCRIPT" list --all --markdown 2>/dev/null) || true
-        fi
-
         # Build Claude argument list for this iteration
-        local CLAUDE_ARGS
-        if [ -n "$LIST_ALL_MD" ]; then
-            CLAUDE_ARGS=(-p "$COMMAND $LIST_ALL_MD" --output-format=stream-json --verbose)
-        else
-            CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
-        fi
+        local CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
+
         $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
         [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 

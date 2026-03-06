@@ -1,8 +1,9 @@
 #!/usr/bin/env bats
-# test/ralph_plan_mode.bats — plan-mode task export integration tests for ralph.sh
+# test/ralph_plan_mode.bats — plan-mode integration tests for ralph.sh
 #
-# These tests verify that plan mode pre-fetches the task DAG via
-# `task list --all --markdown` and passes it to Claude as part of the prompt.
+# These tests verify that plan mode passes /ralph-plan directly to Claude.
+# The skill loads its own task data via `!` command preprocessing in SKILL.md;
+# the loop does NOT pre-fetch the task DAG.
 
 load test_helper
 
@@ -101,7 +102,7 @@ teardown() {
 # Plan-mode task export tests
 # ---------------------------------------------------------------------------
 
-@test "plan mode calls task list --all --markdown before claude invocation" {
+@test "plan mode prompt is /ralph-plan without task data" {
     create_task_stub '## Task t-01
 id: t-01
 title: Test task
@@ -110,32 +111,15 @@ status: open'
     run "$TEST_WORK_DIR/ralph.sh" plan -n 1
     assert_success
 
-    # Verify task stub was called with list --all --markdown
-    [ -f "$TEST_WORK_DIR/task_calls.log" ]
-    run cat "$TEST_WORK_DIR/task_calls.log"
-    assert_output --partial "list --all --markdown"
-
-    # Verify claude was called
-    [ -f "$TEST_WORK_DIR/claude_args.txt" ]
-}
-
-@test "plan mode passes markdown-KV to claude prompt argument" {
-    create_task_stub '## Task t-01
-id: t-01
-title: Test task
-status: open'
-
-    run "$TEST_WORK_DIR/ralph.sh" plan -n 1
-    assert_success
-
-    # The -p value should be "/ralph-plan {markdown-KV}" as a single argument
+    # The prompt passed to claude should be exactly /ralph-plan with no task data appended
     [ -f "$TEST_WORK_DIR/claude_args.txt" ]
     run cat "$TEST_WORK_DIR/claude_args.txt"
-    assert_output --partial '## Task t-01'
-    assert_output --partial 'title: Test task'
+    assert_output --partial '/ralph-plan'
+    # The loop must NOT inject task data into the prompt
+    refute_output --partial '## Task'
 }
 
-@test "plan mode handles empty list --all output" {
+@test "plan mode prompt is /ralph-plan without pre-fetched data" {
     create_task_stub ""
 
     run "$TEST_WORK_DIR/ralph.sh" plan -n 1
