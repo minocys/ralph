@@ -10,8 +10,7 @@ description: Studies specs (expectations) and codebase (reality), creates tasks 
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
 2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `ralph task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests.
-    - All JSONL output uses short keys for token efficiency:
-        - `id`, `t` (title), `d` (description), `p` (priority), `s` (status), `cat` (category), `spec` (spec_ref), `ref`, `deps` (array of blocker IDs), `steps` (array of steps)
+    - JSONL field names and format are defined in `specs/task-cli.md` (plan-sync section) — refer to that spec for short keys and their meanings
     - id: Task IDs must use `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` matches the spec filename without `.md`
     - spec: Every task must set `spec_ref` to the source spec filename (e.g., `task-cli.md`)
     - p: Priority must be an integer: 0=critical, 1=high, 2=medium, 3=low
