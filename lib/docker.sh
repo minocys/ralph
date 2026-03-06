@@ -4,6 +4,7 @@
 # Functions:
 #   derive_sandbox_name       - Derive deterministic sandbox name from repo+branch
 #   check_sandbox_state       - Check sandbox state (running, stopped, or not found)
+#   sandbox_create            - Create a new Docker sandbox with claude-code template
 #   resolve_aws_credentials   - Resolve AWS/Bedrock credentials for sandbox injection
 #   build_credential_flags    - Assemble -e flags for docker sandbox exec
 
@@ -93,6 +94,37 @@ check_sandbox_state() {
             echo ""
             ;;
     esac
+}
+
+# sandbox_create: create a new Docker sandbox with the claude-code template
+# Arguments:
+#   $1 — sandbox name (from derive_sandbox_name)
+#   $2 — absolute path to target repo directory (mounted read-write)
+#   $3 — absolute path to ralph repo directory (mounted read-only)
+sandbox_create() {
+    local name="$1"
+    local target_repo_dir="$2"
+    local ralph_dir="$3"
+
+    if [ -z "$name" ]; then
+        echo "Error: sandbox name is required" >&2
+        return 1
+    fi
+    if [ -z "$target_repo_dir" ]; then
+        echo "Error: target repo directory is required" >&2
+        return 1
+    fi
+    if [ -z "$ralph_dir" ]; then
+        echo "Error: ralph directory is required" >&2
+        return 1
+    fi
+
+    docker sandbox create \
+        -t docker/sandbox-templates:claude-code \
+        --name "$name" \
+        shell \
+        "$target_repo_dir" \
+        "${ralph_dir}:ro"
 }
 
 # resolve_aws_credentials: resolve AWS credentials for Bedrock access

@@ -194,12 +194,20 @@ STUB
 # ---------------------------------------------------------------------------
 # --docker dispatch — sandbox lifecycle: not found
 # ---------------------------------------------------------------------------
-@test "ralph --docker with no sandbox calls docker sandbox create" {
+@test "ralph --docker with no sandbox calls sandbox_create with template and mounts" {
     create_docker_mock none
     run "$SCRIPT_DIR/ralph.sh" --docker plan
     assert_success
     run grep "sandbox create" "$STUB_DIR/docker.log"
     assert_success
+    # Verify template flag
+    assert_output --partial "docker/sandbox-templates:claude-code"
+    # Verify sandbox name
+    assert_output --partial "--name ralph-test-repo-main"
+    # Verify shell agent type
+    assert_output --partial "shell"
+    # Verify ralph dir mounted read-only (SCRIPT_DIR with :ro suffix)
+    assert_output --partial ":ro"
 }
 
 # ---------------------------------------------------------------------------
