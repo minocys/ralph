@@ -1,4 +1,4 @@
 # AGENTS.md
 
-## Tests
-`bats --tap test/`
+## Testing
+`bats --jobs 4 --tap test/`
