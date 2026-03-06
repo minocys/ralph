@@ -1,21 +1,22 @@
 ---
 name: ralph-build
 description: Ralph build loop
-argument-hint: [highest priority tasks]
+argument-hint: [ralph task peek]
 ---
-
-# TASK
 0a. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
-0b. Study the highest priority tasks: $ARGUMENTS. The input is in markdown-KV format — each task is a `## Task {id}` section with `key: value` lines (id, title, priority, status, category, spec, ref, assignee, deps, steps). Empty fields are omitted. Tasks with `status: open` are claimable (sorted by priority). Tasks with `status: active` show what other agents are working on.
+0b. Study the highest priority tasks. `status: open` are claimable. `status: active` show what other agents are working on.
 
 1. Your task is to implement functionality per the specifications using parallel subagnets. Follow the task list and choose the most important task to address. Claim the selected task via `ralph task claim <id>`. If no claimable tasks remain, stop gracefully.
 2. If `ralph task claim <id>` exits with code 2 (task no longer eligible — already claimed by another agent, blocked, etc.), select the next best task from the snapshot and retry the claim. Repeat until a claim succeeds or no claimable tasks remain; if none remain, stop gracefully.
-3. Search the codebase before implementing — confirm before assuming missing.
+3. Search the codebase with Sonnet subagents before implementing — confirm before assuming missing.
 4. Implement the change.
 5. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
 6. `git add -A` then `git commit` with a message describing the changes.
 7. Run `ralph task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 6.
 8. **IMPORTANT**: DO NOT START A NEW TASK.
+
+## Tasks
+$ARGUMENTS
 
 ## Rules
 
@@ -32,3 +33,6 @@ argument-hint: [highest priority tasks]
 - Keep @AGENTS.md operational only — status updates belong in task steps and results.
 - If you find inconsistencies in the specs/* then use an Opus subagent to update the specs.
 - On failure, run `ralph task fail <id> --reason "<text>"` to release the task for retry.
+
+## ralph Task CLI
+!`ralph task --help`
