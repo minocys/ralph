@@ -21,15 +21,14 @@ derive_sandbox_name() {
         }
         # Strip .git suffix
         remote_url="${remote_url%.git}"
-        # Extract owner/repo from SSH (git@host:owner/repo) or HTTPS (https://host/owner/repo)
-        if [[ "$remote_url" == *:* ]] && [[ "$remote_url" != https://* ]] && [[ "$remote_url" != http://* ]]; then
-            # SSH format: git@github.com:owner/repo
-            owner_repo="${remote_url##*:}"
+        # Extract owner/repo from URL
+        if [[ "$remote_url" =~ ^[a-zA-Z]+:// ]]; then
+            # URL scheme format: https://host/owner/repo or ssh://git@host/owner/repo
+            local path="${remote_url#*://}"  # remove scheme
+            owner_repo="${path#*/}"          # remove host
         else
-            # HTTPS format: https://github.com/owner/repo
-            # Strip protocol and host, keep owner/repo
-            owner_repo="${remote_url#https://*/}"
-            owner_repo="${owner_repo#http://*/}"
+            # SCP-like SSH format: git@github.com:owner/repo
+            owner_repo="${remote_url##*:}"
         fi
     fi
 
