@@ -169,12 +169,13 @@ case "$SUBCMD" in
                 docker sandbox run "$SANDBOX_NAME"
                 ;;
             "")
-                # No sandbox — create and bootstrap
+                # No sandbox — create, start, then bootstrap
                 TARGET_REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null)" || {
                     echo "Error: not inside a git repository" >&2
                     exit 1
                 }
                 sandbox_create "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"
+                docker sandbox run "$SANDBOX_NAME"
                 ;;
         esac
         # Bootstrap sandbox if needed (idempotent — checks marker)
