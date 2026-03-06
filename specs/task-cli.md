@@ -5,7 +5,7 @@ Bash command-line interface for agents and the ralph planner to interact with th
 ## Requirements
 
 - Implement as a bash script (`lib/task`) that operates on SQLite via `sqlite3`, invoked via `ralph task <command>`
-- Read database path from `RALPH_DB_PATH` environment variable
+- Derive database path from `git rev-parse --show-toplevel`
 - Initialize the database schema automatically on first invocation
 - Provide phase-specific and shared commands:
 
