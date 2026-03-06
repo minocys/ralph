@@ -424,3 +424,168 @@ AWSSTUB
     assert_success
     assert_output --partial "Run the command inside a Docker sandbox"
 }
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — task subcommand comprehensive tests
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker task show forwards subcommand with arguments" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker task show my-task/01 --with-deps
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    assert_output --partial "ralph task show my-task/01 --with-deps"
+}
+
+@test "ralph --docker task exec uses -it flags" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker task list --all
+    assert_success
+    run grep "sandbox exec" "$STUB_DIR/docker.log"
+    assert_success
+    assert_output --partial "exec -it"
+}
+
+@test "ralph --docker task works with stopped sandbox" {
+    create_docker_mock stopped
+    run "$SCRIPT_DIR/ralph.sh" --docker task list
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    assert_output --partial "ralph task list"
+    # Should call sandbox run to start it
+    run grep "sandbox run" "$STUB_DIR/docker.log"
+    assert_success
+}
+
+@test "ralph --docker task works with no sandbox (creates new)" {
+    create_docker_mock none
+    run "$SCRIPT_DIR/ralph.sh" --docker task list
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    assert_output --partial "ralph task list"
+    # Should call sandbox create
+    run grep "sandbox create" "$STUB_DIR/docker.log"
+    assert_success
+}
+
+@test "ralph --docker task forwards exit code from sandbox" {
+    create_docker_mock_exit 7
+    run "$SCRIPT_DIR/ralph.sh" --docker task list
+    assert_failure
+    [ "$status" -eq 7 ]
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — build subcommand comprehensive tests
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker build exec uses -it flags" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker build -n 5
+    assert_success
+    run grep "sandbox exec" "$STUB_DIR/docker.log"
+    assert_success
+    assert_output --partial "exec -it"
+}
+
+@test "ralph --docker build works with stopped sandbox" {
+    create_docker_mock stopped
+    run "$SCRIPT_DIR/ralph.sh" --docker build -n 3
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    assert_output --partial "ralph build -n 3"
+    run grep "sandbox run" "$STUB_DIR/docker.log"
+    assert_success
+}
+
+@test "ralph --docker build works with no sandbox (creates new)" {
+    create_docker_mock none
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    assert_output --partial "ralph build"
+    run grep "sandbox create" "$STUB_DIR/docker.log"
+    assert_success
+}
+
+@test "ralph --docker build forwards exit code from sandbox" {
+    create_docker_mock_exit 130
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_failure
+    [ "$status" -eq 130 ]
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — plan subcommand lifecycle completeness
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker plan forwards model and iteration flags" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker plan -n 2 --model opus --danger
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    assert_output --partial "ralph plan -n 2 --model opus --danger"
+}
+
+@test "ralph --docker plan forwards exit code 130 (SIGINT)" {
+    create_docker_mock_exit 130
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_failure
+    [ "$status" -eq 130 ]
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — scope passthrough for all subcommands
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker task passes RALPH_SCOPE_REPO and RALPH_SCOPE_BRANCH to exec" {
+    create_docker_mock running
+    export RALPH_SCOPE_REPO="orgname/taskrepo"
+    export RALPH_SCOPE_BRANCH="fix/issue-42"
+    run "$SCRIPT_DIR/ralph.sh" --docker task list
+    assert_success
+    assert_output --partial "-e RALPH_SCOPE_REPO=orgname/taskrepo"
+    assert_output --partial "-e RALPH_SCOPE_BRANCH=fix/issue-42"
+}
+
+@test "ralph --docker build passes RALPH_SCOPE_REPO and RALPH_SCOPE_BRANCH to exec" {
+    create_docker_mock running
+    export RALPH_SCOPE_REPO="orgname/buildrepo"
+    export RALPH_SCOPE_BRANCH="feat/new-thing"
+    run "$SCRIPT_DIR/ralph.sh" --docker build -n 1
+    assert_success
+    assert_output --partial "-e RALPH_SCOPE_REPO=orgname/buildrepo"
+    assert_output --partial "-e RALPH_SCOPE_BRANCH=feat/new-thing"
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — exec command structure verification
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker plan exec includes sandbox name in command" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    # docker.log captures the full exec invocation
+    run grep "sandbox exec" "$STUB_DIR/docker.log"
+    assert_success
+    assert_output --partial "ralph-test-repo-main"
+}
+
+@test "ralph --docker build exec includes sandbox name in command" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker build
+    assert_success
+    run grep "sandbox exec" "$STUB_DIR/docker.log"
+    assert_success
+    assert_output --partial "ralph-test-repo-main"
+}
+
+@test "ralph --docker task exec includes sandbox name in command" {
+    create_docker_mock running
+    run "$SCRIPT_DIR/ralph.sh" --docker task peek
+    assert_success
+    run grep "sandbox exec" "$STUB_DIR/docker.log"
+    assert_success
+    assert_output --partial "ralph-test-repo-main"
+}
