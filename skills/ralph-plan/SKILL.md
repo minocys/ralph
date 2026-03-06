@@ -1,6 +1,6 @@
 ---
 name: ralph-plan
-description: Studies specs (expectations) and codebase (reality), creates tasks for implementation to close the gap. 
+description: Studies specs (expectations) and codebase (reality), creates tasks for implementation to close the gap.
 ---
 
 # TASK
@@ -31,5 +31,5 @@ Consider missing elements and plan accordingly. If an element is missing, search
 Job to be Done (JTBD): High-level user need or outcome
 Topic of Concern: A distinct aspect or component within a JTBD
 Spec: Requirements doc for one topic of concern (`specs/<name>.md`)
-Task: Unit of work derived from comparing specs to code             |
+Task: Unit of work derived from comparing specs to code
 

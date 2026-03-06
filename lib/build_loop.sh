@@ -37,9 +37,29 @@ setup_session() {
     fi
 }
 
+# check_all_tasks_complete: returns 0 if open and active task counts are both 0,
+# returns 1 otherwise (tasks remain, plan-status failed, or TASK_SCRIPT not executable).
+check_all_tasks_complete() {
+    if [ ! -x "$TASK_SCRIPT" ]; then
+        return 1
+    fi
+    local PLAN_STATUS
+    PLAN_STATUS=$("$TASK_SCRIPT" plan-status 2>/dev/null) || return 1
+    if [ -z "$PLAN_STATUS" ]; then
+        return 1
+    fi
+    local OPEN_COUNT ACTIVE_COUNT
+    OPEN_COUNT=$(echo "$PLAN_STATUS" | grep -oE '^[0-9]+' | head -1)
+    ACTIVE_COUNT=$(echo "$PLAN_STATUS" | grep -oE '[0-9]+ active' | grep -oE '^[0-9]+')
+    if [ "${OPEN_COUNT:-1}" -eq 0 ] 2>/dev/null && [ "${ACTIVE_COUNT:-1}" -eq 0 ] 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
 # run_build_loop: execute the build-mode iteration loop
-# Pre-invocation task peek, Claude invocation, crash-safety fallback,
-# and plan-status check for loop termination.
+# Pre-invocation completion check, Claude invocation, crash-safety fallback,
+# and post-invocation completion check for loop termination.
 run_build_loop() {
     while true; do
         if [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
@@ -47,29 +67,14 @@ run_build_loop() {
             break
         fi
 
-        # Pre-invocation task peek: get claimable + active tasks snapshot
-        local PEEK_MD=""
-        local PEEK_OK=false
-        if [ -x "$TASK_SCRIPT" ]; then
-            if PEEK_MD=$("$TASK_SCRIPT" peek -n 10 2>/dev/null); then
-                PEEK_OK=true
-            fi
-        fi
-
-        # Exit if peek succeeded but returned empty (no tasks)
-        # If peek failed (non-zero exit), treat as transient and continue
-        if [ -x "$TASK_SCRIPT" ] && $PEEK_OK && [ -z "$PEEK_MD" ]; then
-            echo "No tasks available. Exiting loop."
+        # Pre-invocation completion check: exit if all tasks are done
+        if check_all_tasks_complete; then
+            echo "All tasks complete. Exiting loop."
             break
         fi
 
         # Build Claude argument list for this iteration
-        local CLAUDE_ARGS
-        if [ -n "$PEEK_MD" ]; then
-            CLAUDE_ARGS=(-p "$COMMAND $PEEK_MD" --output-format=stream-json --verbose)
-        else
-            CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
-        fi
+        local CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
         $DANGER && CLAUDE_ARGS+=(--dangerously-skip-permissions)
         [ -n "$RESOLVED_MODEL" ] && CLAUDE_ARGS+=(--model "$RESOLVED_MODEL")
 
@@ -105,19 +110,10 @@ run_build_loop() {
             done
         fi
 
-        # Check plan-status: exit if all tasks complete
-        if [ -x "$TASK_SCRIPT" ]; then
-            local PLAN_STATUS
-            PLAN_STATUS=$("$TASK_SCRIPT" plan-status 2>/dev/null) || true
-            if [ -n "$PLAN_STATUS" ]; then
-                local OPEN_COUNT ACTIVE_COUNT
-                OPEN_COUNT=$(echo "$PLAN_STATUS" | grep -oE '^[0-9]+' | head -1)
-                ACTIVE_COUNT=$(echo "$PLAN_STATUS" | grep -oE '[0-9]+ active' | grep -oE '^[0-9]+')
-                if [ "${OPEN_COUNT:-1}" -eq 0 ] 2>/dev/null && [ "${ACTIVE_COUNT:-1}" -eq 0 ] 2>/dev/null; then
-                    echo "All tasks complete. Exiting loop."
-                    exit 0
-                fi
-            fi
+        # Post-invocation completion check: exit if all tasks are done
+        if check_all_tasks_complete; then
+            echo "All tasks complete. Exiting loop."
+            exit 0
         fi
 
         ITERATION=$((ITERATION + 1))

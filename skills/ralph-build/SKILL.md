@@ -1,7 +1,6 @@
 ---
 name: ralph-build
 description: Ralph build loop
-argument-hint: [ralph task peek]
 ---
 0a. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
 0b. Study the highest priority tasks. `status: open` are claimable. `status: active` show what other agents are working on.
@@ -16,7 +15,7 @@ argument-hint: [ralph task peek]
 8. **IMPORTANT**: DO NOT START A NEW TASK.
 
 ## Tasks
-$ARGUMENTS
+!`ralph task peek -n 10`
 
 ## Rules
 
