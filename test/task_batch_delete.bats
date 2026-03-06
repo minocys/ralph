@@ -481,3 +481,230 @@ _setup_spec_category_tasks() {
     assert_success
     assert_output "deleted 0 tasks"
 }
+
+# ===========================================================================
+# --all --confirm: functional tests
+# Spec: specs/task-batch-delete.md#delete-all
+# ===========================================================================
+
+# Helper: create tasks in open, active, done, and deleted statuses.
+# Creates 7 tasks:
+#   ad/open-1, ad/open-2    — status open
+#   ad/active-1              — status active
+#   ad/done-1, ad/done-2     — status done
+#   ad/deleted-1, ad/deleted-2 — status deleted (pre-existing)
+_setup_all_status_tasks() {
+    "$SCRIPT_DIR/lib/task" create "ad/open-1"    "Open task 1"
+    "$SCRIPT_DIR/lib/task" create "ad/open-2"    "Open task 2"
+    "$SCRIPT_DIR/lib/task" create "ad/active-1"  "Active task"
+    "$SCRIPT_DIR/lib/task" create "ad/done-1"    "Done task 1"
+    "$SCRIPT_DIR/lib/task" create "ad/done-2"    "Done task 2"
+    "$SCRIPT_DIR/lib/task" create "ad/deleted-1" "Deleted task 1"
+    "$SCRIPT_DIR/lib/task" create "ad/deleted-2" "Deleted task 2"
+
+    # Set statuses via direct SQL
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='active' WHERE slug='ad/active-1' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug IN ('ad/done-1','ad/done-2') AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='deleted', deleted_at=datetime('now') WHERE slug IN ('ad/deleted-1','ad/deleted-2') AND scope_repo='test/repo' AND scope_branch='main';"
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm deletes open + active + done but not deleted
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm deletes open, active, done but not already-deleted" {
+    _setup_all_status_tasks
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm
+    assert_success
+    assert_output "deleted 5 tasks"
+
+    # Verify open tasks are deleted
+    local s1 s2
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ad/open-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ad/open-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+
+    # Verify active task is deleted
+    local sa
+    sa=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ad/active-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$sa" = "deleted" ]
+
+    # Verify done tasks are deleted
+    local sd1 sd2
+    sd1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ad/done-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    sd2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ad/done-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$sd1" = "deleted" ]
+    [ "$sd2" = "deleted" ]
+
+    # Verify all 7 tasks exist in DB (soft delete preserves rows)
+    local total
+    total=$(sqlite3 "$TEST_DB_PATH" "SELECT COUNT(*) FROM tasks WHERE scope_repo='test/repo' AND scope_branch='main'")
+    [ "$total" = "7" ]
+}
+
+# ---------------------------------------------------------------------------
+# N count excludes already-deleted tasks
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm count excludes already-deleted tasks" {
+    _setup_all_status_tasks
+
+    # N should be 5 (7 total minus 2 already deleted)
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm
+    assert_success
+    assert_output "deleted 5 tasks"
+}
+
+# ---------------------------------------------------------------------------
+# Already-deleted tasks are not re-stamped
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm does not re-stamp already-deleted tasks" {
+    _setup_all_status_tasks
+
+    # Record the original deleted_at timestamps of already-deleted tasks
+    local orig_da1 orig_da2
+    orig_da1=$(sqlite3 "$TEST_DB_PATH" "SELECT deleted_at FROM tasks WHERE slug='ad/deleted-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    orig_da2=$(sqlite3 "$TEST_DB_PATH" "SELECT deleted_at FROM tasks WHERE slug='ad/deleted-2' AND scope_repo='test/repo' AND scope_branch='main'")
+
+    # Small delay to ensure timestamps would differ if re-stamped
+    sleep 1
+
+    "$SCRIPT_DIR/lib/task" delete --all --confirm
+
+    # Verify timestamps are unchanged
+    local new_da1 new_da2
+    new_da1=$(sqlite3 "$TEST_DB_PATH" "SELECT deleted_at FROM tasks WHERE slug='ad/deleted-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    new_da2=$(sqlite3 "$TEST_DB_PATH" "SELECT deleted_at FROM tasks WHERE slug='ad/deleted-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$orig_da1" = "$new_da1" ]
+    [ "$orig_da2" = "$new_da2" ]
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm sets deleted_at and updated_at on newly deleted tasks
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm sets deleted_at and updated_at" {
+    _setup_all_status_tasks
+
+    "$SCRIPT_DIR/lib/task" delete --all --confirm
+
+    # Verify deleted_at is set on previously non-deleted tasks
+    local da1 da2 da3 da4 da5
+    da1=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/open-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    da2=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/open-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    da3=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/active-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    da4=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/done-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    da5=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/done-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$da1" = "1" ]
+    [ "$da2" = "1" ]
+    [ "$da3" = "1" ]
+    [ "$da4" = "1" ]
+    [ "$da5" = "1" ]
+
+    # Verify updated_at is set on affected tasks
+    local ua1 ua2 ua3
+    ua1=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/open-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    ua2=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/active-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    ua3=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug='ad/done-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$ua1" = "1" ]
+    [ "$ua2" = "1" ]
+    [ "$ua3" = "1" ]
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm with no non-deleted tasks: N=0, exit 0
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm with only deleted tasks returns 0" {
+    # Create tasks then delete them all individually first
+    "$SCRIPT_DIR/lib/task" create "ad/t1" "Task 1"
+    "$SCRIPT_DIR/lib/task" create "ad/t2" "Task 2"
+    "$SCRIPT_DIR/lib/task" delete "ad/t1"
+    "$SCRIPT_DIR/lib/task" delete "ad/t2"
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm
+    assert_success
+    assert_output "deleted 0 tasks"
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm --spec: narrows to one spec across all statuses
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm --spec narrows to one spec" {
+    # Create tasks across two specs with mixed statuses
+    "$SCRIPT_DIR/lib/task" create "as/cli-1"  "CLI task 1"   -r task-cli.md
+    "$SCRIPT_DIR/lib/task" create "as/cli-2"  "CLI task 2"   -r task-cli.md
+    "$SCRIPT_DIR/lib/task" create "as/cli-3"  "CLI task 3"   -r task-cli.md
+    "$SCRIPT_DIR/lib/task" create "as/bd-1"   "BD task 1"    -r task-batch-delete.md
+    "$SCRIPT_DIR/lib/task" create "as/bd-2"   "BD task 2"    -r task-batch-delete.md
+    "$SCRIPT_DIR/lib/task" create "as/nospec" "No spec task"
+
+    # Put CLI tasks in different statuses: open, active, done
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='active' WHERE slug='as/cli-2' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='as/cli-3' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    # Also put one BD task as done
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='as/bd-2' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm --spec task-cli.md
+    assert_success
+    assert_output "deleted 3 tasks"
+
+    # Verify all CLI tasks are deleted regardless of prior status
+    local s1 s2 s3
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='as/cli-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='as/cli-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='as/cli-3' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+    [ "$s3" = "deleted" ]
+
+    # Verify non-CLI tasks are untouched
+    local s4 s5 s6
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='as/bd-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='as/bd-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='as/nospec' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s4" = "open" ]
+    [ "$s5" = "done" ]
+    [ "$s6" = "open" ]
+}
+
+# ---------------------------------------------------------------------------
+# --all --confirm --category: narrows to one category across all statuses
+# ---------------------------------------------------------------------------
+@test "batch delete: --all --confirm --category narrows to one category" {
+    # Create tasks across two categories with mixed statuses
+    "$SCRIPT_DIR/lib/task" create "ac/feat-1"  "Feat task 1"  -c feat
+    "$SCRIPT_DIR/lib/task" create "ac/feat-2"  "Feat task 2"  -c feat
+    "$SCRIPT_DIR/lib/task" create "ac/feat-3"  "Feat task 3"  -c feat
+    "$SCRIPT_DIR/lib/task" create "ac/test-1"  "Test task 1"  -c test
+    "$SCRIPT_DIR/lib/task" create "ac/test-2"  "Test task 2"  -c test
+    "$SCRIPT_DIR/lib/task" create "ac/nocat"   "No cat task"
+
+    # Mix statuses for feat tasks: open, active, done
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='active' WHERE slug='ac/feat-2' AND scope_repo='test/repo' AND scope_branch='main';"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='done' WHERE slug='ac/feat-3' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    # Also put one test task as active
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status='active' WHERE slug='ac/test-2' AND scope_repo='test/repo' AND scope_branch='main';"
+
+    run "$SCRIPT_DIR/lib/task" delete --all --confirm --category feat
+    assert_success
+    assert_output "deleted 3 tasks"
+
+    # Verify all feat tasks are deleted regardless of prior status
+    local s1 s2 s3
+    s1=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ac/feat-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s2=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ac/feat-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s3=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ac/feat-3' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s1" = "deleted" ]
+    [ "$s2" = "deleted" ]
+    [ "$s3" = "deleted" ]
+
+    # Verify non-feat tasks are untouched
+    local s4 s5 s6
+    s4=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ac/test-1' AND scope_repo='test/repo' AND scope_branch='main'")
+    s5=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ac/test-2' AND scope_repo='test/repo' AND scope_branch='main'")
+    s6=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='ac/nocat' AND scope_repo='test/repo' AND scope_branch='main'")
+    [ "$s4" = "open" ]
+    [ "$s5" = "active" ]
+    [ "$s6" = "open" ]
+}
