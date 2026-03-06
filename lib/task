@@ -315,6 +315,8 @@ Shared Commands:
   create <id> <title> [opts]   Create a task
   update <id> [opts]           Update fields on a non-done task
   delete <id>                  Soft delete a task
+  delete --status <csv> [--spec S] [--category C]  Batch delete by status
+  delete --all --confirm [--spec S] [--category C]  Delete all non-deleted tasks
   deps <id>                    Show dependency tree
 
 Dependency Commands:
