@@ -242,6 +242,171 @@ STUB
 # ---------------------------------------------------------------------------
 # --help includes --docker
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# --docker dispatch — credential injection: Bedrock backend
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker passes AWS credential -e flags to exec when backend is bedrock" {
+    create_docker_mock running
+    export CLAUDE_CODE_USE_BEDROCK=1
+    export AWS_ACCESS_KEY_ID="AKIATESTKEY"
+    export AWS_SECRET_ACCESS_KEY="secretvalue"
+    export AWS_SESSION_TOKEN="tokenvalue"
+    export AWS_DEFAULT_REGION="us-west-2"
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    # Verify -e flags for all four AWS vars in exec args
+    assert_output --partial "-e AWS_ACCESS_KEY_ID=AKIATESTKEY"
+    assert_output --partial "-e AWS_SECRET_ACCESS_KEY=secretvalue"
+    assert_output --partial "-e AWS_SESSION_TOKEN=tokenvalue"
+    assert_output --partial "-e AWS_DEFAULT_REGION=us-west-2"
+}
+
+@test "ralph --docker passes CLAUDE_CODE_USE_BEDROCK=1 to exec" {
+    create_docker_mock running
+    export CLAUDE_CODE_USE_BEDROCK=1
+    export AWS_ACCESS_KEY_ID="AKIATESTKEY"
+    export AWS_SECRET_ACCESS_KEY="secretvalue"
+    export AWS_DEFAULT_REGION="us-west-2"
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "-e CLAUDE_CODE_USE_BEDROCK=1"
+}
+
+@test "ralph --docker with bedrock resolves credentials via aws CLI when not in env" {
+    create_docker_mock running
+    # Create aws stub that provides credentials
+    cat > "$STUB_DIR/aws" <<'AWSSTUB'
+#!/bin/bash
+case "$*" in
+    "sts get-caller-identity")
+        echo '{"Account":"123456789012"}'
+        exit 0
+        ;;
+    "configure export-credentials --format env")
+        echo 'export AWS_ACCESS_KEY_ID=AKIARESOLVED'
+        echo 'export AWS_SECRET_ACCESS_KEY=resolvedsecret'
+        echo 'export AWS_SESSION_TOKEN=resolvedtoken'
+        exit 0
+        ;;
+    "configure get region")
+        echo "eu-west-1"
+        exit 0
+        ;;
+esac
+exit 1
+AWSSTUB
+    chmod +x "$STUB_DIR/aws"
+    export CLAUDE_CODE_USE_BEDROCK=1
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+    unset AWS_DEFAULT_REGION
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "-e AWS_ACCESS_KEY_ID=AKIARESOLVED"
+    assert_output --partial "-e AWS_SECRET_ACCESS_KEY=resolvedsecret"
+    assert_output --partial "-e AWS_SESSION_TOKEN=resolvedtoken"
+    assert_output --partial "-e AWS_DEFAULT_REGION=eu-west-1"
+}
+
+@test "ralph --docker exits 1 when bedrock credentials cannot be resolved" {
+    create_docker_mock running
+    cat > "$STUB_DIR/aws" <<'AWSSTUB'
+#!/bin/bash
+echo "Unable to locate credentials" >&2
+exit 255
+AWSSTUB
+    chmod +x "$STUB_DIR/aws"
+    export CLAUDE_CODE_USE_BEDROCK=1
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+    unset AWS_DEFAULT_REGION
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_failure
+    assert_output --partial "aws sso login"
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — credential injection: Anthropic backend (default)
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker with anthropic backend does not pass AWS -e flags" {
+    create_docker_mock running
+    # Force anthropic backend: override HOME so detect_backend() can't find
+    # user-wide ~/.claude/settings.json with CLAUDE_CODE_USE_BEDROCK=1
+    local FAKE_HOME
+    FAKE_HOME="$(mktemp -d)"
+    export HOME="$FAKE_HOME"
+    unset CLAUDE_CODE_USE_BEDROCK
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+    unset AWS_DEFAULT_REGION
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "EXEC_CALLED"
+    refute_output --partial "AWS_ACCESS_KEY_ID"
+    refute_output --partial "AWS_SECRET_ACCESS_KEY"
+    refute_output --partial "CLAUDE_CODE_USE_BEDROCK"
+    rm -rf "$FAKE_HOME"
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — scope variable passthrough
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker passes RALPH_SCOPE_REPO and RALPH_SCOPE_BRANCH to exec" {
+    create_docker_mock running
+    export RALPH_SCOPE_REPO="myorg/myrepo"
+    export RALPH_SCOPE_BRANCH="feature/test"
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "-e RALPH_SCOPE_REPO=myorg/myrepo"
+    assert_output --partial "-e RALPH_SCOPE_BRANCH=feature/test"
+}
+
+# ---------------------------------------------------------------------------
+# --docker dispatch — RALPH_DOCKER_ENV custom variable passthrough
+# ---------------------------------------------------------------------------
+
+@test "ralph --docker passes RALPH_DOCKER_ENV custom vars to exec" {
+    create_docker_mock running
+    export MY_CUSTOM_VAR="custom_value"
+    export RALPH_DOCKER_ENV="MY_CUSTOM_VAR"
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "-e MY_CUSTOM_VAR=custom_value"
+}
+
+@test "ralph --docker handles multiple RALPH_DOCKER_ENV vars" {
+    create_docker_mock running
+    export VAR_ONE="value1"
+    export VAR_TWO="value2"
+    export RALPH_DOCKER_ENV="VAR_ONE,VAR_TWO"
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "-e VAR_ONE=value1"
+    assert_output --partial "-e VAR_TWO=value2"
+}
+
+@test "ralph --docker silently skips unset RALPH_DOCKER_ENV vars" {
+    create_docker_mock running
+    export EXISTING_VAR="present"
+    unset NONEXISTENT_VAR 2>/dev/null || true
+    export RALPH_DOCKER_ENV="EXISTING_VAR,NONEXISTENT_VAR"
+    run "$SCRIPT_DIR/ralph.sh" --docker plan
+    assert_success
+    assert_output --partial "-e EXISTING_VAR=present"
+    refute_output --partial "NONEXISTENT_VAR"
+}
+
+# ---------------------------------------------------------------------------
+# --help includes --docker
+# ---------------------------------------------------------------------------
+
 @test "ralph --help includes --docker in output" {
     run "$SCRIPT_DIR/ralph.sh" --help
     assert_success
