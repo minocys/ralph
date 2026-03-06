@@ -75,6 +75,6 @@ task-store/01   0 done   feat Create PostgreSQL schema            -
 ## Out of Scope
 
 - Interactive/TUI mode
-- Bulk operations (multi-task claim, batch create)
+- Bulk operations (multi-task claim, batch create); batch delete is covered by [task-batch-delete.md](task-batch-delete.md)
 - Filtering by date ranges
 - Authentication or role-based access to commands

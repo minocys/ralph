@@ -32,3 +32,4 @@
 | [sql-dialect-migration.md](sql-dialect-migration.md) | Port all PostgreSQL-specific SQL in lib/task to SQLite-compatible equivalents |
 | [docker-removal.md](docker-removal.md) | Remove Docker, docker-compose, and PostgreSQL infrastructure (supersedes docker-auto-start) |
 | [per-repo-task-database.md](per-repo-task-database.md) | Store each repository's task database inside that repository via `git rev-parse --show-toplevel`, removing `RALPH_DB_PATH` |
+| [task-batch-delete.md](task-batch-delete.md) | Filter-based batch soft-delete for tasks by status, spec ref, and category |
