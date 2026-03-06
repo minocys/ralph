@@ -1,12 +1,12 @@
 # Build Skill Integration
 
-The ralph-build skill receives a task landscape snapshot via prompt input, selects the best task using LLM reasoning, claims it via targeted claiming, and implements it using atomic task CLI operations.
+The ralph-build skill loads its own task landscape snapshot via dynamic context injection in SKILL.md, selects the best task using LLM reasoning, claims it via targeted claiming, and implements it using atomic task CLI operations.
 
 ## Requirements
 
 ### Task Landscape Reception
 
-- The builder receives a peek snapshot in markdown-KV format appended to its prompt by ralph.sh (see build-loop-control spec)
+- The builder loads its own task landscape via `` !`ralph task peek -n 10` `` in SKILL.md — this is Claude Code dynamic context injection, where the command runs at skill expansion time and its output replaces the placeholder
 - Each task is a `## Task {id}` section with `key: value` lines (id, title, priority, status, category, spec, ref, assignee, deps, steps); null fields are omitted
 - The snapshot contains two categories of tasks, distinguished by the `status` field:
   - `open` — claimable tasks sorted by priority, available for this agent to claim

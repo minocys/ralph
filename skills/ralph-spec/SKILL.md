@@ -24,7 +24,7 @@ Each spec file should follow this structure. Adapt section depth to the topic â€
 Job to be Done (JTBD): High-level user need or outcome
 Topic of Concern: A distinct aspect or component within a JTBD
 Spec: Requirements doc for one topic of concern (`specs/<name>.md`)
-Task: Unit of work derived from comparing specs to code             |
+Task: Unit of work derived from comparing specs to code
 
 _Relationships:_
 

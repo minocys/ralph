@@ -1,9 +1,11 @@
 #!/usr/bin/env bats
 # test/ralph_build_loop.bats — build-mode loop control tests for ralph.sh
 #
-# These tests verify that build mode uses `task plan-status` to decide
-# when all tasks are complete, and that plan mode uses a deterministic
-# for-loop (no sentinel check).
+# These tests verify that build mode uses `ralph task plan-status` for both
+# pre-invocation and post-invocation completion checks. The skill loads its
+# own task data via `!` command preprocessing in SKILL.md; the loop no longer
+# pre-fetches task data via `ralph task peek` or passes it to claude via prompt.
+# Plan mode uses a deterministic for-loop (no sentinel check).
 
 load test_helper
 
@@ -13,6 +15,8 @@ load test_helper
 
 # Create a task stub at $TEST_WORK_DIR/task with configurable behavior.
 # Usage: create_task_stub <plan_status_output> [plan_status_exit_code] [peek_output] [peek_exit_code]
+# Note: peek_output is kept in the stub so the skill can still load data via ! syntax,
+# but the loop itself no longer uses peek for loop control or prompt construction.
 create_task_stub() {
     local plan_status_output="${1:-}"
     local plan_status_exit="${2:-0}"
@@ -116,12 +120,11 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "build mode exits when task plan-status reports 0 open 0 active" {
-    # With peek: no claimable/active tasks → peek returns empty → exits early
     create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted"
 
     run "$TEST_WORK_DIR/ralph.sh" build -n 5
     assert_success
-    assert_output --partial "No tasks available"
+    assert_output --partial "All tasks complete. Exiting loop."
     refute_output --partial "Reached max iterations"
 }
 
@@ -142,55 +145,6 @@ teardown() {
     assert_output --partial "Reached max iterations: 2"
 }
 
-# ---------------------------------------------------------------------------
-# Build-mode pre-invocation peek
-# ---------------------------------------------------------------------------
-
-@test "build mode passes peek JSONL to claude via prompt" {
-    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 \
-        '{"id":"t1","t":"Test task","s":"open","p":0}'
-
-    # Override claude stub to capture arguments
-    cat > "$STUB_DIR/claude" <<'STUB'
-#!/bin/bash
-echo "$*" > "$TEST_WORK_DIR/claude_args.log"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
-echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
-exit 0
-STUB
-    chmod +x "$STUB_DIR/claude"
-
-    run "$TEST_WORK_DIR/ralph.sh" build -n 1
-    assert_success
-
-    # Verify claude received the peek JSONL in its prompt argument
-    [ -f "$TEST_WORK_DIR/claude_args.log" ]
-    run cat "$TEST_WORK_DIR/claude_args.log"
-    assert_output --partial '{"id":"t1"'
-}
-
-@test "build mode exits loop when peek returns empty output" {
-    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 "" 0
-
-    # Override claude stub to leave a marker file if called
-    cat > "$STUB_DIR/claude" <<'STUB'
-#!/bin/bash
-touch "$TEST_WORK_DIR/claude_was_called"
-echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
-echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
-exit 0
-STUB
-    chmod +x "$STUB_DIR/claude"
-
-    run "$TEST_WORK_DIR/ralph.sh" build -n 5
-    assert_success
-    assert_output --partial "No tasks available"
-    refute_output --partial "Reached max iterations"
-
-    # Verify claude was not called
-    [ ! -f "$TEST_WORK_DIR/claude_was_called" ]
-}
-
 @test "build mode continues loop when peek fails with non-zero exit" {
     create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 "" 1
 
@@ -199,8 +153,8 @@ STUB
     assert_output --partial "Reached max iterations: 2"
 }
 
-@test "build mode prompt format is /ralph-build followed by JSONL" {
-    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 \
+@test "build mode prompt is /ralph-build without task data" {
+    create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","s":"open"}'
 
     # Override claude stub to capture each argument on its own line
@@ -216,10 +170,11 @@ STUB
     run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
-    # The -p value should be "/ralph-build {JSONL}" as a single argument
+    # The -p value should be exactly "/ralph-build" with no task data appended
     [ -f "$TEST_WORK_DIR/claude_args.log" ]
     run cat "$TEST_WORK_DIR/claude_args.log"
-    assert_output --partial '/ralph-build {"id":"t1","s":"open"}'
+    assert_output --partial '/ralph-build'
+    refute_output --partial '{"id":"t1"'
 }
 
 # ---------------------------------------------------------------------------
@@ -227,7 +182,7 @@ STUB
 # ---------------------------------------------------------------------------
 
 @test "build mode fails active task after claude exits" {
-    create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
+    create_task_stub "1 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
         $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001'
 
@@ -242,7 +197,7 @@ STUB
 }
 
 @test "build mode fails all active tasks after claude exits" {
-    create_task_stub "0 open, 0 active, 5 done, 0 blocked, 0 deleted" 0 \
+    create_task_stub "1 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
         '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
         $'## Task t1\nid: t1\ntitle: Task one\nstatus: active\nassignee: t001\n\n## Task t2\nid: t2\ntitle: Task two\nstatus: active\nassignee: t001'
 
@@ -281,11 +236,12 @@ STUB
     run "$TEST_WORK_DIR/ralph.sh" build -n 1
     assert_success
 
-    # Verify ordered execution: fail before plan-status
+    # Verify ordered execution: pre-invocation plan-status → crash-safety fail → post-invocation plan-status
     [ -f "$TEST_WORK_DIR/event_log" ]
     run cat "$TEST_WORK_DIR/event_log"
-    assert_line --index 0 "fail"
-    assert_line --index 1 "plan-status"
+    assert_line --index 0 "plan-status"
+    assert_line --index 1 "fail"
+    assert_line --index 2 "plan-status"
 }
 
 # ---------------------------------------------------------------------------

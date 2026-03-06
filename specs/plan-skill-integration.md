@@ -1,16 +1,14 @@
 # Plan Skill Integration
 
-The plan loop pre-fetches the task DAG via `ralph task list --all --markdown` and passes it to the plan skill as an argument. The plan skill writes task state via `ralph task plan-sync`.
+The plan skill loads its own task DAG via `` !`ralph task list --all --markdown` `` preprocessing syntax in SKILL.md. The plan skill writes task state via `ralph task plan-sync`.
 
 ## Requirements
 
 ### Task State Reception
 
-- The plan loop (`lib/plan_loop.sh`) must run `ralph task list --all --markdown` before each Claude invocation and capture the output
-- The loop must pass the captured markdown-KV to Claude via the prompt argument: `claude -p "/ralph-plan $LIST_ALL_MD"` (mirrors the build-mode peek pattern in `specs/build-loop-control.md`)
-- If `ralph task list --all --markdown` returns empty output (no tasks yet), the loop must still pass the empty string — the skill treats empty input as a fresh start
-- The skill must declare `argument-hint: [current-task-dag]` in its SKILL.md front-matter
-- The skill must reference the provided task DAG snapshot in its instructions rather than calling `ralph task list --all` directly
+- The skill must use `` !`ralph task list --all --markdown` `` in its SKILL.md to load the current task DAG at skill expansion time (Claude Code's dynamic context injection — the command output replaces the placeholder before Claude sees the prompt)
+- If the command returns empty output (no tasks yet), the skill treats the empty section as a fresh start
+- The plan loop (`lib/plan_loop.sh`) passes `$COMMAND` without pre-fetching data — the skill owns its data loading
 
 ### Task State Writing
 
@@ -24,7 +22,6 @@ The plan loop pre-fetches the task DAG via `ralph task list --all --markdown` an
 ### Skill Prompt
 
 - The skill prompt must not reference IMPLEMENTATION_PLAN.json in any step
-- The skill prompt must not call `ralph task list --all` — the data is provided as input
 - The skill prompt must not call `ralph task plan-status` — it is not needed for planning
 - The planner must still author new spec files at `specs/FILENAME.md` when elements are missing, using short kebab-case filenames since these become `spec_ref` values and task ID prefixes
 - The planner does not emit any completion signal — the plan loop uses a deterministic for-loop to control iterations (see plan-loop-control spec)

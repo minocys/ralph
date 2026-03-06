@@ -25,9 +25,8 @@ The current plan-mode loop runs `while true` and exits when it detects `<promise
 
 ### Pre-invocation data fetch
 
-- Before each plan-mode Claude invocation, run `ralph task list --all --markdown` to get the current task DAG
-- If the command returns empty output (no tasks yet), pass the empty string — the skill treats empty input as a fresh start
-- Pass the output to Claude via the prompt argument: `claude -p "/ralph-plan $LIST_ALL_MD"`
+- The plan loop passes `$COMMAND` to Claude without pre-fetching task data — the plan skill loads its own task DAG via `` !`command` `` preprocessing in SKILL.md
+- The loop invocation is simply: `claude -p "$COMMAND"` (plus flags for output format, model, etc.)
 
 ### Post-invocation behavior
 
