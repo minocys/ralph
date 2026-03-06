@@ -175,9 +175,10 @@ case "$SUBCMD" in
                     exit 1
                 }
                 sandbox_create "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"
-                # TODO: bootstrap sandbox (see sandbox-bootstrap spec)
                 ;;
         esac
+        # Bootstrap sandbox if needed (idempotent — checks marker)
+        sandbox_bootstrap "$SANDBOX_NAME" "$SCRIPT_DIR" || exit $?
         # Source config.sh for detect_backend
         # shellcheck source=lib/config.sh
         . "$SCRIPT_DIR/lib/config.sh"
