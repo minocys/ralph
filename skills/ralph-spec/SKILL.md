@@ -11,7 +11,7 @@ Create a specs folder and specs/README.md in the current project directory if it
 
 README.md should be a lookup table for all other specs.
 
-# GLOSSARY
+# Glossary
 Job to be Done (JTBD): High-level user need or outcome
 Topic of Concern: A distinct aspect or component within a JTBD
 Spec: Requirements doc for one topic of concern (`specs/<name>.md`)
