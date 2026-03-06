@@ -100,18 +100,19 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# No Docker references in active code
+# No PostgreSQL/Docker-compose references in active code
+# (Docker sandbox support is intentional — see docker-sandbox-dispatch spec)
 # ---------------------------------------------------------------------------
-@test "ralph.sh has no Docker references" {
-    run grep -i "docker" "$SCRIPT_DIR/ralph.sh"
+@test "ralph.sh has no docker-compose references" {
+    run grep -i "docker-compose\|docker compose" "$SCRIPT_DIR/ralph.sh"
     assert_failure
 }
 
-@test "test_helper.bash has no Docker stubs" {
+@test "test_helper.bash has no Docker or pg_isready stubs" {
     run grep -i "docker\|pg_isready" "$SCRIPT_DIR/test/test_helper.bash"
     assert_failure
 }
 
-@test "lib/docker.sh does not exist" {
-    assert_file_not_exists "$SCRIPT_DIR/lib/docker.sh"
+@test "lib/docker.sh exists for sandbox support" {
+    assert_file_exists "$SCRIPT_DIR/lib/docker.sh"
 }
