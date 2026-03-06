@@ -32,3 +32,8 @@
 | [sql-dialect-migration.md](sql-dialect-migration.md) | Port all PostgreSQL-specific SQL in lib/task to SQLite-compatible equivalents |
 | [docker-removal.md](docker-removal.md) | Remove Docker, docker-compose, and PostgreSQL infrastructure (supersedes docker-auto-start) |
 | [per-repo-task-database.md](per-repo-task-database.md) | Store each repository's task database inside that repository via `git rev-parse --show-toplevel`, removing `RALPH_DB_PATH` |
+| [docker-sandbox-dispatch.md](docker-sandbox-dispatch.md) | CLI routing that intercepts `--docker` and delegates subcommand execution to a Docker sandbox |
+| [sandbox-identity.md](sandbox-identity.md) | Deterministic sandbox naming from repo and branch, with existence lookup and reuse |
+| [sandbox-bootstrap.md](sandbox-bootstrap.md) | One-time setup of ralph, PostgreSQL, and dependencies inside a newly created sandbox |
+| [sandbox-credentials.md](sandbox-credentials.md) | AWS/Bedrock credential resolution and injection into the sandbox environment |
+| [sandbox-signal-handling.md](sandbox-signal-handling.md) | Ctrl+C detach behavior when attached to a Docker sandbox exec session |
