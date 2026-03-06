@@ -174,15 +174,19 @@ case "$SUBCMD" in
                 # TODO: bootstrap sandbox (see sandbox-bootstrap spec)
                 ;;
         esac
-        # Resolve credentials and build -e flags
-        CRED_FLAGS=()
-        if type resolve_aws_credentials >/dev/null 2>&1; then
-            resolve_aws_credentials
-            CRED_FLAGS+=(-e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID")
-            CRED_FLAGS+=(-e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY")
-            [ -n "${AWS_SESSION_TOKEN:-}" ] && CRED_FLAGS+=(-e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN")
-            [ -n "${AWS_REGION:-}" ] && CRED_FLAGS+=(-e "AWS_REGION=$AWS_REGION")
+        # Source config.sh for detect_backend
+        # shellcheck source=lib/config.sh
+        . "$SCRIPT_DIR/lib/config.sh"
+        detect_backend
+        # Resolve AWS credentials if backend is Bedrock
+        if [ "$ACTIVE_BACKEND" = "bedrock" ]; then
+            resolve_aws_credentials || exit $?
         fi
+        # Build -e flags for credential/env passthrough
+        CRED_FLAGS=()
+        while IFS= read -r flag; do
+            [ -n "$flag" ] && CRED_FLAGS+=("$flag")
+        done < <(build_credential_flags)
         # Exec ralph inside the sandbox, forwarding all remaining args
         exec docker sandbox exec -it "${CRED_FLAGS[@]}" "$SANDBOX_NAME" ralph "$@"
         ;;

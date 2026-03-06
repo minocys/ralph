@@ -2,8 +2,10 @@
 # lib/docker.sh — Docker sandbox helpers
 #
 # Functions:
-#   derive_sandbox_name  - Derive deterministic sandbox name from repo+branch
-#   check_sandbox_state  - Check sandbox state (running, stopped, or not found)
+#   derive_sandbox_name       - Derive deterministic sandbox name from repo+branch
+#   check_sandbox_state       - Check sandbox state (running, stopped, or not found)
+#   resolve_aws_credentials   - Resolve AWS/Bedrock credentials for sandbox injection
+#   build_credential_flags    - Assemble -e flags for docker sandbox exec
 
 # derive_sandbox_name: produce a deterministic sandbox name from repo+branch
 # Pattern: ralph-{owner}-{repo}-{branch}, sanitized and truncated to 63 chars
@@ -91,4 +93,82 @@ check_sandbox_state() {
             echo ""
             ;;
     esac
+}
+
+# resolve_aws_credentials: resolve AWS credentials for Bedrock access
+# If AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are already set, validates via
+# aws sts get-caller-identity. Otherwise, attempts credential resolution.
+# Resolves AWS_DEFAULT_REGION from env or aws configure get region.
+# Exits 1 with actionable error on failure.
+resolve_aws_credentials() {
+    # Verify aws CLI is available
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "Error: aws CLI is required for Bedrock credential resolution but not found in PATH" >&2
+        echo "Install the AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html" >&2
+        return 1
+    fi
+
+    # If credentials are not already in environment, try to resolve them
+    if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+        # Verify credentials are available (triggers SSO refresh if configured)
+        if ! aws sts get-caller-identity >/dev/null 2>&1; then
+            echo "Error: AWS credentials could not be resolved" >&2
+            echo "Try running: aws sso login" >&2
+            echo "Or configure credentials: aws configure" >&2
+            return 1
+        fi
+
+        # Export credentials from the resolved profile
+        local cred_output
+        cred_output="$(aws configure export-credentials --format env 2>/dev/null)" || {
+            echo "Error: failed to export AWS credentials" >&2
+            echo "Try running: aws sso login" >&2
+            return 1
+        }
+        eval "$cred_output"
+    fi
+
+    # Resolve region if not set
+    if [ -z "${AWS_DEFAULT_REGION:-}" ]; then
+        AWS_DEFAULT_REGION="$(aws configure get region 2>/dev/null)" || true
+        if [ -z "$AWS_DEFAULT_REGION" ]; then
+            echo "Error: AWS_DEFAULT_REGION is not set and could not be resolved from aws configure" >&2
+            echo "Set AWS_DEFAULT_REGION or run: aws configure set region <region>" >&2
+            return 1
+        fi
+        echo "$AWS_DEFAULT_REGION"
+        export AWS_DEFAULT_REGION
+    fi
+}
+
+# build_credential_flags: assemble -e flags for docker sandbox exec
+# Prints flags to stdout, one per line: -e KEY=VALUE
+# Handles: AWS credentials, CLAUDE_CODE_USE_BEDROCK, RALPH_SCOPE_*, RALPH_DOCKER_ENV
+build_credential_flags() {
+    # AWS credentials
+    [ -n "${AWS_ACCESS_KEY_ID:-}" ] && echo "-e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
+    [ -n "${AWS_SECRET_ACCESS_KEY:-}" ] && echo "-e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+    [ -n "${AWS_SESSION_TOKEN:-}" ] && echo "-e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN"
+    [ -n "${AWS_DEFAULT_REGION:-}" ] && echo "-e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
+
+    # Bedrock flag
+    [ "${CLAUDE_CODE_USE_BEDROCK:-}" = "1" ] && echo "-e CLAUDE_CODE_USE_BEDROCK=1"
+
+    # Scope passthrough
+    [ -n "${RALPH_SCOPE_REPO:-}" ] && echo "-e RALPH_SCOPE_REPO=$RALPH_SCOPE_REPO"
+    [ -n "${RALPH_SCOPE_BRANCH:-}" ] && echo "-e RALPH_SCOPE_BRANCH=$RALPH_SCOPE_BRANCH"
+
+    # Custom environment variables from RALPH_DOCKER_ENV (comma-separated)
+    if [ -n "${RALPH_DOCKER_ENV:-}" ]; then
+        local IFS=','
+        local var_name
+        for var_name in $RALPH_DOCKER_ENV; do
+            # Trim whitespace
+            var_name="$(echo "$var_name" | tr -d ' ')"
+            # Only include if the variable is set in the environment
+            if [ -n "${!var_name+x}" ]; then
+                echo "-e ${var_name}=${!var_name}"
+            fi
+        done
+    fi
 }
