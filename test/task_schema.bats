@@ -4,12 +4,21 @@
 load test_helper
 
 setup() {
-    # Call the shared setup (creates TEST_WORK_DIR with RALPH_DB_PATH, STUB_DIR, etc.)
-    # We rely on the default setup from test_helper which sets RALPH_DB_PATH
     TEST_WORK_DIR="$(mktemp -d)"
     STUB_DIR="$(mktemp -d)"
     export TEST_WORK_DIR STUB_DIR
-    export RALPH_DB_PATH="$TEST_WORK_DIR/tasks.db"
+
+    # Initialize git repo so db_check() can derive database path
+    git -C "$TEST_WORK_DIR" init --quiet
+    git -C "$TEST_WORK_DIR" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR" config user.name "Test"
+
+    # db_check() derives path from git root: <git-root>/.ralph/tasks.db
+    export TEST_DB_PATH="$TEST_WORK_DIR/.ralph/tasks.db"
+    export RALPH_SCOPE_REPO="test/repo"
+    export RALPH_SCOPE_BRANCH="main"
+
+    cd "$TEST_WORK_DIR"
 
     # Ensure the schema exists by invoking a command that triggers ensure_schema
     "$SCRIPT_DIR/lib/task" create "dummy" "dummy" >/dev/null 2>&1 || true
@@ -29,7 +38,7 @@ teardown() {
     run "$SCRIPT_DIR/lib/task" list
 
     # Verify tables exist
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM sqlite_master
         WHERE type='table' AND name IN ('tasks', 'task_deps', 'agents')
         ORDER BY name;
@@ -48,7 +57,7 @@ teardown() {
     run "$SCRIPT_DIR/lib/task" list
 
     # Tables should still exist and be intact
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT count(*) FROM sqlite_master
         WHERE type='table'
         AND name IN ('tasks', 'task_deps', 'agents');
@@ -60,7 +69,7 @@ teardown() {
 @test "tasks table has correct columns" {
     run "$SCRIPT_DIR/lib/task" list
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_table_info('tasks') ORDER BY cid;
     "
     assert_success
@@ -89,7 +98,7 @@ teardown() {
 @test "task_steps table does not exist" {
     run "$SCRIPT_DIR/lib/task" list
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT count(*) FROM sqlite_master
         WHERE type='table' AND name = 'task_steps';
     "
@@ -100,7 +109,7 @@ teardown() {
 @test "task_deps table has correct columns" {
     run "$SCRIPT_DIR/lib/task" list
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_table_info('task_deps') ORDER BY cid;
     "
     assert_success
@@ -111,7 +120,7 @@ teardown() {
 @test "agents table has correct columns" {
     run "$SCRIPT_DIR/lib/task" list
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT name FROM pragma_table_info('agents') ORDER BY cid;
     "
     assert_success
@@ -127,7 +136,7 @@ teardown() {
 @test "tasks.steps column is TEXT type" {
     run "$SCRIPT_DIR/lib/task" list
 
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT type FROM pragma_table_info('tasks') WHERE name='steps';
     "
     assert_success
@@ -138,7 +147,7 @@ teardown() {
     run "$SCRIPT_DIR/lib/task" list
 
     # Insert two tasks, add a dep, delete the blocker — dep should cascade
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         PRAGMA foreign_keys=ON;
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440001', 'dep-1', 'owner/repo', 'main', 'Dep Test 1');
@@ -148,7 +157,7 @@ teardown() {
         VALUES ('550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002');
         DELETE FROM tasks WHERE id = '550e8400-e29b-41d4-a716-446655440002';
     "
-    run sqlite3 "$RALPH_DB_PATH" "
+    run sqlite3 "$TEST_DB_PATH" "
         SELECT count(*) FROM task_deps
         WHERE task_id = '550e8400-e29b-41d4-a716-446655440001';
     "
@@ -159,11 +168,11 @@ teardown() {
 @test "tasks table defaults are correct" {
     run "$SCRIPT_DIR/lib/task" list
 
-    sqlite3 "$RALPH_DB_PATH" "
+    sqlite3 "$TEST_DB_PATH" "
         INSERT INTO tasks (id, slug, scope_repo, scope_branch, title)
         VALUES ('550e8400-e29b-41d4-a716-446655440099', 'test-defaults', 'owner/repo', 'main', 'Default Test');
     "
-    run sqlite3 -separator '|' "$RALPH_DB_PATH" "
+    run sqlite3 -separator '|' "$TEST_DB_PATH" "
         SELECT priority, status, retry_count FROM tasks
         WHERE slug = 'test-defaults' AND scope_repo = 'owner/repo' AND scope_branch = 'main';
     "

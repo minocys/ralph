@@ -58,8 +58,8 @@ load test_helper
 @test "task renew on done task exits 1" {
     "$SCRIPT_DIR/lib/task" create "renew-done-01" "Done Task"
     # Manually set status to active then done
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1' WHERE slug = 'renew-done-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'renew-done-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1' WHERE slug = 'renew-done-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'renew-done-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     run "$SCRIPT_DIR/lib/task" renew "renew-done-01"
     assert_failure 1
@@ -71,7 +71,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task renew fails for non-assignee" {
     "$SCRIPT_DIR/lib/task" create "renew-assign-01" "Assigned Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent-A' WHERE slug = 'renew-assign-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent-A' WHERE slug = 'renew-assign-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent-B"
     run "$SCRIPT_DIR/lib/task" renew "renew-assign-01"
@@ -81,7 +81,7 @@ load test_helper
 
 @test "task renew fails when no agent ID provided and task has assignee" {
     "$SCRIPT_DIR/lib/task" create "renew-noagent-01" "Task With Agent"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent-X' WHERE slug = 'renew-noagent-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent-X' WHERE slug = 'renew-noagent-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     unset RALPH_AGENT_ID
     run "$SCRIPT_DIR/lib/task" renew "renew-noagent-01"
@@ -94,7 +94,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task renew extends lease on active task" {
     "$SCRIPT_DIR/lib/task" create "renew-ok-01" "Renewable Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-ok-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-ok-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
     run "$SCRIPT_DIR/lib/task" renew "renew-ok-01"
@@ -103,13 +103,13 @@ load test_helper
 
     # Verify lease was extended (should be > 500 seconds from now with default 600s lease)
     local remaining
-    remaining=$(sqlite3 "$RALPH_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-ok-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    remaining=$(sqlite3 "$TEST_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-ok-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [[ "$remaining" -gt 500 ]]
 }
 
 @test "task renew with custom lease duration" {
     "$SCRIPT_DIR/lib/task" create "renew-custom-01" "Custom Lease Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-custom-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-custom-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
     run "$SCRIPT_DIR/lib/task" renew "renew-custom-01" --lease 300
@@ -118,14 +118,14 @@ load test_helper
 
     # Verify lease is around 300 seconds (allow some margin)
     local remaining
-    remaining=$(sqlite3 "$RALPH_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-custom-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    remaining=$(sqlite3 "$TEST_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-custom-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [[ "$remaining" -gt 250 ]]
     [[ "$remaining" -le 300 ]]
 }
 
 @test "task renew updates updated_at timestamp" {
     "$SCRIPT_DIR/lib/task" create "renew-ts-01" "Timestamp Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds'), updated_at = '2020-01-01 00:00:00' WHERE slug = 'renew-ts-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds'), updated_at = '2020-01-01 00:00:00' WHERE slug = 'renew-ts-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
     run "$SCRIPT_DIR/lib/task" renew "renew-ts-01"
@@ -133,13 +133,13 @@ load test_helper
 
     # Verify updated_at was refreshed (should be recent, not 2020)
     local year
-    year=$(sqlite3 "$RALPH_DB_PATH" "SELECT CAST(strftime('%Y', updated_at) AS INTEGER) FROM tasks WHERE slug = 'renew-ts-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    year=$(sqlite3 "$TEST_DB_PATH" "SELECT CAST(strftime('%Y', updated_at) AS INTEGER) FROM tasks WHERE slug = 'renew-ts-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [[ "$year" -ge 2025 ]]
 }
 
 @test "task renew with --agent flag overrides env var" {
     "$SCRIPT_DIR/lib/task" create "renew-flag-01" "Agent Flag Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agentX', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-flag-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agentX', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-flag-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="wrong-agent"
     run "$SCRIPT_DIR/lib/task" renew "renew-flag-01" --agent "agentX"
@@ -167,7 +167,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "concurrent renew during SQLITE_BUSY returns retry success" {
     "$SCRIPT_DIR/lib/task" create "renew-busy-01" "Busy Renew Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-busy-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew-busy-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
 
@@ -181,7 +181,7 @@ load test_helper
         printf 'COMMIT;\n'
     } > "$fifo" &
     local feeder_pid=$!
-    sqlite3 "$RALPH_DB_PATH" < "$fifo" &
+    sqlite3 "$TEST_DB_PATH" < "$fifo" &
     local lock_pid=$!
     sleep 0.2  # Let the locker acquire the lock
 
@@ -196,7 +196,7 @@ load test_helper
 
     # Verify lease was actually extended
     local remaining
-    remaining=$(sqlite3 "$RALPH_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-busy-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    remaining=$(sqlite3 "$TEST_DB_PATH" "SELECT CAST((julianday(lease_expires_at) - julianday('now')) * 86400 AS INTEGER) FROM tasks WHERE slug = 'renew-busy-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [[ "$remaining" -gt 500 ]]
 }
 
@@ -205,7 +205,7 @@ load test_helper
 # ---------------------------------------------------------------------------
 @test "task renew handles special characters in task ID" {
     "$SCRIPT_DIR/lib/task" create "renew/special-01" "Special ID Task"
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew/special-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'active', assignee = 'agent1', lease_expires_at = datetime('now', '+60 seconds') WHERE slug = 'renew/special-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     export RALPH_AGENT_ID="agent1"
     run "$SCRIPT_DIR/lib/task" renew "renew/special-01"

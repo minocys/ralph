@@ -27,39 +27,28 @@ db_check() {
         return 1
     fi
 
-    # --- RALPH_DB_PATH resolution ---
-    # Resolve script directory once, following symlinks (handles ~/.local/bin/task symlink)
-    local _source="${BASH_SOURCE[0]}"
-    while [ -L "$_source" ]; do
-        local _dir
-        _dir="$(cd -P "$(dirname "$_source")" && pwd)"
-        _source="$(readlink "$_source")"
-        [[ "$_source" != /* ]] && _source="$_dir/$_source"
-    done
-    local _script_dir
-    _script_dir="$(cd -P "$(dirname "$_source")" && pwd)"
+    # --- Database path derivation via git root ---
+    local _git_root
+    if ! _git_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+        echo "Error: not inside a git repository. Run: git init" >&2
+        return 1
+    fi
 
-    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
-        # Source .env as fallback if available (lib/task is one level below repo root)
-        local _repo_dir="$_script_dir/.."
-        if [[ -f "$_repo_dir/.env" ]]; then
-            # shellcheck disable=SC1091
-            . "$_repo_dir/.env"
-        fi
-    fi
-    if [[ -z "${RALPH_DB_PATH:-}" ]]; then
-        # Default to $REPO_ROOT/.ralph/tasks.db
-        RALPH_DB_PATH="$_script_dir/../.ralph/tasks.db"
-    fi
-    # Ensure the directory exists
+    DB_PATH="$_git_root/.ralph/tasks.db"
+
+    # Ensure the .ralph/ directory exists
     local _db_dir
-    _db_dir="$(dirname "$RALPH_DB_PATH")"
+    _db_dir="$(dirname "$DB_PATH")"
     mkdir -p "$_db_dir"
-    export RALPH_DB_PATH
+
+    # Auto-create .ralph/.gitignore (idempotent)
+    if [[ ! -f "$_db_dir/.gitignore" ]]; then
+        echo '*' > "$_db_dir/.gitignore"
+    fi
 }
 
 sqlite_cmd() {
-    sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" "$@"
+    sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$DB_PATH" "$@"
 }
 
 # sql_write: execute a write transaction with BEGIN IMMEDIATE, .bail on,
@@ -85,7 +74,7 @@ sql_write() {
 
     while true; do
         rc=0
-        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$RALPH_DB_PATH" || rc=$?
+        printf '%s\n' "$wrapped" | sqlite3 -batch -separator '|' -cmd '.timeout 5000' "$DB_PATH" || rc=$?
         if [[ $rc -eq 0 ]]; then
             return 0
         elif [[ $rc -eq 5 ]] && (( attempt < max_retries )); then
@@ -337,8 +326,8 @@ Agent Commands:
   agent list                  Show active agents
   agent deregister <id>       Mark agent as stopped
 
-Environment:
-  RALPH_DB_PATH  SQLite database path (default: .ralph/tasks.db)
+Database:
+  Path is derived from git root: <git-root>/.ralph/tasks.db
 EOF
 }
 

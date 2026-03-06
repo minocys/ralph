@@ -6,7 +6,6 @@
 #   detect_backend()   — determine active backend (anthropic or bedrock) from env/settings
 #   resolve_model()    — resolve model alias via models.json
 #   subcommand_usage() — print per-subcommand help text
-#   load_env()         — source .env for optional RALPH_DB_PATH override
 #
 # Globals set by parse_flags:
 #   MAX_ITERATIONS, DANGER, MODEL_ALIAS
@@ -19,8 +18,6 @@
 #
 # preflight():
 #   Verifies that required tools (sqlite3) and directories (specs/) exist.
-# load_env():
-#   Sources .env for optional RALPH_DB_PATH override.
 
 # subcommand_usage: print per-subcommand help and exit 0
 # Usage: subcommand_usage (uses MODE global)
@@ -144,14 +141,6 @@ preflight() {
     fi
 }
 
-# load_env: source .env for optional RALPH_DB_PATH override
-# The database works without .env using the default path (.ralph/tasks.db).
-load_env() {
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        # shellcheck source=/dev/null
-        . "$SCRIPT_DIR/.env"
-    fi
-}
 
 # resolve_model: resolve model alias via models.json
 # Uses MODEL_ALIAS and ACTIVE_BACKEND; sets RESOLVED_MODEL

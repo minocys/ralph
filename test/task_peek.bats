@@ -214,15 +214,15 @@ load test_helper
 
     # Verify tasks are still status=open in DB
     local db_status
-    db_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
+    db_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
-    db_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='t-nl2' AND scope_repo='test/repo' AND scope_branch='main'")
+    db_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='t-nl2' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ "$db_status" == "open" ]]
 
     # Verify assignee is still NULL
     local db_assignee
-    db_assignee=$(sqlite3 "$RALPH_DB_PATH" "SELECT assignee FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
+    db_assignee=$(sqlite3 "$TEST_DB_PATH" "SELECT assignee FROM tasks WHERE slug='t-nl1' AND scope_repo='test/repo' AND scope_branch='main'")
     [[ -z "$db_assignee" ]]
 }
 

@@ -72,7 +72,6 @@ case "$SUBCMD" in
         detect_backend
         resolve_model
         preflight
-        load_env
         setup_session
         setup_cleanup_trap
         setup_signal_handlers
@@ -104,7 +103,6 @@ case "$SUBCMD" in
         detect_backend
         resolve_model
         preflight
-        load_env
         setup_session
         setup_cleanup_trap
         setup_signal_handlers

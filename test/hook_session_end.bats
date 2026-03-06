@@ -15,7 +15,7 @@ setup() {
 # ---------------------------------------------------------------------------
 @test "session end hook calls task fail on active task" {
     "$SCRIPT_DIR/lib/task" create "se-01" "Active task for agent"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='se-01' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/hooks/session_end.sh"
@@ -23,7 +23,7 @@ setup() {
 
     # Task status must be set back to open
     local task_status
-    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='se-01' AND scope_repo='test/repo' AND scope_branch='main';")
+    task_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='se-01' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "open" ]
 }
 
@@ -32,7 +32,7 @@ setup() {
 # ---------------------------------------------------------------------------
 @test "session end hook ignores active tasks assigned to other agents" {
     "$SCRIPT_DIR/lib/task" create "se-03" "Task for other agent"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='zz99' WHERE slug='se-03' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/hooks/session_end.sh"
@@ -40,7 +40,7 @@ setup() {
 
     # Hook should not fail the other agent's task
     local task_status
-    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='se-03' AND scope_repo='test/repo' AND scope_branch='main';")
+    task_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='se-03' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "active" ]
 }
 
@@ -58,7 +58,7 @@ setup() {
 # SessionEnd hook: database unavailability
 # ---------------------------------------------------------------------------
 @test "session end hook handles database unavailability gracefully" {
-    unset RALPH_DB_PATH
+    unset TEST_DB_PATH
 
     run "$SCRIPT_DIR/hooks/session_end.sh"
     assert_success
@@ -69,12 +69,12 @@ setup() {
 # ---------------------------------------------------------------------------
 @test "session end hook increments retry_count" {
     "$SCRIPT_DIR/lib/task" create "se-02" "Task to check retry_count"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Verify retry_count starts at 0
     local before
-    before=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';")
+    before=$(sqlite3 "$TEST_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$before" = "0" ]
 
     run "$SCRIPT_DIR/hooks/session_end.sh"
@@ -82,6 +82,6 @@ setup() {
 
     # retry_count must be incremented
     local after
-    after=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';")
+    after=$(sqlite3 "$TEST_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='se-02' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$after" = "1" ]
 }

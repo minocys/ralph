@@ -41,7 +41,7 @@ load test_helper
 @test "task update on done task exits 1" {
     "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     # Directly set status to done
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     run "$SCRIPT_DIR/lib/task" update "test/01" --title "New title"
     assert_failure
     [ "$status" -eq 1 ]
@@ -58,7 +58,7 @@ load test_helper
     assert_output "updated test/01"
 
     local new_title
-    new_title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_title" = "Updated title" ]
 }
 
@@ -68,7 +68,7 @@ load test_helper
     assert_success
 
     local new_pri
-    new_pri=$(sqlite3 "$RALPH_DB_PATH" "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_pri=$(sqlite3 "$TEST_DB_PATH" "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_pri" = "0" ]
 }
 
@@ -78,7 +78,7 @@ load test_helper
     assert_success
 
     local new_desc
-    new_desc=$(sqlite3 "$RALPH_DB_PATH" "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_desc=$(sqlite3 "$TEST_DB_PATH" "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_desc" = "New desc" ]
 }
 
@@ -88,18 +88,18 @@ load test_helper
     assert_success
 
     local new_status
-    new_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    new_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$new_status" = "active" ]
 }
 
 @test "task update always sets updated_at" {
     "$SCRIPT_DIR/lib/task" create "test/01" "A task"
     # Clear updated_at to verify it gets set
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET updated_at = NULL WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
     "$SCRIPT_DIR/lib/task" update "test/01" --title "New"
 
     local updated
-    updated=$(sqlite3 "$RALPH_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    updated=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN updated_at IS NOT NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$updated" = "1" ]
 }
 
@@ -111,7 +111,7 @@ load test_helper
 
     # Verify initial steps
     local count_before
-    count_before=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    count_before=$(sqlite3 "$TEST_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_before" = "2" ]
 
     # Replace steps
@@ -119,11 +119,11 @@ load test_helper
     assert_success
 
     local count_after
-    count_after=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    count_after=$(sqlite3 "$TEST_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$count_after" = "3" ]
 
     local first_step
-    first_step=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    first_step=$(sqlite3 "$TEST_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$first_step" = "new step A" ]
 }
 
@@ -133,7 +133,7 @@ load test_helper
     assert_success
 
     local steps_null
-    steps_null=$(sqlite3 "$RALPH_DB_PATH" "SELECT CASE WHEN steps IS NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_null=$(sqlite3 "$TEST_DB_PATH" "SELECT CASE WHEN steps IS NULL THEN 1 ELSE 0 END FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$steps_null" = "1" ]
 }
 
@@ -146,9 +146,9 @@ load test_helper
     assert_success
 
     local title pri desc
-    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    pri=$(sqlite3 "$RALPH_DB_PATH" "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    desc=$(sqlite3 "$RALPH_DB_PATH" "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    pri=$(sqlite3 "$TEST_DB_PATH" "SELECT priority FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    desc=$(sqlite3 "$TEST_DB_PATH" "SELECT description FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "New title" ]
     [ "$pri" = "0" ]
     [ "$desc" = "New desc" ]
@@ -160,9 +160,9 @@ load test_helper
     assert_success
 
     local title steps_count first_step
-    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    steps_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    first_step=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_count=$(sqlite3 "$TEST_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    first_step=$(sqlite3 "$TEST_DB_PATH" "SELECT json_extract(steps, '\$[0]') FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "Combined" ]
     [ "$steps_count" = "2" ]
     [ "$first_step" = "new step A" ]
@@ -174,8 +174,8 @@ load test_helper
     assert_success
 
     local title steps_count
-    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
-    steps_count=$(sqlite3 "$RALPH_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    steps_count=$(sqlite3 "$TEST_DB_PATH" "SELECT json_array_length(steps) FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "Keep this title" ]
     [ "$steps_count" = "1" ]
 }
@@ -193,7 +193,7 @@ load test_helper
     # between the moment cmd_update builds the UPDATE and when it executes.
     # The atomic WHERE status != 'done' guard should cause the UPDATE to
     # affect 0 rows, and cmd_update should exit 1.
-    sqlite3 "$RALPH_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
+    sqlite3 "$TEST_DB_PATH" "UPDATE tasks SET status = 'done' WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'"
 
     run "$SCRIPT_DIR/lib/task" update "test/race-01" --title "Should fail"
     assert_failure 1
@@ -201,7 +201,7 @@ load test_helper
 
     # Verify title was NOT changed
     local title
-    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/race-01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "Race Task" ]
 }
 
@@ -214,6 +214,6 @@ load test_helper
     assert_success
 
     local title
-    title=$(sqlite3 "$RALPH_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
+    title=$(sqlite3 "$TEST_DB_PATH" "SELECT title FROM tasks WHERE slug = 'test/01' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [ "$title" = "It's a test" ]
 }

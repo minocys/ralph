@@ -9,8 +9,14 @@ load test_helper
 # ---------------------------------------------------------------------------
 setup() {
     TEST_WORK_DIR="$(mktemp -d)"
-    export RALPH_DB_PATH="$TEST_WORK_DIR/test.db"
     export TEST_WORK_DIR
+
+    # Initialize git repo so db_check() can derive database path
+    git -C "$TEST_WORK_DIR" init --quiet
+    git -C "$TEST_WORK_DIR" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR" config user.name "Test"
+
+    cd "$TEST_WORK_DIR"
 
     # Source the functions we need from lib/task
     eval "$(sed -n '/^db_check()/,/^}/p' "$SCRIPT_DIR/lib/task")"
@@ -18,6 +24,7 @@ setup() {
     eval "$(sed -n '/^sql_write()/,/^}/p' "$SCRIPT_DIR/lib/task")"
 
     db_check
+    export TEST_DB_PATH
     # Create a simple table for testing writes
     sqlite_cmd "CREATE TABLE IF NOT EXISTS test_tbl (id TEXT PRIMARY KEY, val TEXT);"
 }
@@ -118,7 +125,7 @@ INSERT INTO test_tbl (id, val) VALUES ('h', 'dupe');"
     sqlite_cmd "PRAGMA journal_mode=WAL;"
 
     # Start a long-running write transaction in the background that holds the lock
-    sqlite3 "$RALPH_DB_PATH" "BEGIN IMMEDIATE; INSERT INTO test_tbl VALUES ('lock','held'); SELECT writeable_sleep(1);" &>/dev/null &
+    sqlite3 "$TEST_DB_PATH" "BEGIN IMMEDIATE; INSERT INTO test_tbl VALUES ('lock','held'); SELECT writeable_sleep(1);" &>/dev/null &
     local bg_pid=$!
 
     # Give the background process a moment to acquire the lock

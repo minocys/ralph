@@ -286,8 +286,8 @@ task_in_scope_b() {
 
     # Verify they are distinct DB rows (different UUIDs)
     local uuid_a uuid_b
-    uuid_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH'")
-    uuid_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH'")
+    uuid_a=$(sqlite3 "$TEST_DB_PATH" "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_A_REPO' AND scope_branch='$SCOPE_A_BRANCH'")
+    uuid_b=$(sqlite3 "$TEST_DB_PATH" "SELECT id FROM tasks WHERE slug='same-id' AND scope_repo='$SCOPE_B_REPO' AND scope_branch='$SCOPE_B_BRANCH'")
     [[ "$uuid_a" != "$uuid_b" ]]
 }
 
@@ -403,12 +403,12 @@ task_in_scope_b() {
 
     # agent_a should be stopped
     local status_a
-    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
+    status_a=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
     [[ "$status_a" == "stopped" ]]
 
     # agent_b should still be active
     local status_b
-    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b' AND scope_repo = '$SCOPE_B_REPO';")
+    status_b=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b' AND scope_repo = '$SCOPE_B_REPO';")
     [[ "$status_b" == "active" ]]
 }
 
@@ -425,7 +425,7 @@ task_in_scope_b() {
 
     # agent_a should still be active in scope A
     local status_a
-    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
+    status_a=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a' AND scope_repo = '$SCOPE_A_REPO';")
     [[ "$status_a" == "active" ]]
 }
 
@@ -446,10 +446,10 @@ task_in_scope_b() {
 
     # Both agents should remain in their original states
     local status_a
-    status_a=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a';")
+    status_a=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_a';")
     [[ "$status_a" == "active" ]]
 
     local status_b
-    status_b=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b';")
+    status_b=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_b';")
     [[ "$status_b" == "active" ]]
 }

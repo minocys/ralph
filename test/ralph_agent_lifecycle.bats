@@ -33,7 +33,7 @@ STUB
     [ -n "$AGENT_ID" ]
 
     # Verify agent status is stopped after exit
-    STATUS=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$AGENT_ID'")
+    STATUS=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$AGENT_ID'")
     [ "$STATUS" = "stopped" ]
 }
 
@@ -120,6 +120,6 @@ STUB
     AGENT_ID=$(echo "$output" | grep "Agent:" | awk '{print $2}')
     [ -n "$AGENT_ID" ]
 
-    COUNT=$(sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM agents WHERE id = '$AGENT_ID'")
+    COUNT=$(sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM agents WHERE id = '$AGENT_ID'")
     [ "$COUNT" = "1" ]
 }

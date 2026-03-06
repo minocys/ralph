@@ -15,7 +15,7 @@ setup() {
 # ---------------------------------------------------------------------------
 @test "precompact hook outputs continue:false JSON when active task exists" {
     "$SCRIPT_DIR/lib/task" create "pc-01" "Active task for agent"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-01' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run bash -c '"$SCRIPT_DIR/hooks/precompact.sh" 2>/dev/null'
@@ -29,7 +29,7 @@ setup() {
 
 @test "precompact hook calls task fail on active task" {
     "$SCRIPT_DIR/lib/task" create "pc-02" "Active task to fail"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-02' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Run hook (capture stderr for debugging, but don't assert on it)
@@ -38,7 +38,7 @@ setup() {
 
     # Task status must be set back to open
     local task_status
-    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='pc-02' AND scope_repo='test/repo' AND scope_branch='main';")
+    task_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='pc-02' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "open" ]
 }
 
@@ -47,7 +47,7 @@ setup() {
 # ---------------------------------------------------------------------------
 @test "precompact hook logs stderr warning when failing active task" {
     "$SCRIPT_DIR/lib/task" create "pc-03" "Task for warning test"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-03' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run bash -c '"$SCRIPT_DIR/hooks/precompact.sh" 2>"$TEST_WORK_DIR/stderr.txt"'
@@ -62,12 +62,12 @@ setup() {
 
 @test "precompact hook increments retry_count" {
     "$SCRIPT_DIR/lib/task" create "pc-04" "Task to check retry_count"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='$RALPH_AGENT_ID' WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';"
 
     # Verify retry_count starts at 0
     local before
-    before=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';")
+    before=$(sqlite3 "$TEST_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$before" = "0" ]
 
     run "$SCRIPT_DIR/hooks/precompact.sh"
@@ -75,7 +75,7 @@ setup() {
 
     # retry_count must be incremented
     local after
-    after=$(sqlite3 "$RALPH_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';")
+    after=$(sqlite3 "$TEST_DB_PATH" "SELECT retry_count FROM tasks WHERE slug='pc-04' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$after" = "1" ]
 }
 
@@ -84,7 +84,7 @@ setup() {
 # ---------------------------------------------------------------------------
 @test "precompact hook ignores active tasks assigned to other agents" {
     "$SCRIPT_DIR/lib/task" create "pc-05" "Task for other agent"
-    sqlite3 "$RALPH_DB_PATH" \
+    sqlite3 "$TEST_DB_PATH" \
         "UPDATE tasks SET status='active', assignee='zz99' WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';"
 
     run "$SCRIPT_DIR/hooks/precompact.sh"
@@ -94,7 +94,7 @@ setup() {
     echo "$output" | jq -e '.continue == true'
 
     local task_status
-    task_status=$(sqlite3 "$RALPH_DB_PATH" "SELECT status FROM tasks WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';")
+    task_status=$(sqlite3 "$TEST_DB_PATH" "SELECT status FROM tasks WHERE slug='pc-05' AND scope_repo='test/repo' AND scope_branch='main';")
     [ "$task_status" = "active" ]
 }
 
@@ -115,7 +115,7 @@ setup() {
 # PreCompact hook: database unavailability
 # ---------------------------------------------------------------------------
 @test "precompact hook handles database unavailability gracefully" {
-    unset RALPH_DB_PATH
+    unset TEST_DB_PATH
 
     run "$SCRIPT_DIR/hooks/precompact.sh"
     assert_success

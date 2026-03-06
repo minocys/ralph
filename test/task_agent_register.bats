@@ -26,7 +26,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT id FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT id FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "$agent_id"
 }
@@ -36,7 +36,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT pid FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT pid FROM agents WHERE id = '$agent_id';"
     assert_success
     # PID should be a positive integer
     [[ "${output}" =~ ^[0-9]+$ ]]
@@ -47,7 +47,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT hostname FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT hostname FROM agents WHERE id = '$agent_id';"
     assert_success
     # Hostname should be non-empty
     [[ -n "${output}" ]]
@@ -58,7 +58,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT status FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "active"
 }
@@ -68,7 +68,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT started_at IS NOT NULL FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT started_at IS NOT NULL FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "1"
 }
@@ -78,7 +78,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT scope_repo FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT scope_repo FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "test/repo"
 }
@@ -88,7 +88,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT scope_branch FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT scope_branch FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "main"
 }
@@ -99,7 +99,7 @@ load test_helper
     assert_success
     local agent_id="$output"
 
-    run sqlite3 "$RALPH_DB_PATH" "SELECT scope_repo || '|' || scope_branch FROM agents WHERE id = '$agent_id';"
+    run sqlite3 "$TEST_DB_PATH" "SELECT scope_repo || '|' || scope_branch FROM agents WHERE id = '$agent_id';"
     assert_success
     assert_output "custom/repo|feature-branch"
 }
@@ -134,7 +134,7 @@ load test_helper
     local id2="$output"
 
     # Both should exist in the database
-    run sqlite3 "$RALPH_DB_PATH" "SELECT count(*) FROM agents WHERE id IN ('$id1', '$id2');"
+    run sqlite3 "$TEST_DB_PATH" "SELECT count(*) FROM agents WHERE id IN ('$id1', '$id2');"
     assert_success
     assert_output "2"
 }
@@ -200,7 +200,7 @@ load test_helper
 
     # Database should have exactly $count active agents
     local db_count
-    db_count=$(sqlite3 "$RALPH_DB_PATH" \
+    db_count=$(sqlite3 "$TEST_DB_PATH" \
         "SELECT COUNT(*) FROM agents WHERE status = 'active' AND scope_repo = 'test/repo' AND scope_branch = 'main'")
     [[ "$db_count" -eq "$count" ]]
 }

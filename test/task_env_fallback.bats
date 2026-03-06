@@ -1,12 +1,10 @@
 #!/usr/bin/env bats
-# test/task_env_fallback.bats — tests for .env fallback sourcing in task db_check()
-# db_check() now resolves RALPH_DB_PATH (not RALPH_DB_URL) and falls back to
-# $REPO_ROOT/.ralph/tasks.db when neither .env nor the environment provides it.
+# test/task_env_fallback.bats — tests for db_check() git-root derivation.
+# db_check() now derives the database path from git rev-parse --show-toplevel.
+# RALPH_DB_PATH env var and .env sourcing are no longer used.
 
 load test_helper
 
-# ---------------------------------------------------------------------------
-# Helper: copy task script to temp dir/lib so .env can be placed in parent
 # ---------------------------------------------------------------------------
 setup() {
     TEST_WORK_DIR="$(mktemp -d)"
@@ -14,13 +12,6 @@ setup() {
     export ORIGINAL_PATH="$PATH"
     export PATH="$STUB_DIR:$PATH"
     export TEST_WORK_DIR STUB_DIR
-
-    # Copy the real task script to temp dir/lib (mirrors lib/task layout)
-    mkdir -p "$TEST_WORK_DIR/lib"
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/lib/task"
-    chmod +x "$TEST_WORK_DIR/lib/task"
-
-    cd "$TEST_WORK_DIR"
 }
 
 teardown() {
@@ -32,69 +23,53 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# .env fallback sourcing — RALPH_DB_PATH
+# Git-root derivation — DB path derived from working directory's git root
 # ---------------------------------------------------------------------------
-@test "task sources RALPH_DB_PATH from .env as fallback" {
-    echo "RALPH_DB_PATH=$TEST_WORK_DIR/env-db/tasks.db" > "$TEST_WORK_DIR/.env"
-    unset RALPH_DB_PATH 2>/dev/null || true
+@test "task resolves DB to git-root/.ralph/tasks.db" {
+    mkdir -p "$TEST_WORK_DIR/repo"
+    git -C "$TEST_WORK_DIR/repo" init --quiet
+    git -C "$TEST_WORK_DIR/repo" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR/repo" config user.name "Test"
 
-    run "$TEST_WORK_DIR/lib/task" list
-    # db_check should source .env and create the specified directory
-    assert [ -d "$TEST_WORK_DIR/env-db" ]
+    cd "$TEST_WORK_DIR/repo"
+    # Run the real task script — db_check will derive path from git root
+    run "$SCRIPT_DIR/lib/task" list
+    # db_check should create .ralph/ at the git root
+    assert [ -d "$TEST_WORK_DIR/repo/.ralph" ]
 }
 
-@test "task does not source .env when RALPH_DB_PATH already set" {
-    echo "RALPH_DB_PATH=$TEST_WORK_DIR/env-db/tasks.db" > "$TEST_WORK_DIR/.env"
-    export RALPH_DB_PATH="$TEST_WORK_DIR/explicit-db/tasks.db"
+@test "task ignores RALPH_DB_PATH env var" {
+    mkdir -p "$TEST_WORK_DIR/repo"
+    git -C "$TEST_WORK_DIR/repo" init --quiet
+    git -C "$TEST_WORK_DIR/repo" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR/repo" config user.name "Test"
 
-    run "$TEST_WORK_DIR/lib/task" list
-    # Should use the pre-set RALPH_DB_PATH, not the one from .env
-    assert [ -d "$TEST_WORK_DIR/explicit-db" ]
+    export RALPH_DB_PATH="$TEST_WORK_DIR/custom/tasks.db"
+    cd "$TEST_WORK_DIR/repo"
+    run "$SCRIPT_DIR/lib/task" list
+    # Should use git root, not the env var
+    assert [ -d "$TEST_WORK_DIR/repo/.ralph" ]
+    assert [ ! -d "$TEST_WORK_DIR/custom" ]
+}
+
+@test "task ignores .env file for DB path" {
+    mkdir -p "$TEST_WORK_DIR/repo"
+    git -C "$TEST_WORK_DIR/repo" init --quiet
+    git -C "$TEST_WORK_DIR/repo" config user.email "test@test.com"
+    git -C "$TEST_WORK_DIR/repo" config user.name "Test"
+    echo "RALPH_DB_PATH=$TEST_WORK_DIR/env-db/tasks.db" > "$TEST_WORK_DIR/repo/.env"
+
+    unset RALPH_DB_PATH 2>/dev/null || true
+    cd "$TEST_WORK_DIR/repo"
+    run "$SCRIPT_DIR/lib/task" list
+    # Should use git root, not the .env value
+    assert [ -d "$TEST_WORK_DIR/repo/.ralph" ]
     assert [ ! -d "$TEST_WORK_DIR/env-db" ]
 }
 
-@test "task defaults to .ralph/tasks.db when RALPH_DB_PATH not set and no .env" {
-    # No .env in TEST_WORK_DIR (parent of lib/)
-    unset RALPH_DB_PATH 2>/dev/null || true
-
-    run "$TEST_WORK_DIR/lib/task" list
-    # db_check falls back to $REPO_ROOT/.ralph/tasks.db and creates the dir
-    assert [ -d "$TEST_WORK_DIR/.ralph" ]
-}
-
-# ---------------------------------------------------------------------------
-# Symlink resolution — .env resolved from actual script location, not symlink
-# ---------------------------------------------------------------------------
-@test "task resolves .env through symlink" {
-    mkdir -p "$TEST_WORK_DIR/repo/lib"
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/repo/lib/task"
-    chmod +x "$TEST_WORK_DIR/repo/lib/task"
-    echo "RALPH_DB_PATH=$TEST_WORK_DIR/symlink-env/tasks.db" > "$TEST_WORK_DIR/repo/.env"
-
-    mkdir -p "$TEST_WORK_DIR/bin"
-    ln -s "$TEST_WORK_DIR/repo/lib/task" "$TEST_WORK_DIR/bin/task"
-
-    unset RALPH_DB_PATH 2>/dev/null || true
-
-    # Run via symlink — should resolve .env from repo/ (parent of lib/), not bin/
-    run "$TEST_WORK_DIR/bin/task" list
-    assert [ -d "$TEST_WORK_DIR/symlink-env" ]
-}
-
-@test "task symlink does not find .env next to symlink" {
-    mkdir -p "$TEST_WORK_DIR/repo/lib"
-    mkdir -p "$TEST_WORK_DIR/bin"
-    cp "$SCRIPT_DIR/lib/task" "$TEST_WORK_DIR/repo/lib/task"
-    chmod +x "$TEST_WORK_DIR/repo/lib/task"
-    # .env is next to the symlink, NOT next to the actual script's parent
-    echo "RALPH_DB_PATH=$TEST_WORK_DIR/wrong-env/tasks.db" > "$TEST_WORK_DIR/bin/.env"
-    ln -s "$TEST_WORK_DIR/repo/lib/task" "$TEST_WORK_DIR/bin/task"
-
-    unset RALPH_DB_PATH 2>/dev/null || true
-
-    # Should NOT find .env (it's in bin/, not repo/) — falls back to default
-    run "$TEST_WORK_DIR/bin/task" list
-    assert [ ! -d "$TEST_WORK_DIR/wrong-env" ]
-    # Instead, .ralph/ should be created under the repo root
-    assert [ -d "$TEST_WORK_DIR/repo/.ralph" ]
+@test "task fails outside git repo" {
+    cd "$TEST_WORK_DIR"
+    run "$SCRIPT_DIR/lib/task" list
+    assert_failure
+    assert_output --partial "not inside a git repository"
 }
