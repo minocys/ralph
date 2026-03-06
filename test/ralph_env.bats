@@ -116,3 +116,25 @@ teardown() {
 @test "lib/docker.sh exists for sandbox support" {
     assert_file_exists "$SCRIPT_DIR/lib/docker.sh"
 }
+
+@test "lib/docker.sh defines derive_sandbox_name function" {
+    run grep -E '^derive_sandbox_name\(\)' "$SCRIPT_DIR/lib/docker.sh"
+    assert_success
+}
+
+@test "lib/docker.sh defines check_sandbox_state function" {
+    run grep -E '^check_sandbox_state\(\)' "$SCRIPT_DIR/lib/docker.sh"
+    assert_success
+}
+
+@test "lib/docker.sh is sourceable without errors" {
+    # Source docker.sh in a subshell to verify it has valid bash syntax.
+    # Override docker and git commands to prevent side effects.
+    run bash -c '
+        docker() { :; }
+        git() { :; }
+        export -f docker git
+        source "'"$SCRIPT_DIR/lib/docker.sh"'"
+    '
+    assert_success
+}
