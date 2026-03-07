@@ -315,6 +315,8 @@ Shared Commands:
   create <id> <title> [opts]   Create a task
   update <id> [opts]           Update fields on a non-done task
   delete <id>                  Soft delete a task
+  delete --status <csv> [--spec S] [--category C]  Batch delete by status
+  delete --all --confirm [--spec S] [--category C]  Delete all non-deleted tasks
   deps <id>                    Show dependency tree
 
 Dependency Commands:
@@ -1429,35 +1431,147 @@ cmd_update() {
     exit 1
 }
 cmd_delete() {
-    local id="${1:-}"
+    local id="" flag_status="" flag_spec="" flag_category="" flag_all=false flag_confirm=false
 
-    if [[ -z "$id" ]]; then
+    # --- Parse arguments: positional ID and/or flags ---
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --status)
+                [[ $# -ge 2 ]] || { echo "Error: --status requires a value" >&2; exit 1; }
+                flag_status="$2"; shift 2 ;;
+            --spec)
+                [[ $# -ge 2 ]] || { echo "Error: --spec requires a value" >&2; exit 1; }
+                flag_spec="$2"; shift 2 ;;
+            --category)
+                [[ $# -ge 2 ]] || { echo "Error: --category requires a value" >&2; exit 1; }
+                flag_category="$2"; shift 2 ;;
+            --all)
+                flag_all=true; shift ;;
+            --confirm)
+                flag_confirm=true; shift ;;
+            -*)
+                echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+            *)
+                if [[ -n "$id" ]]; then
+                    echo "Error: unexpected argument '$1'" >&2; exit 1
+                fi
+                id="$1"; shift ;;
+        esac
+    done
+
+    local has_flags=false
+    if [[ -n "$flag_status" ]] || [[ -n "$flag_spec" ]] || [[ -n "$flag_category" ]] || $flag_all; then
+        has_flags=true
+    fi
+
+    # --- Mutual exclusion: positional ID vs any filter flag ---
+    if [[ -n "$id" ]] && $has_flags; then
+        echo "Error: cannot combine positional ID with filter flags" >&2
+        exit 1
+    fi
+
+    # --- Single-task delete path (unchanged behavior) ---
+    if [[ -n "$id" ]]; then
+        local esc_id
+        esc_id=$(sql_esc "$id")
+
+        local current_status
+        current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
+
+        if [[ -z "$current_status" ]]; then
+            echo "Error: task '$id' not found" >&2
+            exit 2
+        fi
+
+        sql_write "
+            UPDATE tasks
+            SET status = 'deleted', deleted_at = datetime('now'), updated_at = datetime('now')
+            WHERE $(scope_where "${esc_id}");
+        " > /dev/null
+
+        echo "deleted $id"
+        return 0
+    fi
+
+    # --- Batch delete path ---
+
+    # --all is mutually exclusive with --status
+    if $flag_all && [[ -n "$flag_status" ]]; then
+        echo "Error: --all and --status are mutually exclusive" >&2
+        exit 1
+    fi
+
+    # --all without --confirm
+    if $flag_all && ! $flag_confirm; then
+        echo "Error: --all requires --confirm flag" >&2
+        exit 1
+    fi
+
+    # --spec or --category alone require --status or --all
+    if ! $flag_all && [[ -z "$flag_status" ]]; then
+        if [[ -n "$flag_spec" ]] || [[ -n "$flag_category" ]]; then
+            echo "Error: --spec and --category require --status or --all" >&2
+            exit 1
+        fi
+        # No ID, no flags at all
         echo "Error: missing task ID" >&2
         echo "Usage: ralph task delete <id>" >&2
         exit 1
     fi
 
-
-    local esc_id
-    esc_id=$(sql_esc "$id")
-
-    # Check task exists
-    local current_status
-    current_status=$(sqlite_cmd "SELECT status FROM tasks WHERE $(scope_where "${esc_id}");")
-
-    if [[ -z "$current_status" ]]; then
-        echo "Error: task '$id' not found" >&2
-        exit 2
+    # --status: reject 'deleted' in CSV values
+    if [[ -n "$flag_status" ]]; then
+        local IFS=','
+        for s in $flag_status; do
+            if [[ "$s" == "deleted" ]]; then
+                echo "Error: cannot use 'deleted' as a status filter" >&2
+                exit 1
+            fi
+        done
+        unset IFS
     fi
 
-    # Soft delete: set status to 'deleted', set deleted_at and updated_at
-    sql_write "
+    # --- Build WHERE clause for batch delete ---
+    local where="status != 'deleted' AND $(scope_filter "tasks")"
+
+    if [[ -n "$flag_status" ]]; then
+        local status_in=""
+        local IFS=','
+        for s in $flag_status; do
+            local esc_s
+            esc_s=$(sql_esc "$s")
+            if [[ -n "$status_in" ]]; then
+                status_in="${status_in},'${esc_s}'"
+            else
+                status_in="'${esc_s}'"
+            fi
+        done
+        unset IFS
+        where="${where} AND status IN (${status_in})"
+    fi
+
+    if [[ -n "$flag_spec" ]]; then
+        local esc_spec
+        esc_spec=$(sql_esc "$flag_spec")
+        where="${where} AND spec_ref = '${esc_spec}'"
+    fi
+
+    if [[ -n "$flag_category" ]]; then
+        local esc_cat
+        esc_cat=$(sql_esc "$flag_category")
+        where="${where} AND category = '${esc_cat}'"
+    fi
+
+    # --- Execute batch delete ---
+    local count
+    count=$(sql_write "
         UPDATE tasks
         SET status = 'deleted', deleted_at = datetime('now'), updated_at = datetime('now')
-        WHERE $(scope_where "${esc_id}");
-    " > /dev/null
+        WHERE ${where};
+        SELECT changes();
+    ")
 
-    echo "deleted $id"
+    echo "deleted ${count} tasks"
 }
 cmd_deps() {
     local id="${1:-}"
