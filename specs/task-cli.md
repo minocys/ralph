@@ -5,7 +5,7 @@ Bash command-line interface for agents and the ralph planner to interact with th
 ## Requirements
 
 - Implement as a bash script (`lib/task`) that operates on SQLite via `sqlite3`, invoked via `ralph task <command>`
-- Read database path from `RALPH_DB_PATH` environment variable
+- Derive database path from `git rev-parse --show-toplevel`
 - Initialize the database schema automatically on first invocation
 - Provide phase-specific and shared commands:
 
@@ -75,6 +75,6 @@ task-store/01   0 done   feat Create SQLite schema                -
 ## Out of Scope
 
 - Interactive/TUI mode
-- Bulk operations (multi-task claim, batch create)
+- Bulk operations (multi-task claim, batch create); batch delete is covered by [task-batch-delete.md](task-batch-delete.md)
 - Filtering by date ranges
 - Authentication or role-based access to commands
