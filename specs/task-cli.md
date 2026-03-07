@@ -57,7 +57,7 @@ Default for `ralph task list` and `ralph task list --all` — aligned columns, c
 ID              P S      CAT  TITLE                              AGENT
 task-cli/01     0 active feat Implement CLI skeleton              a7f2
 task-cli/02     1 open   feat Implement atomic claim              -
-task-store/01   0 done   feat Create PostgreSQL schema            -
+task-store/01   0 done   feat Create SQLite schema                -
 ```
 
 ### Output Rules
