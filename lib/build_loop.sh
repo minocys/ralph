@@ -62,7 +62,7 @@ check_all_tasks_complete() {
 # and post-invocation completion check for loop termination.
 run_build_loop() {
     while true; do
-        if [ $MAX_ITERATIONS -gt 0 ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
+        if [ "$MAX_ITERATIONS" -gt 0 ] && [ "$ITERATION" -ge "$MAX_ITERATIONS" ]; then
             echo "Reached max iterations: $MAX_ITERATIONS"
             break
         fi

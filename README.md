@@ -41,6 +41,7 @@ Discuss JTBD → ralph-spec → ralph plan → ralph
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [jq](https://jqlang.github.io/jq/)
 - [sqlite3](https://www.sqlite.org/) ≥ 3.35 (for RETURNING clause support)
+- [shellcheck](https://github.com/koalaman/shellcheck?tab=readme-ov-file#installing)
 
 ## Installation
 

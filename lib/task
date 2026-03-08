@@ -613,10 +613,10 @@ cmd_plan_status() {
         ) s;
     ")
 
-    local open active done blocked deleted
-    IFS='|' read -r open active done blocked deleted <<< "$result"
+    local open active done_count blocked deleted
+    IFS='|' read -r open active done_count blocked deleted <<< "$result"
 
-    echo "${open} open, ${active} active, ${done} done, ${blocked} blocked, ${deleted} deleted"
+    echo "${open} open, ${active} active, ${done_count} done, ${blocked} blocked, ${deleted} deleted"
 }
 cmd_peek() {
     local limit=5
@@ -1532,7 +1532,8 @@ cmd_delete() {
     fi
 
     # --- Build WHERE clause for batch delete ---
-    local where="status != 'deleted' AND $(scope_filter "tasks")"
+    local where
+    where="status != 'deleted' AND $(scope_filter "tasks")"
 
     if [[ -n "$flag_status" ]]; then
         local status_in=""
