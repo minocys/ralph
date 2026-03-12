@@ -34,3 +34,12 @@
 | [per-repo-task-database.md](per-repo-task-database.md) | Store each repository's task database inside that repository via `git rev-parse --show-toplevel`, removing `RALPH_DB_PATH` |
 | [task-batch-delete.md](task-batch-delete.md) | Filter-based batch soft-delete for tasks by status, spec ref, and category |
 | [pr20-review-fixes.md](pr20-review-fixes.md) | Fix SQL injection, missing concurrency guards, and code duplication found in SQLite migration PR review |
+
+### Targeted Spec-Scoped Execution
+
+| Spec | Topic of Concern |
+| ---- | ---------------- |
+| [spec-filter-flag.md](spec-filter-flag.md) | `--specs` flag parsing, glob pattern syntax, and propagation from CLI to loops |
+| [task-cli-spec-filtering.md](task-cli-spec-filtering.md) | `--specs` support in `ralph task peek`, `plan-status`, and `plan-sync` at the SQL query level |
+| [scoped-plan-execution.md](scoped-plan-execution.md) | Plan loop reads all specs for context but emits tasks only for targeted spec_refs, with scoped orphan deletion |
+| [scoped-build-execution.md](scoped-build-execution.md) | Build loop filters peek and plan-status by spec patterns, exits when filtered tasks are complete |
