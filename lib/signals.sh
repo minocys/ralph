@@ -31,7 +31,7 @@ handle_int() {
     if [ "$INTERRUPTED" -ge 2 ]; then
         # Second Ctrl+C: force-kill pipeline and exit
         trap - INT TERM
-        [ -n "$PIPELINE_PID" ] && kill -9 -- -$PIPELINE_PID 2>/dev/null
+        [ -n "$PIPELINE_PID" ] && kill -9 -- -"$PIPELINE_PID" 2>/dev/null
         exit 130
     fi
     # First Ctrl+C: print waiting message, let claude finish
@@ -44,7 +44,7 @@ handle_int() {
 handle_term() {
     trap - INT TERM
     if [ -n "$PIPELINE_PID" ]; then
-        kill -9 -- -$PIPELINE_PID 2>/dev/null
+        kill -9 -- -"$PIPELINE_PID" 2>/dev/null
     fi
     exit 130
 }

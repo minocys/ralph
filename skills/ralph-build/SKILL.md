@@ -32,6 +32,7 @@ description: Ralph build loop
 - Keep @AGENTS.md operational only — status updates belong in task steps and results.
 - If you find inconsistencies in the specs/* then use an Opus subagent to update the specs.
 - On failure, run `ralph task fail <id> --reason "<text>"` to release the task for retry.
+- Your agent identity for task claiming and lease tracking is available via `$RALPH_AGENT_ID`.
 
 ## ralph Task CLI
 !`ralph task --help`

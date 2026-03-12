@@ -9,18 +9,19 @@ Save the specs as markdown files in the specs folder in the current project dire
 
 Create a specs folder and specs/README.md in the current project directory if it does not exist. 
 
-README.md should be a lookup table for all other specs.
+README.md should be a lookup table for all other specs, grouped by JTBD.
 
-## Spec Output Format
+## Spec Format
+Each spec file should follow this structure. Adapt section depth to the topic.
 
-Each spec file should follow this structure. Adapt section depth to the topic — not every spec needs lengthy sections.
+```
+**Overview** — What this topic of concern is and why it matters
+**Requirements** — What the system must do (testable, declarative statements)
+**Constraints** — Technical or business boundaries that limit implementation choices
+**Out of Scope** — What this spec explicitly does NOT cover
+```
 
-- **Overview** — What this topic of concern is and why it matters
-- **Requirements** — What the system must do (testable, declarative statements)
-- **Constraints** — Technical or business boundaries that limit implementation choices
-- **Out of Scope** — What this spec explicitly does NOT cover
-
-# GLOSSARY
+# Glossary
 Job to be Done (JTBD): High-level user need or outcome
 Topic of Concern: A distinct aspect or component within a JTBD
 Spec: Requirements doc for one topic of concern (`specs/<name>.md`)
@@ -45,4 +46,3 @@ _Topic Scope Test: "One Sentence Without 'And'"_
   - ✓ "The color extraction system analyzes images to identify dominant colors"
   - ✗ "The user system handles authentication, profiles, and billing" → 3 topics
 - If you need "and" to describe what it does, it's probably multiple topics
-

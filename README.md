@@ -7,13 +7,13 @@ Autonomous build loop powered by Claude Code. Turns a conversation into specs, a
 ## Workflow
 
 ```
-Discuss JTBD → ralph-spec → ralph plan → ralph
+Discuss JTBD → ralph-spec → ralph plan → ralph build
 ```
 
 1. **Discuss** — Start a Claude Code session and have it interview you about what you want to build. Flesh out the Job to be Done (JTBD) through conversation before generating any specs.
 2. **Spec** — Run `/ralph-spec` in the same session. Ralph splits the JTBD into topics of concern and writes a spec file for each under `./specs/`.
-3. **Plan** — Run `ralph --plan` from your terminal. Ralph studies the specs and codebase, then produces `IMPLEMENTATION_PLAN.json` — a task list with completion tracking.
-4. **Build** — Run `ralph` from your terminal. Ralph picks up incomplete tasks from the plan, implements them, runs tests, commits, and loops until everything is done.
+3. **Plan** — Run `ralph plan` from your terminal. Ralph studies the specs and codebase, then syncs a task backlog into the SQLite database via `ralph task plan-sync`.
+4. **Build** — Run `ralph build` from your terminal. Ralph picks up incomplete tasks from the plan, implements them, runs tests, commits, and loops until everything is done.
 
 ### Videos
 
@@ -41,6 +41,7 @@ Discuss JTBD → ralph-spec → ralph plan → ralph
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [jq](https://jqlang.github.io/jq/)
 - [sqlite3](https://www.sqlite.org/) ≥ 3.35 (for RETURNING clause support)
+- [shellcheck](https://github.com/koalaman/shellcheck?tab=readme-ov-file#installing)
 
 ## Installation
 
@@ -49,7 +50,7 @@ git clone <repo-url> && cd ralph
 ./install.sh
 ```
 
-This symlinks the skills into `~/.claude/skills/` and both `ralph` and `task` into `~/.local/bin/`. Make sure `~/.local/bin` is in your `PATH`.
+This symlinks the skills into `~/.claude/skills/`, the `ralph` binary into `~/.local/bin/`, and installs Claude Code hooks (`PreCompact` and `SessionEnd`) into `~/.claude/settings.json`. Any legacy `~/.local/bin/task` symlink is removed — the task CLI is now accessed exclusively via `ralph task`. Make sure `~/.local/bin` is in your `PATH`.
 
 ## Usage
 
@@ -58,22 +59,29 @@ This symlinks the skills into `~/.claude/skills/` and both `ralph` and `task` in
 /ralph-spec
 
 # Step 2: Generate implementation plan from specs
-ralph --plan              # plan mode, unlimited iterations
-ralph --plan -n 5         # plan mode, max 5 iterations
+ralph plan                # plan mode (default: 1 iteration)
+ralph plan -n 5           # plan mode, max 5 iterations
 
 # Step 3: Build loop — implement, test, commit, repeat
-ralph                     # build mode, unlimited iterations
-ralph -n 20               # build mode, max 20 iterations
+ralph build               # build mode, unlimited iterations
+ralph build -n 20         # build mode, max 20 iterations
+
+# Step 4: Interact with the task backlog directly
+ralph task list           # list non-deleted tasks
+ralph task plan-status    # show status summary
+ralph task peek           # preview claimable tasks
 
 # Options
-ralph --help              # show usage
-ralph --danger            # enable --dangerously-skip-permissions
-ralph --plan -n 5 --danger
+ralph --help              # show top-level usage
+ralph plan --help         # show plan subcommand help
+ralph build --help        # show build subcommand help
+ralph build --danger      # enable --dangerously-skip-permissions
+ralph plan -n 5 --danger
 
 # Model selection
-ralph -m opus-4.5         # use a model alias from models.json
-ralph --model sonnet      # long form
-ralph --model claude-opus-4-5-20251101  # full model ID pass-through
+ralph plan -m opus-4.5    # use a model alias from models.json
+ralph build --model sonnet # long form
+ralph build --model claude-opus-4-5-20251101  # full model ID pass-through
 ```
 
 ### Model Selection
@@ -84,7 +92,7 @@ Use `--model` (or `-m`) to pick which Claude model to run. Ralph resolves short 
 | --- | --- |
 | `opus-4.6` | `global.anthropic.claude-opus-4-6-v1` |
 | `opus-4.5` | `global.anthropic.claude-opus-4-5-20251101-v1:0` |
-| `sonnet` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| `sonnet` | `global.anthropic.claude-sonnet-4-6` |
 | `haiku` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 **Note**: When using the Anthropic backend, aliases are passed through as-is to Claude Code. The table above shows Bedrock-specific model ID mappings only.
@@ -107,7 +115,7 @@ The active backend is displayed in the startup banner when Ralph runs.
 **Example**: Force Bedrock backend for a single run:
 
 ```sh
-CLAUDE_CODE_USE_BEDROCK=1 ralph -m opus-4.5
+CLAUDE_CODE_USE_BEDROCK=1 ralph build -m opus-4.5
 ```
 
 ### AGENTS.md
@@ -120,7 +128,9 @@ See [agents.md](https://agents.md) for the format and examples.
 
 ## Task Management
 
-The `task` CLI is a SQLite-backed command-line tool for managing work items across the plan and build phases. It enables multi-agent coordination with atomic operations, lease-based claiming, and DAG-aware dependency scheduling.
+The `ralph task` CLI is a SQLite-backed command-line tool for managing work items across the plan and build phases. It enables multi-agent coordination with atomic operations, lease-based claiming, and DAG-aware dependency scheduling.
+
+All task operations are scoped to the current git repository and branch (derived from `git remote get-url origin` and `git branch --show-current`). Override with `RALPH_SCOPE_REPO` and `RALPH_SCOPE_BRANCH` environment variables.
 
 ### Plan Phase Commands
 
@@ -128,13 +138,13 @@ Commands used during planning to synchronize specs with the task backlog:
 
 ```sh
 # Sync tasks from JSONL input (idempotent — safe to re-run)
-cat tasks.jsonl | task plan-sync
+cat tasks.jsonl | ralph task plan-sync
 
 # Export full task DAG as markdown-KV
 ralph task list --all --markdown
 
 # Show status summary (open, active, done, blocked, deleted)
-task plan-status
+ralph task plan-status
 ```
 
 ### Build Phase Commands
@@ -142,58 +152,67 @@ task plan-status
 Commands used by agents during the build loop to claim and complete work:
 
 ```sh
+# Preview top claimable + all active tasks (markdown-KV)
+ralph task peek              # default top 5
+ralph task peek -n 10        # top 10
+
 # Claim the highest-priority eligible task (atomic, lease-based)
-task claim --agent <agent-id>
-task claim --agent <agent-id> --lease 900    # custom lease (default 600s)
+ralph task claim --agent <agent-id>
+ralph task claim <id> --agent <agent-id>       # claim a specific task
+ralph task claim --agent <agent-id> --lease 900 # custom lease (default 600s)
 
 # Extend an active task's lease
-task renew <id> --agent <agent-id>
-
-# Mark a step within a task as done
-task step-done <id> <seq>
+ralph task renew <id> --agent <agent-id>
 
 # Complete a task (optionally with a result JSON)
-task done <id>
-task done <id> --result '{"commit":"abc123"}'
+ralph task done <id>
+ralph task done <id> --result '{"commit":"abc123"}'
 
 # Release a task back to open (increments retry count)
-task fail <id>
-task fail <id> --reason "build error"
+ralph task fail <id>
+ralph task fail <id> --reason "build error"
 ```
 
 ### CRUD Commands
 
 ```sh
 # Create a task
-task create <id> <title> -p <priority> -c <category> -d <description>
+ralph task create <id> <title> -p <priority> -c <category> -d <description>
+ralph task create <id> <title> -s '["step1","step2"]' --deps dep1,dep2
 
 # List tasks (excludes deleted by default)
-task list
-task list --status open,active
-task list --markdown
+ralph task list
+ralph task list --status open,active
+ralph task list --assignee <agent-id>
+ralph task list --markdown
 
 # Show full task detail
-task show <id>
-task show <id> --with-deps      # include blocker results
+ralph task show <id>
+ralph task show <id> --with-deps      # include blocker results
 
 # Update a task (done tasks are immutable)
-task update <id> --title "New title" --priority 1
+ralph task update <id> --title "New title" --priority 1
 
-# Soft-delete a task
-task delete <id>
+# Soft-delete a single task
+ralph task delete <id>
+
+# Batch soft-delete by status, spec, or category
+ralph task delete --status open,active
+ralph task delete --status open --spec my-spec
+ralph task delete --all --confirm
 ```
 
 ### Dependency Commands
 
 ```sh
 # Add a dependency (task is blocked until blocker is done)
-task block <id> --by <blocker-id>
+ralph task block <id> --by <blocker-id>
 
 # Remove a dependency
-task unblock <id> --by <blocker-id>
+ralph task unblock <id> --by <blocker-id>
 
 # Show recursive dependency tree
-task deps <id>
+ralph task deps <id>
 ```
 
 ### Agent Commands
@@ -202,16 +221,16 @@ Agents register before entering the build loop and deregister on exit:
 
 ```sh
 # Register a new agent (returns 4-char hex ID)
-task agent register
+ralph task agent register
 
 # List all agents
-task agent list
+ralph task agent list
 
 # Deregister an agent (sets status to stopped)
-task agent deregister <id>
+ralph task agent deregister <id>
 ```
 
-Ralph's build loop handles agent registration automatically — it calls `task agent register` on startup and `task agent deregister` on exit via a trap handler. The agent ID is exported as `RALPH_AGENT_ID` for use when claiming tasks.
+Ralph's build loop handles agent registration automatically — it calls `ralph task agent register` on startup and `ralph task agent deregister` on exit via a trap handler. The agent ID is exported as `RALPH_AGENT_ID` for use when claiming tasks.
 
 ### Exit Codes
 
@@ -219,46 +238,50 @@ Ralph's build loop handles agent registration automatically — it calls `task a
 | ---- | ------- |
 | `0`  | Success |
 | `1`  | Error (invalid args, immutable task, wrong assignee) |
-| `2`  | Not found (task, agent, step, or dependency doesn't exist) |
+| `2`  | Not found / no eligible task |
 
 ## Project Structure
 
 ```
-ralph.sh              # Main loop runner
-models.json           # Model alias → ID mapping
-install.sh            # Installer (symlinks skills + CLI + task)
-lib/task              # Task management CLI (SQLite-backed)
+ralph.sh              # Entry point — subcommand dispatcher (plan, build, task)
+models.json           # Model alias → Bedrock ID mapping
+install.sh            # Installer (symlinks skills + CLI, installs hooks)
+AGENTS.md             # AI agent instructions (build/test conventions)
+lib/
+  task                # Task management CLI (SQLite-backed)
+  config.sh           # Configuration helpers (backend, model resolution)
+  session.sh          # Session setup (scope, DB path)
+  output.sh           # Output formatting
+  signals.sh          # Two-stage Ctrl+C / SIGTERM handling
+  plan_loop.sh        # Plan phase loop logic
+  build_loop.sh       # Build phase loop logic (pre/post checks, crash safety)
+hooks/
+  precompact.sh       # Fails active task on context-limit compact
+  session_end.sh      # Fails active task on unexpected session end
 specs/                # Specification files (one per topic of concern)
 skills/
   ralph-spec/         # JTBD → spec files
-  ralph-plan/         # Specs → implementation plan
-  ralph-build/        # Plan → working code
+  ralph-plan/         # Specs → task backlog (via plan-sync)
+  ralph-build/        # Task → working code (claim, implement, commit)
 test/
   test_helper.bash    # Shared test setup
   libs/               # BATS helper libraries (git submodules)
-  ralph_args.bats     # Argument parsing tests
-  ralph_preflight.bats # Preflight check tests
-  ralph_model.bats    # Model/backend resolution tests
-  ralph_agent_lifecycle.bats # Agent register/deregister in build loop
+  ralph_*.bats        # CLI tests (args, model, preflight, signals, build loop)
+  hook_*.bats         # Hook tests (precompact, session end, scope isolation)
+  task_*.bats         # Task CLI tests (CRUD, claim, deps, plan-sync, agents)
   install.bats        # Installer tests
-  task_*.bats         # Task CLI tests (create, list, show, update, delete,
-                      #   block, deps, claim, renew, step_done, done, fail,
-                      #   plan_sync, plan_status, agent_*)
 ```
 
 ## Database
 
-The `task` CLI uses SQLite for persistent storage. The database file is created automatically on first invocation at `.ralph/tasks.db` (git-ignored).
+The task CLI uses SQLite for persistent storage. The database file is created automatically at `<git-root>/.ralph/tasks.db` (git-ignored via an auto-generated `.ralph/.gitignore`).
 
 ```sh
-# Override the default database location (optional)
-export RALPH_DB_PATH="/path/to/custom/tasks.db"
-
 # Verify the database
 ralph task plan-status
 ```
 
-The database schema (tables: `tasks`, `task_deps`, `agents`) is created automatically on first invocation. WAL mode is enabled for concurrent read access.
+The database schema (tables: `tasks`, `task_deps`, `agents`) is created automatically on first invocation. WAL mode is enabled for concurrent read access. All write operations use `BEGIN IMMEDIATE` with exponential backoff retry on `SQLITE_BUSY`.
 
 ## Testing
 
@@ -280,17 +303,15 @@ git submodule update --init --recursive
 ### Running tests
 
 ```sh
-# Run all tests
+# Run all tests (parallel, TAP output)
+bats --jobs 4 --tap test/
+
+# Run all tests (sequential, default output)
 bats test/
 
 # Run a specific test file
 bats test/ralph_args.bats
 
-# TAP output for machine consumption
-bats --tap test/
-```
-
-```sh
 # Run task-specific tests
 bats test/task_create.bats
 bats test/task_claim.bats

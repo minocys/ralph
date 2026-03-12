@@ -53,6 +53,7 @@ parse_flags() {
                     echo "Error: --max-iterations requires a number" >&2
                     exit 1
                 fi
+                # shellcheck disable=SC2034  # used by scripts that source this file
                 MAX_ITERATIONS="$2"
                 shift 2
                 ;;
@@ -65,6 +66,7 @@ parse_flags() {
                 shift 2
                 ;;
             --danger)
+                # shellcheck disable=SC2034  # used by scripts that source this file
                 DANGER=true
                 shift
                 ;;

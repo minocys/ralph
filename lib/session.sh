@@ -16,9 +16,13 @@
 # setup_session_core: shared session state initialization.
 # Each mode's loop file wraps this in its own setup_session().
 setup_session_core() {
+    # shellcheck disable=SC2034  # These globals are used by scripts that source this file
     ITERATION=0
+    # shellcheck disable=SC2034
     CURRENT_BRANCH=$(git branch --show-current)
+    # shellcheck disable=SC2034
     TMPFILE=$(mktemp)
+    # shellcheck disable=SC2034
     AGENT_ID=""
 
     TASK_SCRIPT="$SCRIPT_DIR/lib/task"

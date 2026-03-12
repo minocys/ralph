@@ -37,3 +37,5 @@
 | [sandbox-bootstrap.md](sandbox-bootstrap.md) | One-time setup of ralph, sqlite3, and dependencies inside a newly created sandbox |
 | [sandbox-credentials.md](sandbox-credentials.md) | AWS/Bedrock credential resolution and injection into the sandbox environment |
 | [sandbox-signal-handling.md](sandbox-signal-handling.md) | Ctrl+C detach behavior when attached to a Docker sandbox exec session |
+| [task-batch-delete.md](task-batch-delete.md) | Filter-based batch soft-delete for tasks by status, spec ref, and category |
+| [pr20-review-fixes.md](pr20-review-fixes.md) | Fix SQL injection, missing concurrency guards, and code duplication found in SQLite migration PR review |
