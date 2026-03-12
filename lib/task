@@ -608,12 +608,20 @@ SELECT '_SYNC_COUNTS_|' ||
     echo "inserted: ${inserted}, updated: ${updated}, deleted: ${deleted}, skipped (done): ${skipped}"
 }
 cmd_plan_status() {
-    # Reject unknown flags
+    local specs=""
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --specs) specs="$2"; shift 2 ;;
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
+
+    # Build optional spec-slug filter clause
+    local spec_clause=""
+    if [[ -n "$specs" ]]; then
+        spec_clause="AND $(spec_slug_where "t" "$specs")"
+    fi
 
     # Count tasks by status, with "blocked" computed as tasks that have
     # at least one unresolved blocker (blocker status not in done/deleted)
@@ -635,6 +643,7 @@ cmd_plan_status() {
                    ) AS is_blocked
             FROM tasks t
             WHERE $(scope_filter "t")
+              ${spec_clause}
         ) s;
     ")
 
