@@ -2,13 +2,13 @@
 # lib/config.sh — argument parsing, backend detection, and model resolution for ralph.sh
 #
 # Provides:
-#   parse_flags()      — parse per-subcommand flags (--max-iterations, --model, --danger, --help)
+#   parse_flags()      — parse per-subcommand flags (--max-iterations, --model, --danger, --specs, --help)
 #   detect_backend()   — determine active backend (anthropic or bedrock) from env/settings
 #   resolve_model()    — resolve model alias via models.json
 #   subcommand_usage() — print per-subcommand help text
 #
 # Globals set by parse_flags:
-#   MAX_ITERATIONS, DANGER, MODEL_ALIAS
+#   MAX_ITERATIONS, DANGER, MODEL_ALIAS, SPEC_FILTER
 # Globals set by detect_backend:
 #   ACTIVE_BACKEND
 # Globals set by resolve_model:
@@ -32,19 +32,22 @@ subcommand_usage() {
         echo "                             (default: unlimited)"
     fi
     echo "  --model <alias>, -m <alias> Select model by alias (see models.json)"
+    echo "  --specs <patterns>          Filter by spec-slug glob patterns (comma-separated)"
     echo "  --danger                    Enable --dangerously-skip-permissions"
     echo "  --help, -h                  Show this help"
 }
 
 # parse_flags: parse per-subcommand flags (called after MODE is set by ralph.sh)
 # Usage: parse_flags "$@"
-# Sets: MAX_ITERATIONS, DANGER, MODEL_ALIAS
+# Sets: MAX_ITERATIONS, DANGER, MODEL_ALIAS, SPEC_FILTER
 # Uses: MODE (must already be set)
 parse_flags() {
     # -1 means "not explicitly set" — caller applies mode-specific default after
     MAX_ITERATIONS=-1
     DANGER=false
     MODEL_ALIAS=""
+    # shellcheck disable=SC2034  # used by scripts that source this file
+    SPEC_FILTER=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -63,6 +66,15 @@ parse_flags() {
                     exit 1
                 fi
                 MODEL_ALIAS="$2"
+                shift 2
+                ;;
+            --specs)
+                if [[ -z "${2:-}" || "$2" = -* ]]; then
+                    echo "Error: --specs requires a pattern (e.g. --specs 'ui-tabs,auth*')" >&2
+                    exit 1
+                fi
+                # shellcheck disable=SC2034  # used by scripts that source this file
+                SPEC_FILTER="$2"
                 shift 2
                 ;;
             --danger)
