@@ -365,6 +365,13 @@ cmd_plan_sync() {
     # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
     # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":["step text",...]}
 
+    local specs=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --specs) specs="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
 
     # Read all stdin lines into an array
     local lines=()
@@ -530,7 +537,21 @@ INSERT INTO task_deps (task_id, blocked_by)
     done
 
     # Soft-delete orphaned tasks inside the transaction — scoped by repo/branch
+    # When --specs is provided, only delete orphans for spec_refs that match
+    # the patterns. Tasks with non-matching spec_refs are never touched.
     for spec in "${all_spec_refs[@]}"; do
+        if [[ -n "$specs" ]]; then
+            local spec_base="${spec%.md}"
+            local matched=0
+            IFS=',' read -ra _spec_pats <<< "$specs"
+            for _sp in "${_spec_pats[@]}"; do
+                # shellcheck disable=SC2254
+                case "$spec_base" in $_sp) matched=1; break ;; esac
+            done
+            if [[ "$matched" -eq 0 ]]; then
+                continue
+            fi
+        fi
         local esc_spec_del
         esc_spec_del=$(sql_esc "$spec")
 
