@@ -41,7 +41,12 @@ case "\$1" in
         esac
         ;;
     plan-status)
-        echo "plan-status" >> "${TEST_WORK_DIR}/event_log"
+        shift
+        if [ \$# -gt 0 ]; then
+            echo "plan-status \$*" >> "${TEST_WORK_DIR}/event_log"
+        else
+            echo "plan-status" >> "${TEST_WORK_DIR}/event_log"
+        fi
         echo "${plan_status_output}"
         exit ${plan_status_exit}
         ;;
@@ -286,4 +291,93 @@ STUB
     # Should run all iterations, not exit early on sentinel
     assert_output --partial "Reached max iterations: 2"
     refute_output --partial "Ralph completed successfully"
+}
+
+# ---------------------------------------------------------------------------
+# SPEC_FILTER propagation to plan-status and RALPH_SPEC_FILTER export
+# ---------------------------------------------------------------------------
+
+@test "build mode passes --specs to plan-status when SPEC_FILTER is set" {
+    create_task_stub "0 open, 0 active, 3 done, 0 blocked, 0 deleted"
+
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1 --specs 'ui-tabs'
+    assert_success
+    assert_output --partial "All tasks complete. Exiting loop."
+
+    # Verify plan-status was called with --specs ui-tabs
+    [ -f "$TEST_WORK_DIR/event_log" ]
+    run cat "$TEST_WORK_DIR/event_log"
+    assert_line --index 0 "plan-status --specs ui-tabs"
+}
+
+@test "build mode does not pass --specs to plan-status when SPEC_FILTER is empty" {
+    create_task_stub "0 open, 0 active, 3 done, 0 blocked, 0 deleted"
+
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
+    assert_success
+    assert_output --partial "All tasks complete. Exiting loop."
+
+    # Verify plan-status was called without --specs
+    [ -f "$TEST_WORK_DIR/event_log" ]
+    run cat "$TEST_WORK_DIR/event_log"
+    assert_line --index 0 "plan-status"
+}
+
+@test "build mode exports RALPH_SPEC_FILTER to claude process when --specs is set" {
+    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","s":"open"}'
+
+    # Override claude stub to capture RALPH_SPEC_FILTER
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "${RALPH_SPEC_FILTER:-UNSET}" > "$TEST_WORK_DIR/spec_filter_env.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1 --specs 'ui-tabs,auth*'
+    assert_success
+
+    [ -f "$TEST_WORK_DIR/spec_filter_env.log" ]
+    run cat "$TEST_WORK_DIR/spec_filter_env.log"
+    assert_output "ui-tabs,auth*"
+}
+
+@test "build mode does not export RALPH_SPEC_FILTER when --specs is not set" {
+    create_task_stub "2 open, 0 active, 0 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","s":"open"}'
+
+    # Override claude stub to capture RALPH_SPEC_FILTER
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "${RALPH_SPEC_FILTER:-UNSET}" > "$TEST_WORK_DIR/spec_filter_env.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"working..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1
+    assert_success
+
+    [ -f "$TEST_WORK_DIR/spec_filter_env.log" ]
+    run cat "$TEST_WORK_DIR/spec_filter_env.log"
+    assert_output "UNSET"
+}
+
+@test "build mode passes --specs through both pre and post plan-status checks" {
+    create_task_stub "2 open, 1 active, 0 done, 0 blocked, 0 deleted" 0 \
+        '{"id":"t1","t":"Task one","s":"open","p":0}' 0 \
+        ""
+
+    run "$TEST_WORK_DIR/ralph.sh" build -n 1 --specs 'auth*'
+    assert_success
+
+    # Both pre-invocation and post-invocation plan-status calls should include --specs
+    [ -f "$TEST_WORK_DIR/event_log" ]
+    run cat "$TEST_WORK_DIR/event_log"
+    assert_line --index 0 "plan-status --specs auth*"
+    assert_line --index 1 "plan-status --specs auth*"
 }

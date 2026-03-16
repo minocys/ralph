@@ -204,6 +204,31 @@ scope_filter() {
     echo "${alias}.scope_repo = '${ESC_SCOPE_REPO}' AND ${alias}.scope_branch = '${ESC_SCOPE_BRANCH}'"
 }
 
+# spec_slug_where: generate SQL WHERE fragment that filters tasks by spec-slug.
+# The spec-slug is the portion of the task's slug before the first '/'.
+# Accepts a comma-separated list of glob patterns and a table alias.
+# Each pattern is matched via SQLite GLOB against the extracted spec-slug.
+# Returns empty string when patterns is empty (no filtering).
+# Usage: spec_slug_where "t" "ui-tabs,auth*"
+spec_slug_where() {
+    local alias="$1" patterns="$2"
+    [[ -z "$patterns" ]] && return 0
+
+    local conditions="" first=true
+    IFS=',' read -ra pats <<< "$patterns"
+    for pat in "${pats[@]}"; do
+        local esc_pat
+        esc_pat=$(sql_esc "$pat")
+        if $first; then
+            conditions="substr(${alias}.slug, 1, instr(${alias}.slug, '/') - 1) GLOB '${esc_pat}'"
+            first=false
+        else
+            conditions+=" OR substr(${alias}.slug, 1, instr(${alias}.slug, '/') - 1) GLOB '${esc_pat}'"
+        fi
+    done
+    echo "(${conditions})"
+}
+
 # slug_uuid_subq: generate subquery that resolves slug to UUID within current scope
 slug_uuid_subq() {
     local esc_slug="$1"
@@ -340,6 +365,13 @@ cmd_plan_sync() {
     # Read JSONL from stdin, upsert tasks into the database using the diff algorithm
     # Each line: {"id":"...","t":"title","d":"desc","p":N,"cat":"...","spec":"spec_ref","ref":"...","deps":["id1"],"steps":["step text",...]}
 
+    local specs=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --specs) specs="$2"; shift 2 ;;
+            *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+        esac
+    done
 
     # Read all stdin lines into an array
     local lines=()
@@ -505,7 +537,21 @@ INSERT INTO task_deps (task_id, blocked_by)
     done
 
     # Soft-delete orphaned tasks inside the transaction — scoped by repo/branch
+    # When --specs is provided, only delete orphans for spec_refs that match
+    # the patterns. Tasks with non-matching spec_refs are never touched.
     for spec in "${all_spec_refs[@]}"; do
+        if [[ -n "$specs" ]]; then
+            local spec_base="${spec%.md}"
+            local matched=0
+            IFS=',' read -ra _spec_pats <<< "$specs"
+            for _sp in "${_spec_pats[@]}"; do
+                # shellcheck disable=SC2254
+                case "$spec_base" in $_sp) matched=1; break ;; esac
+            done
+            if [[ "$matched" -eq 0 ]]; then
+                continue
+            fi
+        fi
         local esc_spec_del
         esc_spec_del=$(sql_esc "$spec")
 
@@ -583,12 +629,20 @@ SELECT '_SYNC_COUNTS_|' ||
     echo "inserted: ${inserted}, updated: ${updated}, deleted: ${deleted}, skipped (done): ${skipped}"
 }
 cmd_plan_status() {
-    # Reject unknown flags
+    local specs=""
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --specs) specs="$2"; shift 2 ;;
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
+
+    # Build optional spec-slug filter clause
+    local spec_clause=""
+    if [[ -n "$specs" ]]; then
+        spec_clause="AND $(spec_slug_where "t" "$specs")"
+    fi
 
     # Count tasks by status, with "blocked" computed as tasks that have
     # at least one unresolved blocker (blocker status not in done/deleted)
@@ -610,6 +664,7 @@ cmd_plan_status() {
                    ) AS is_blocked
             FROM tasks t
             WHERE $(scope_filter "t")
+              ${spec_clause}
         ) s;
     ")
 
@@ -620,13 +675,21 @@ cmd_plan_status() {
 }
 cmd_peek() {
     local limit=5
+    local specs=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -n) limit="$2"; shift 2 ;;
+            --specs) specs="$2"; shift 2 ;;
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
+
+    # Build optional spec-slug filter clause
+    local spec_clause=""
+    if [[ -n "$specs" ]]; then
+        spec_clause="AND $(spec_slug_where "t" "$specs")"
+    fi
 
     # Query 1: Claimable tasks — open + unblocked, or active with expired lease (scoped)
     local claimable
@@ -652,6 +715,7 @@ cmd_peek() {
               WHERE td.task_id = t.id
                 AND blocker.status NOT IN ('done', 'deleted')
           )
+          ${spec_clause}
         ORDER BY t.priority ASC, t.created_at ASC
         LIMIT ${limit};
     ")
@@ -676,6 +740,7 @@ cmd_peek() {
         WHERE $(scope_filter "t")
           AND t.status = 'active'
           AND t.lease_expires_at >= datetime('now')
+          ${spec_clause}
         ORDER BY t.priority ASC, t.created_at ASC;
     ")
 
