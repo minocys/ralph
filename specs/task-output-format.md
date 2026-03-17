@@ -35,7 +35,6 @@ steps:
 - `ralph task list --all` must show all tasks including deleted (full DAG), using the human-readable table format by default (same columns as `ralph task list`: ID, P, S, CAT, TITLE, AGENT)
 - `ralph task list --all --markdown` must output markdown-KV format for machine consumption
 - Sort order is unchanged: priority ASC, then created_at ASC
-- `plan-export` has been removed — `ralph task list --all` is the replacement (see `specs/deprecate-plan-export.md`)
 
 ### peek
 
