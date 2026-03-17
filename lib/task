@@ -685,6 +685,11 @@ cmd_peek() {
         esac
     done
 
+    # Fall back to RALPH_SPEC_FILTER env var when --specs not provided
+    if [[ -z "$specs" && -n "${RALPH_SPEC_FILTER:-}" ]]; then
+        specs="$RALPH_SPEC_FILTER"
+    fi
+
     # Build optional spec-slug filter clause
     local spec_clause=""
     if [[ -n "$specs" ]]; then
