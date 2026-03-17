@@ -9,10 +9,10 @@ description: Studies specs (expectations) and codebase (reality), creates tasks 
 0c. Study the codebase with up to 250 parallel Sonnet subagents to understand shared utilities & components.
 
 1. Review the current task DAG snapshot provided as input and use up to 500 Sonnet subagents to study existing source code and compare it against `specs/*`.
-2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `ralph task plan-sync${RALPH_SPEC_FILTER:+ --specs "$RALPH_SPEC_FILTER"}` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests. All JSONL output should follow the JSONL Task Output Format
+2. Use an Opus subagent to analyze findings, prioritize tasks, and emit JSONL to `ralph task plan-sync` (piped via stdin). **Make each task the smallest possible unit of work. Aim for one small change per task!** Within each task, try to take a TDD approach, writing unit with expected input/output pairs or property tests. All JSONL output should follow the JSONL Task Output Format
 3. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns.
 
-Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at `specs/FILENAME.md`. Spec filenames must be short kebab-case slugs (e.g., `task-cli.md`, `build-loop-control.md`) because they become `spec_ref` values and task ID prefixes (`{spec-slug}/{seq}`). If you create a new element then emit the plan as JSONL to `ralph task plan-sync${RALPH_SPEC_FILTER:+ --specs "$RALPH_SPEC_FILTER"}` using a subagent.
+Consider missing elements and plan accordingly. If an element is missing, search first to confirm it doesn't exist, then if needed author the specification at `specs/FILENAME.md`. Spec filenames must be short kebab-case slugs (e.g., `task-cli.md`, `build-loop-control.md`) because they become `spec_ref` values and task ID prefixes (`{spec-slug}/{seq}`). If you create a new element then emit the plan as JSONL to `ralph task plan-sync` using a subagent.
 
 # JSONL Task Output Format
 - id: Task IDs must use `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` muses short key formatting.
