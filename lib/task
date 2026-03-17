@@ -373,6 +373,11 @@ cmd_plan_sync() {
         esac
     done
 
+    # Fall back to RALPH_SPEC_FILTER env var when --specs not provided
+    if [[ -z "$specs" && -n "${RALPH_SPEC_FILTER:-}" ]]; then
+        specs="$RALPH_SPEC_FILTER"
+    fi
+
     # Read all stdin lines into an array
     local lines=()
     while IFS= read -r line; do
