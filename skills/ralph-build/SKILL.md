@@ -5,7 +5,7 @@ description: Ralph build loop
 0a. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
 0b. Study the highest priority tasks. `status: open` are claimable. `status: active` show what other agents are working on.
 
-1. Your task is to implement functionality per the specifications using parallel subagnets. Follow the task list and choose the most important task to address. Claim the selected task via `ralph task claim <id>`. If no claimable tasks remain, stop gracefully.
+1. Your task is to implement functionality per the specifications using parallel subagnets. Follow the task list and choose the most important task to address — consider what active tasks and their assignees indicate about parallel work in progress to avoid redundant work areas, then pick the task that best advances the project. Claim the selected task via `ralph task claim <id>`. If no claimable tasks remain, stop gracefully.
 2. If `ralph task claim <id>` exits with code 2 (task no longer eligible — already claimed by another agent, blocked, etc.), select the next best task from the snapshot and retry the claim. Repeat until a claim succeeds or no claimable tasks remain; if none remain, stop gracefully.
 3. Review `blocker_results` from the claim output — if it contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
 4. Search the codebase with Sonnet subagents before implementing — confirm before assuming missing.
