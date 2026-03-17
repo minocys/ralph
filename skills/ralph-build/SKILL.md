@@ -16,7 +16,7 @@ description: Ralph build loop
 9. **IMPORTANT**: DO NOT START A NEW TASK.
 
 ## Tasks
-!`ralph task peek -n 10${RALPH_SPEC_FILTER:+ --specs "$RALPH_SPEC_FILTER"}`
+!`ralph task peek -n 10`
 
 ## Rules
 
