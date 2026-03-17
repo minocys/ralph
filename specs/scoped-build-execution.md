@@ -6,10 +6,10 @@ When `ralph build --specs <patterns>` is invoked, the build loop only presents m
 
 ### Build loop behavior
 
-- When `SPEC_FILTER` is non-empty, the build loop passes `--specs "$SPEC_FILTER"` to both `ralph task peek` and `ralph task plan-status`
-- The dynamic context injection in the build skill's SKILL.md changes from `` !`ralph task peek -n 10` `` to `` !`ralph task peek -n 10 --specs "$RALPH_SPEC_FILTER"` `` when the filter is active
-- `RALPH_SPEC_FILTER` is exported as an environment variable by the build loop so that Claude Code's backtick preprocessing can access it during skill expansion
-- When `SPEC_FILTER` is empty, `RALPH_SPEC_FILTER` is either unset or empty, and the peek command runs without `--specs` (unchanged behavior)
+- When `SPEC_FILTER` is non-empty, the build loop exports `RALPH_SPEC_FILTER` as an environment variable and passes `--specs "$SPEC_FILTER"` to `ralph task plan-status` (direct bash invocation)
+- The dynamic context injection in the build skill's SKILL.md is always `` !`ralph task peek -n 10` `` — the peek command reads `RALPH_SPEC_FILTER` from the environment internally, so no bash parameter expansion is needed in the skill template
+- When `SPEC_FILTER` is empty, `RALPH_SPEC_FILTER` is unset, and peek returns all tasks (unchanged behavior)
+- SKILL.md must not use `${RALPH_SPEC_FILTER:+...}` or any bash variable expansion — Claude Code's backtick preprocessor does not support shell variable expansion syntax
 
 ### Pre-invocation status check
 
@@ -37,8 +37,8 @@ When `ralph build --specs <patterns>` is invoked, the build loop only presents m
 ## Constraints
 
 - The `--specs` filter is fixed for the lifetime of a build loop invocation — it does not change between iterations
-- `RALPH_SPEC_FILTER` must be available in the Claude process environment for backtick preprocessing in SKILL.md
-- The build skill SKILL.md must handle both filtered and unfiltered cases (when `RALPH_SPEC_FILTER` is empty, `--specs` is omitted from the peek command)
+- `RALPH_SPEC_FILTER` must be available in the Claude process environment so the task CLI can read it as a fallback for `--specs`
+- The task CLI commands (`peek`, `plan-status`) handle both filtered and unfiltered cases transparently based on the environment variable
 
 ## Out of Scope
 

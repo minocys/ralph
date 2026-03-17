@@ -12,7 +12,7 @@ The plan skill loads its own task DAG via `` !`ralph task list --all --markdown`
 
 ### Task State Writing
 
-- The planner must write task state by emitting JSONL to stdin of `ralph task plan-sync`
+- The planner must write task state by emitting JSONL to stdin of `ralph task plan-sync` — when `RALPH_SPEC_FILTER` is set in the environment, `plan-sync` automatically scopes orphan deletion to matching specs without needing `--specs` in the command
 - The planner must assign stable task IDs in `{spec-slug}/{seq}` format (e.g., `task-cli/01`) where `spec-slug` matches the spec filename without the `.md` extension
 - The planner must set `spec_ref` on every task to the source spec filename (e.g., `task-cli.md`)
 - The planner must express dependencies between tasks using `deps` when task B requires task A's output

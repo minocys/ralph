@@ -6,7 +6,7 @@ When `ralph plan --specs <patterns>` is invoked, the planner reads all specs for
 
 ### Plan loop behavior
 
-- When `SPEC_FILTER` is non-empty, the plan loop passes it to `plan-sync` as `--specs "$SPEC_FILTER"`
+- When `SPEC_FILTER` is non-empty, the plan loop exports `RALPH_SPEC_FILTER` as an environment variable — `plan-sync` reads it from the environment as a fallback when `--specs` is not passed explicitly
 - The plan loop does not filter which specs the planner reads — the `COMMAND` variable remains `/ralph-plan` unchanged
 - The plan skill's dynamic context injection (`` !`ralph task list --all --markdown` ``) is also unchanged — the planner sees the full task DAG for dependency awareness
 
@@ -16,10 +16,11 @@ When `ralph plan --specs <patterns>` is invoked, the planner reads all specs for
 - After gap analysis, the planner emits JSONL only for tasks whose `spec_ref` matches the `--specs` patterns
 - The planner must not emit tasks for unmatched specs, even if gaps are found — those are left for a future unfiltered run
 - If the planner creates a new spec file during execution, and the new spec's slug matches a `--specs` pattern, it may emit tasks for that new spec
+- The plan skill's SKILL.md references `ralph task plan-sync` without any bash variable expansion — the `plan-sync` command reads `RALPH_SPEC_FILTER` from the environment automatically, so the skill prompt uses the plain command name
 
 ### plan-sync scoped orphan deletion
 
-- `plan-sync` receives `--specs <patterns>` from the plan loop
+- `plan-sync` resolves its spec patterns from either the `--specs` flag or the `RALPH_SPEC_FILTER` environment variable (flag takes precedence)
 - Orphan deletion candidates are restricted to tasks whose `spec_ref` matches at least one pattern AND whose `spec_ref` appears in the input JSONL
 - Tasks whose `spec_ref` does not match any pattern are immune to orphan deletion
 - This is the critical safety mechanism: a targeted plan run must not destroy tasks outside its scope

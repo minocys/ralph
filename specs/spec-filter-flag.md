@@ -21,9 +21,11 @@ A `--specs` flag for `ralph plan` and `ralph build` that accepts comma-separated
 
 ### Propagation
 
-- The plan loop passes `SPEC_FILTER` to `ralph task plan-sync` via `--specs "$SPEC_FILTER"` when non-empty
-- The build loop passes `SPEC_FILTER` to `ralph task peek` and `ralph task plan-status` via `--specs "$SPEC_FILTER"` when non-empty
+- The plan and build loops export `RALPH_SPEC_FILTER` as an environment variable when `SPEC_FILTER` is non-empty; unset it otherwise
+- The task CLI subcommands (`peek`, `plan-status`, `plan-sync`) read `RALPH_SPEC_FILTER` from the environment as a fallback when `--specs` is not passed on the command line — an explicit `--specs` flag always takes precedence over the environment variable
+- The build loop passes `SPEC_FILTER` to `ralph task plan-status` via `--specs "$SPEC_FILTER"` when non-empty (direct bash invocation, not via skill)
 - The `COMMAND` variable (the skill prompt) is unchanged — `--specs` does not alter the skill text itself
+- SKILL.md files must not use bash parameter expansion (`${RALPH_SPEC_FILTER:+...}`) — Claude Code's backtick preprocessor does not support shell variable expansion syntax within `` !`command` `` blocks
 
 ## Constraints
 
