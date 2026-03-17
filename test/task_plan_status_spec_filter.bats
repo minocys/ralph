@@ -158,3 +158,71 @@ load test_helper
     assert_success
     [[ "$output" == *"3 open"* ]]  # ui-tabs, ui-modal, db-migrate
 }
+
+# ---------------------------------------------------------------------------
+# RALPH_SPEC_FILTER env var fallback
+# ---------------------------------------------------------------------------
+@test "plan-status uses RALPH_SPEC_FILTER env var when --specs is not provided" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/02" "Tab styles" -p 2
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+
+    RALPH_SPEC_FILTER="ui-tabs" run "$SCRIPT_DIR/lib/task" plan-status
+    assert_success
+    [[ "$output" == *"2 open"* ]]
+    [[ "$output" == *"0 active"* ]]
+    [[ "$output" == *"0 done"* ]]
+    [[ "$output" == *"0 blocked"* ]]
+    [[ "$output" == *"0 deleted"* ]]
+}
+
+@test "plan-status --specs takes precedence over RALPH_SPEC_FILTER env var" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+    "$SCRIPT_DIR/lib/task" create "db-migrate/01" "Migration" -p 1
+
+    RALPH_SPEC_FILTER="ui-tabs" run "$SCRIPT_DIR/lib/task" plan-status --specs "auth-oauth"
+    assert_success
+    # --specs wins: only auth-oauth counted
+    [[ "$output" == *"1 open"* ]]
+}
+
+@test "plan-status without --specs and without RALPH_SPEC_FILTER counts all tasks" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+    "$SCRIPT_DIR/lib/task" create "db-migrate/01" "Migration" -p 1
+
+    unset RALPH_SPEC_FILTER
+    run "$SCRIPT_DIR/lib/task" plan-status
+    assert_success
+    [[ "$output" == *"3 open"* ]]
+}
+
+@test "plan-status ignores empty RALPH_SPEC_FILTER and counts all tasks" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+
+    RALPH_SPEC_FILTER="" run "$SCRIPT_DIR/lib/task" plan-status
+    assert_success
+    [[ "$output" == *"2 open"* ]]
+}
+
+@test "plan-status RALPH_SPEC_FILTER with glob wildcard works" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "ui-modal/01" "Modal" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+
+    RALPH_SPEC_FILTER="ui-*" run "$SCRIPT_DIR/lib/task" plan-status
+    assert_success
+    [[ "$output" == *"2 open"* ]]
+}
+
+@test "plan-status RALPH_SPEC_FILTER with comma-separated patterns works" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+    "$SCRIPT_DIR/lib/task" create "db-migrate/01" "Migration" -p 1
+
+    RALPH_SPEC_FILTER="ui-tabs,auth-oauth" run "$SCRIPT_DIR/lib/task" plan-status
+    assert_success
+    [[ "$output" == *"2 open"* ]]
+}
