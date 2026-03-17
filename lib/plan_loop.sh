@@ -8,7 +8,10 @@
 #
 # Globals used (must be set before calling run_plan_loop):
 #   MODE, COMMAND, MAX_ITERATIONS, ITERATION, DANGER, RESOLVED_MODEL,
-#   TASK_SCRIPT, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID
+#   TASK_SCRIPT, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID,
+#   SPEC_FILTER
+# Exports set by run_plan_loop:
+#   RALPH_SPEC_FILTER (when SPEC_FILTER is non-empty; unset otherwise)
 #
 # Note: INTERRUPTED and PIPELINE_PID are modified by signal handlers in
 # lib/signals.sh and must remain global (not declared local here).
@@ -25,6 +28,13 @@ setup_session() {
 # Runs exactly MAX_ITERATIONS times (default 1). No crash-safety fallback
 # needed — the planner does not claim tasks.
 run_plan_loop() {
+    # Export RALPH_SPEC_FILTER for Claude skill preprocessing (backtick expansion in SKILL.md)
+    if [ -n "${SPEC_FILTER:-}" ]; then
+        export RALPH_SPEC_FILTER="$SPEC_FILTER"
+    else
+        unset RALPH_SPEC_FILTER 2>/dev/null || true
+    fi
+
     for (( i=1; i<=MAX_ITERATIONS; i++ )); do
         # Build Claude argument list for this iteration
         local CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)

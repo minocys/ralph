@@ -14,7 +14,10 @@
 #   RALPH_TASK_SCRIPT, RALPH_AGENT_ID
 # Globals used (must be set before calling run_build_loop):
 #   MODE, COMMAND, MAX_ITERATIONS, ITERATION, DANGER, RESOLVED_MODEL,
-#   TASK_SCRIPT, AGENT_ID, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID
+#   TASK_SCRIPT, AGENT_ID, TMPFILE, JQ_FILTER, INTERRUPTED, PIPELINE_PID,
+#   SPEC_FILTER
+# Exports set by run_build_loop:
+#   RALPH_SPEC_FILTER (when SPEC_FILTER is non-empty; unset otherwise)
 #
 # Note: INTERRUPTED and PIPELINE_PID are modified by signal handlers in
 # lib/signals.sh and must remain global (not declared local here).
@@ -43,8 +46,11 @@ check_all_tasks_complete() {
     if [ ! -x "$TASK_SCRIPT" ]; then
         return 1
     fi
-    local PLAN_STATUS
-    PLAN_STATUS=$("$TASK_SCRIPT" plan-status 2>/dev/null) || return 1
+    local PLAN_STATUS plan_status_args=(plan-status)
+    if [ -n "${SPEC_FILTER:-}" ]; then
+        plan_status_args+=(--specs "$SPEC_FILTER")
+    fi
+    PLAN_STATUS=$("$TASK_SCRIPT" "${plan_status_args[@]}" 2>/dev/null) || return 1
     if [ -z "$PLAN_STATUS" ]; then
         return 1
     fi
@@ -61,6 +67,13 @@ check_all_tasks_complete() {
 # Pre-invocation completion check, Claude invocation, crash-safety fallback,
 # and post-invocation completion check for loop termination.
 run_build_loop() {
+    # Export RALPH_SPEC_FILTER for Claude skill preprocessing (backtick expansion in SKILL.md)
+    if [ -n "${SPEC_FILTER:-}" ]; then
+        export RALPH_SPEC_FILTER="$SPEC_FILTER"
+    else
+        unset RALPH_SPEC_FILTER 2>/dev/null || true
+    fi
+
     while true; do
         if [ "$MAX_ITERATIONS" -gt 0 ] && [ "$ITERATION" -ge "$MAX_ITERATIONS" ]; then
             echo "Reached max iterations: $MAX_ITERATIONS"
