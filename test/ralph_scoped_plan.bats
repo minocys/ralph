@@ -262,7 +262,44 @@ STUB
 # ---------------------------------------------------------------------------
 
 @test "scoped plan exports same RALPH_SPEC_FILTER across iterations" {
-    create_task_stub ""
+    # Task stub returns a different plan-status on each call so the
+    # change-detection logic does not trigger an early exit.
+    printf '%s' "" > "$TEST_WORK_DIR/.list_all_data"
+
+    cat > "$TEST_WORK_DIR/lib/task" <<STUB
+#!/bin/bash
+echo "\$*" >> "${TEST_WORK_DIR}/task_calls.log"
+case "\$1" in
+    agent)
+        case "\$2" in
+            register) echo "a1b2"; exit 0 ;;
+            deregister) exit 0 ;;
+            *) exit 0 ;;
+        esac
+        ;;
+    list)
+        if echo "\$*" | grep -q -- '--all'; then
+            LIST_DATA=\$(cat "${TEST_WORK_DIR}/.list_all_data")
+            if [ -n "\$LIST_DATA" ]; then echo "\$LIST_DATA"; fi
+        fi
+        exit 0
+        ;;
+    plan-status)
+        # Increment a counter so each call returns a different status,
+        # preventing the plan loop from exiting early.
+        COUNTER_FILE="${TEST_WORK_DIR}/.plan_status_counter"
+        COUNT=\$(cat "\$COUNTER_FILE" 2>/dev/null || echo 0)
+        COUNT=\$((COUNT + 1))
+        echo "\$COUNT" > "\$COUNTER_FILE"
+        echo "\$COUNT open, 0 active, 0 done, 0 blocked, 0 deleted"
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+STUB
+    chmod +x "$TEST_WORK_DIR/lib/task"
 
     cat > "$STUB_DIR/claude" <<'STUB'
 #!/bin/bash
