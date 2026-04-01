@@ -24,9 +24,23 @@ setup_session() {
     setup_session_core
 }
 
+# get_plan_status: capture current plan-status output for change detection.
+# Returns empty string if TASK_SCRIPT is unavailable or the command fails.
+get_plan_status() {
+    if [ ! -x "$TASK_SCRIPT" ]; then
+        return
+    fi
+    local args=(plan-status)
+    if [ -n "${SPEC_FILTER:-}" ]; then
+        args+=(--specs "$SPEC_FILTER")
+    fi
+    "$TASK_SCRIPT" "${args[@]}" 2>/dev/null || true
+}
+
 # run_plan_loop: execute the plan-mode iteration loop
-# Runs exactly MAX_ITERATIONS times (default 1). No crash-safety fallback
-# needed — the planner does not claim tasks.
+# Runs up to MAX_ITERATIONS times (default 1), exiting early when an
+# iteration produces no plan changes.  No crash-safety fallback needed —
+# the planner does not claim tasks.
 run_plan_loop() {
     # Export RALPH_SPEC_FILTER for Claude skill preprocessing (backtick expansion in SKILL.md)
     if [ -n "${SPEC_FILTER:-}" ]; then
@@ -36,6 +50,10 @@ run_plan_loop() {
     fi
 
     for (( i=1; i<=MAX_ITERATIONS; i++ )); do
+        # Snapshot task state before invocation (for change detection)
+        local pre_status
+        pre_status=$(get_plan_status)
+
         # Build Claude argument list for this iteration
         local CLAUDE_ARGS=(-p "$COMMAND" --output-format=stream-json --verbose)
 
@@ -61,8 +79,20 @@ run_plan_loop() {
             exit 130
         fi
 
+        # Post-invocation change detection: if plan-status unchanged, planning is done
+        local post_status
+        post_status=$(get_plan_status)
+        if [ -n "$pre_status" ] && [ "$post_status" = "$pre_status" ]; then
+            echo "No plan changes detected. Exiting loop."
+            break
+        fi
+
         ITERATION=$((ITERATION + 1))
         printf "\n\n======================== LOOP %d ========================\n" "$ITERATION"
     done
-    echo "Reached max iterations: $MAX_ITERATIONS"
+
+    # Only print "Reached max iterations" when the for-loop ran to completion
+    if [ "$i" -gt "$MAX_ITERATIONS" ]; then
+        echo "Reached max iterations: $MAX_ITERATIONS"
+    fi
 }

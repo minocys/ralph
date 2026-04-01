@@ -132,3 +132,118 @@ status: open'
     # Should NOT contain any task data
     refute_output --partial '## Task'
 }
+
+# ---------------------------------------------------------------------------
+# Plan-mode early exit tests
+# ---------------------------------------------------------------------------
+
+@test "plan mode exits early when plan-status is unchanged" {
+    create_task_stub ""
+
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 5
+    assert_success
+
+    # plan-status is static → first iteration detects no change → early exit
+    assert_output --partial 'No plan changes detected. Exiting loop.'
+    refute_output --partial 'Reached max iterations'
+
+    # Claude should have been invoked exactly once
+    [ -f "$TEST_WORK_DIR/claude_args.txt" ]
+}
+
+@test "plan mode continues when plan-status changes between iterations" {
+    # Task stub increments a counter so each plan-status call returns a
+    # different value, preventing early exit.
+    printf '' > "$TEST_WORK_DIR/.list_all_data"
+    cat > "$TEST_WORK_DIR/lib/task" <<STUB
+#!/bin/bash
+echo "\$*" >> "${TEST_WORK_DIR}/task_calls.log"
+case "\$1" in
+    agent)
+        case "\$2" in
+            register) echo "a1b2"; exit 0 ;;
+            deregister) exit 0 ;;
+            *) exit 0 ;;
+        esac
+        ;;
+    list)
+        if echo "\$*" | grep -q -- '--all'; then
+            LIST_DATA=\$(cat "${TEST_WORK_DIR}/.list_all_data")
+            if [ -n "\$LIST_DATA" ]; then echo "\$LIST_DATA"; fi
+        fi
+        exit 0
+        ;;
+    plan-status)
+        COUNTER_FILE="${TEST_WORK_DIR}/.plan_status_counter"
+        COUNT=\$(cat "\$COUNTER_FILE" 2>/dev/null || echo 0)
+        COUNT=\$((COUNT + 1))
+        echo "\$COUNT" > "\$COUNTER_FILE"
+        echo "\$COUNT open, 0 active, 0 done, 0 blocked, 0 deleted"
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+STUB
+    chmod +x "$TEST_WORK_DIR/lib/task"
+
+    # Track claude invocations
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "invoked" >> "$TEST_WORK_DIR/claude_invocations.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 3
+    assert_success
+
+    # All 3 iterations should run (plan-status changes every call)
+    assert_output --partial 'Reached max iterations: 3'
+    refute_output --partial 'No plan changes detected'
+
+    local invoke_count
+    invoke_count=$(wc -l < "$TEST_WORK_DIR/claude_invocations.log")
+    [ "$invoke_count" -eq 3 ]
+}
+
+@test "plan mode skips early exit when task script is missing" {
+    # Remove the task stub entirely
+    rm -f "$TEST_WORK_DIR/lib/task"
+
+    # Track claude invocations
+    cat > "$STUB_DIR/claude" <<'STUB'
+#!/bin/bash
+echo "invoked" >> "$TEST_WORK_DIR/claude_invocations.log"
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"planning..."}]}}'
+echo '{"type":"result","subtype":"success","total_cost_usd":0.01,"num_turns":1}'
+exit 0
+STUB
+    chmod +x "$STUB_DIR/claude"
+
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 3
+    assert_success
+
+    # All 3 iterations should run (no task script → no change detection)
+    assert_output --partial 'Reached max iterations: 3'
+    refute_output --partial 'No plan changes detected'
+
+    local invoke_count
+    invoke_count=$(wc -l < "$TEST_WORK_DIR/claude_invocations.log")
+    [ "$invoke_count" -eq 3 ]
+}
+
+@test "plan mode passes --specs to plan-status for early exit check" {
+    create_task_stub ""
+
+    run "$TEST_WORK_DIR/ralph.sh" plan -n 2 --specs 'ui-tabs'
+    assert_success
+
+    # Verify plan-status was called with --specs
+    [ -f "$TEST_WORK_DIR/task_calls.log" ]
+    run grep 'plan-status' "$TEST_WORK_DIR/task_calls.log"
+    assert_output --partial 'plan-status --specs ui-tabs'
+}
