@@ -22,7 +22,10 @@ export SCRIPT_DIR
 
 # usage: print top-level help and exit
 usage() {
-    echo "Usage: ralph <command> [options]"
+    echo "Usage: ralph [options] <command> [command-options]"
+    echo ""
+    echo "Options:"
+    echo "  --docker  Run the command inside a Docker sandbox"
     echo ""
     echo "Commands:"
     echo "  plan   Run the planner (study specs, create tasks)"
@@ -30,6 +33,26 @@ usage() {
     echo "  task   Interact with the task backlog"
     echo ""
     echo "Run 'ralph <command> --help' for command-specific options."
+}
+
+# docker_usage: print --docker-specific help and exit
+docker_usage() {
+    echo "Usage: ralph --docker <command> [command-options]"
+    echo ""
+    echo "Run a ralph command inside a Docker sandbox."
+    echo ""
+    echo "The sandbox is automatically created and managed per repo+branch."
+    echo "All arguments after --docker are forwarded to the sandboxed ralph."
+    echo ""
+    echo "Commands:"
+    echo "  plan   Run the planner inside the sandbox"
+    echo "  build  Run the builder inside the sandbox"
+    echo "  task   Interact with the task backlog inside the sandbox"
+    echo ""
+    echo "Examples:"
+    echo "  ralph --docker build -n 3          # Run 3 build iterations in sandbox"
+    echo "  ralph --docker plan --model opus    # Plan with specific model in sandbox"
+    echo "  ralph --docker task list            # List tasks from sandbox"
 }
 
 # Detect subcommand from first positional argument
@@ -108,6 +131,70 @@ case "$SUBCMD" in
         setup_signal_handlers
         print_banner
         run_build_loop
+        ;;
+
+    # Docker sandbox dispatch
+    --docker)
+        shift
+        # --docker --help: print docker-specific usage
+        if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+            docker_usage
+            exit 0
+        fi
+        # --docker with no subcommand: error
+        if [ -z "${1:-}" ]; then
+            echo "Error: --docker requires a subcommand (e.g. ralph --docker plan)" >&2
+            echo "Run 'ralph --docker --help' for usage" >&2
+            exit 1
+        fi
+        # Preflight: verify docker CLI is available
+        if ! command -v docker >/dev/null 2>&1; then
+            echo "Error: docker CLI is required but not found in PATH" >&2
+            echo "Install Docker Desktop (v4.58+) from https://www.docker.com/products/docker-desktop/" >&2
+            exit 1
+        fi
+        # Source docker helpers
+        # shellcheck source=lib/docker.sh
+        . "$SCRIPT_DIR/lib/docker.sh"
+        # Derive sandbox name from repo+branch
+        SANDBOX_NAME="$(derive_sandbox_name)"
+        # Check sandbox state
+        SANDBOX_STATE="$(check_sandbox_state "$SANDBOX_NAME")"
+        case "$SANDBOX_STATE" in
+            running)
+                # Sandbox exists and is running — exec directly
+                ;;
+            stopped)
+                # Sandbox exists but stopped — start it
+                docker sandbox run "$SANDBOX_NAME"
+                ;;
+            "")
+                # No sandbox — create, start, then bootstrap
+                TARGET_REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+                    echo "Error: not inside a git repository" >&2
+                    exit 1
+                }
+                sandbox_create "$SANDBOX_NAME" "$TARGET_REPO_DIR" "$SCRIPT_DIR"
+                docker sandbox run "$SANDBOX_NAME"
+                ;;
+        esac
+        # Bootstrap sandbox if needed (idempotent — checks marker)
+        sandbox_bootstrap "$SANDBOX_NAME" "$SCRIPT_DIR" || exit $?
+        # Source config.sh for detect_backend
+        # shellcheck source=lib/config.sh
+        . "$SCRIPT_DIR/lib/config.sh"
+        detect_backend
+        # Resolve AWS credentials if backend is Bedrock
+        if [ "$ACTIVE_BACKEND" = "bedrock" ]; then
+            resolve_aws_credentials || exit $?
+        fi
+        # Build -e flags for credential/env passthrough
+        CRED_FLAGS=()
+        while IFS= read -r flag; do
+            [ -n "$flag" ] && CRED_FLAGS+=("$flag")
+        done < <(build_credential_flags)
+        # Exec ralph inside the sandbox, forwarding all remaining args
+        exec docker sandbox exec -it "${CRED_FLAGS[@]}" "$SANDBOX_NAME" ralph "$@"
         ;;
 
     # Help

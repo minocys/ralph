@@ -100,18 +100,41 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# No Docker references in active code
+# No PostgreSQL/Docker-compose references in active code
+# (Docker sandbox support is intentional — see docker-sandbox-dispatch spec)
 # ---------------------------------------------------------------------------
-@test "ralph.sh has no Docker references" {
-    run grep -i "docker" "$SCRIPT_DIR/ralph.sh"
+@test "ralph.sh has no docker-compose references" {
+    run grep -i "docker-compose\|docker compose" "$SCRIPT_DIR/ralph.sh"
     assert_failure
 }
 
-@test "test_helper.bash has no Docker stubs" {
+@test "test_helper.bash has no Docker or pg_isready stubs" {
     run grep -i "docker\|pg_isready" "$SCRIPT_DIR/test/test_helper.bash"
     assert_failure
 }
 
-@test "lib/docker.sh does not exist" {
-    assert_file_not_exists "$SCRIPT_DIR/lib/docker.sh"
+@test "lib/docker.sh exists for sandbox support" {
+    assert_file_exists "$SCRIPT_DIR/lib/docker.sh"
+}
+
+@test "lib/docker.sh defines derive_sandbox_name function" {
+    run grep -E '^derive_sandbox_name\(\)' "$SCRIPT_DIR/lib/docker.sh"
+    assert_success
+}
+
+@test "lib/docker.sh defines check_sandbox_state function" {
+    run grep -E '^check_sandbox_state\(\)' "$SCRIPT_DIR/lib/docker.sh"
+    assert_success
+}
+
+@test "lib/docker.sh is sourceable without errors" {
+    # Source docker.sh in a subshell to verify it has valid bash syntax.
+    # Override docker and git commands to prevent side effects.
+    run bash -c '
+        docker() { :; }
+        git() { :; }
+        export -f docker git
+        source "'"$SCRIPT_DIR/lib/docker.sh"'"
+    '
+    assert_success
 }
