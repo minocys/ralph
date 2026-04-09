@@ -192,3 +192,95 @@ load test_helper
 
     ! echo "$output" | grep -q 'auth-oauth'
 }
+
+# ---------------------------------------------------------------------------
+# RALPH_SPEC_FILTER env var fallback
+# ---------------------------------------------------------------------------
+@test "peek uses RALPH_SPEC_FILTER env var when --specs is not provided" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+
+    RALPH_SPEC_FILTER="ui-tabs" run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^id: ui-tabs/01'
+    ! echo "$output" | grep -q 'auth-oauth'
+}
+
+@test "peek --specs takes precedence over RALPH_SPEC_FILTER env var" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+    "$SCRIPT_DIR/lib/task" create "db-migrate/01" "Migration" -p 1
+
+    RALPH_SPEC_FILTER="ui-tabs" run "$SCRIPT_DIR/lib/task" peek --specs "auth-oauth"
+    assert_success
+
+    # --specs wins: only auth-oauth
+    echo "$output" | grep -q '^id: auth-oauth/01'
+    ! echo "$output" | grep -q 'ui-tabs'
+    ! echo "$output" | grep -q 'db-migrate'
+}
+
+@test "peek without --specs and without RALPH_SPEC_FILTER returns all tasks" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 2
+
+    unset RALPH_SPEC_FILTER
+    run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^id: ui-tabs/01'
+    echo "$output" | grep -q '^id: auth-oauth/01'
+}
+
+@test "peek ignores empty RALPH_SPEC_FILTER and returns all tasks" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 2
+
+    RALPH_SPEC_FILTER="" run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^id: ui-tabs/01'
+    echo "$output" | grep -q '^id: auth-oauth/01'
+}
+
+@test "peek RALPH_SPEC_FILTER with glob wildcard works" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "ui-modal/01" "Modal" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+
+    RALPH_SPEC_FILTER="ui-*" run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^id: ui-tabs/01'
+    echo "$output" | grep -q '^id: ui-modal/01'
+    ! echo "$output" | grep -q 'auth-oauth'
+}
+
+@test "peek RALPH_SPEC_FILTER with comma-separated patterns works" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 1
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+    "$SCRIPT_DIR/lib/task" create "db-migrate/01" "Migration" -p 1
+
+    RALPH_SPEC_FILTER="ui-tabs,auth-oauth" run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^id: ui-tabs/01'
+    echo "$output" | grep -q '^id: auth-oauth/01'
+    ! echo "$output" | grep -q 'db-migrate'
+}
+
+@test "peek RALPH_SPEC_FILTER filters active tasks too" {
+    "$SCRIPT_DIR/lib/task" create "ui-tabs/01" "Tab component" -p 0
+    "$SCRIPT_DIR/lib/task" create "auth-oauth/01" "OAuth flow" -p 1
+
+    # Claim both
+    "$SCRIPT_DIR/lib/task" claim --agent "a1" >/dev/null
+    "$SCRIPT_DIR/lib/task" claim --agent "a2" >/dev/null
+
+    RALPH_SPEC_FILTER="ui-tabs" run "$SCRIPT_DIR/lib/task" peek
+    assert_success
+
+    echo "$output" | grep -q '^id: ui-tabs/01'
+    ! echo "$output" | grep -q 'auth-oauth'
+}

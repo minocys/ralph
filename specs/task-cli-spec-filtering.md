@@ -8,7 +8,9 @@ The `ralph task` subcommands `peek`, `plan-status`, and `plan-sync` accept a `--
 
 - All three commands (`peek`, `plan-status`, `plan-sync`) accept `--specs <patterns>` where `<patterns>` is a comma-separated list of glob patterns
 - A task matches if its spec-slug (derived from its ID: the portion before the first `/`) matches any of the provided patterns using shell glob semantics
-- When `--specs` is omitted, behavior is unchanged — all tasks in the current scope are considered
+- When `--specs` is omitted, the command reads the `RALPH_SPEC_FILTER` environment variable as a fallback — if set and non-empty, it is used as the patterns value
+- An explicit `--specs` flag always takes precedence over the `RALPH_SPEC_FILTER` environment variable
+- When neither `--specs` nor `RALPH_SPEC_FILTER` is provided, behavior is unchanged — all tasks in the current scope are considered
 
 ### `ralph task peek --specs <patterns>`
 

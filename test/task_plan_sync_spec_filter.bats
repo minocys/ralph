@@ -307,3 +307,136 @@ load test_helper
     assert_success
     assert_output --partial "Status:      open"
 }
+
+# ---------------------------------------------------------------------------
+# RALPH_SPEC_FILTER env var fallback
+# ---------------------------------------------------------------------------
+@test "plan-sync uses RALPH_SPEC_FILTER env var when --specs is not provided" {
+    # Create tasks under two different specs
+    "$SCRIPT_DIR/lib/task" create ui-tabs/01 "Tab keep" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-tabs/02 "Tab orphan" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/01 "OAuth safe" -r auth-oauth.md >/dev/null
+
+    # Sync with only ui-tabs/01, using env var instead of --specs
+    local input='{"id":"ui-tabs/01","t":"Tab keep","spec":"ui-tabs.md"}'
+
+    RALPH_SPEC_FILTER="ui-tabs" run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
+    assert_success
+    # ui-tabs/02 should be deleted (orphan within matched spec), auth-oauth/01 should survive
+    assert_output "inserted: 0, updated: 0, deleted: 1, skipped (done): 0"
+
+    run "$SCRIPT_DIR/lib/task" show ui-tabs/02
+    assert_success
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show auth-oauth/01
+    assert_success
+    assert_output --partial "Status:      open"
+}
+
+@test "plan-sync --specs takes precedence over RALPH_SPEC_FILTER env var" {
+    "$SCRIPT_DIR/lib/task" create ui-tabs/01 "Tab keep" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-tabs/02 "Tab orphan" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/01 "OAuth keep" -r auth-oauth.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/02 "OAuth orphan" -r auth-oauth.md >/dev/null
+
+    # env var says auth-oauth, but --specs says ui-tabs — --specs wins
+    local input='{"id":"ui-tabs/01","t":"Tab keep","spec":"ui-tabs.md"}
+{"id":"auth-oauth/01","t":"OAuth keep","spec":"auth-oauth.md"}'
+
+    RALPH_SPEC_FILTER="auth-oauth" run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync --specs "ui-tabs"' -- "$input"
+    assert_success
+    # --specs=ui-tabs wins: ui-tabs/02 deleted, auth-oauth/02 NOT deleted
+    assert_output "inserted: 0, updated: 0, deleted: 1, skipped (done): 0"
+
+    run "$SCRIPT_DIR/lib/task" show ui-tabs/02
+    assert_success
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show auth-oauth/02
+    assert_success
+    assert_output --partial "Status:      open"
+}
+
+@test "plan-sync without --specs and without RALPH_SPEC_FILTER deletes orphans across all specs" {
+    "$SCRIPT_DIR/lib/task" create ui-tabs/01 "Tab keep" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-tabs/02 "Tab orphan" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/01 "OAuth keep" -r auth-oauth.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/02 "OAuth orphan" -r auth-oauth.md >/dev/null
+
+    local input='{"id":"ui-tabs/01","t":"Tab keep","spec":"ui-tabs.md"}
+{"id":"auth-oauth/01","t":"OAuth keep","spec":"auth-oauth.md"}'
+
+    unset RALPH_SPEC_FILTER
+    run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
+    assert_success
+    assert_output "inserted: 0, updated: 0, deleted: 2, skipped (done): 0"
+
+    run "$SCRIPT_DIR/lib/task" show ui-tabs/02
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show auth-oauth/02
+    assert_output --partial "Status:      deleted"
+}
+
+@test "plan-sync ignores empty RALPH_SPEC_FILTER and deletes orphans across all specs" {
+    "$SCRIPT_DIR/lib/task" create ui-tabs/01 "Tab keep" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-tabs/02 "Tab orphan" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/01 "OAuth keep" -r auth-oauth.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/02 "OAuth orphan" -r auth-oauth.md >/dev/null
+
+    local input='{"id":"ui-tabs/01","t":"Tab keep","spec":"ui-tabs.md"}
+{"id":"auth-oauth/01","t":"OAuth keep","spec":"auth-oauth.md"}'
+
+    RALPH_SPEC_FILTER="" run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
+    assert_success
+    assert_output "inserted: 0, updated: 0, deleted: 2, skipped (done): 0"
+}
+
+@test "plan-sync RALPH_SPEC_FILTER with glob wildcard scopes orphan deletion" {
+    "$SCRIPT_DIR/lib/task" create ui-tabs/01 "Tab keep" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-tabs/02 "Tab orphan" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-modal/01 "Modal keep" -r ui-modal.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-modal/02 "Modal orphan" -r ui-modal.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/01 "OAuth safe" -r auth-oauth.md >/dev/null
+
+    local input='{"id":"ui-tabs/01","t":"Tab keep","spec":"ui-tabs.md"}
+{"id":"ui-modal/01","t":"Modal keep","spec":"ui-modal.md"}'
+
+    RALPH_SPEC_FILTER="ui-*" run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
+    assert_success
+    assert_output "inserted: 0, updated: 0, deleted: 2, skipped (done): 0"
+
+    run "$SCRIPT_DIR/lib/task" show ui-tabs/02
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show ui-modal/02
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show auth-oauth/01
+    assert_output --partial "Status:      open"
+}
+
+@test "plan-sync RALPH_SPEC_FILTER with comma-separated patterns scopes orphan deletion" {
+    "$SCRIPT_DIR/lib/task" create ui-tabs/01 "Tab keep" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create ui-tabs/02 "Tab orphan" -r ui-tabs.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/01 "OAuth keep" -r auth-oauth.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create auth-oauth/02 "OAuth orphan" -r auth-oauth.md >/dev/null
+    "$SCRIPT_DIR/lib/task" create db-migrate/01 "DB safe" -r db-migrate.md >/dev/null
+
+    local input='{"id":"ui-tabs/01","t":"Tab keep","spec":"ui-tabs.md"}
+{"id":"auth-oauth/01","t":"OAuth keep","spec":"auth-oauth.md"}'
+
+    RALPH_SPEC_FILTER="ui-tabs,auth-oauth" run bash -c 'printf "%s\n" "$1" | "$SCRIPT_DIR/lib/task" plan-sync' -- "$input"
+    assert_success
+    assert_output "inserted: 0, updated: 0, deleted: 2, skipped (done): 0"
+
+    run "$SCRIPT_DIR/lib/task" show ui-tabs/02
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show auth-oauth/02
+    assert_output --partial "Status:      deleted"
+
+    run "$SCRIPT_DIR/lib/task" show db-migrate/01
+    assert_output --partial "Status:      open"
+}

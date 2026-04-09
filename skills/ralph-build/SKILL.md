@@ -5,17 +5,18 @@ description: Ralph build loop
 0a. Study `specs/*` with parallel Sonnet subagents to learn the application specifications.
 0b. Study the highest priority tasks. `status: open` are claimable. `status: active` show what other agents are working on.
 
-1. Your task is to implement functionality per the specifications using parallel subagnets. Follow the task list and choose the most important task to address. Claim the selected task via `ralph task claim <id>`. If no claimable tasks remain, stop gracefully.
+1. Your task is to implement functionality per the specifications using parallel subagnets. Follow the task list and choose the most important task to address — consider what active tasks and their assignees indicate about parallel work in progress to avoid redundant work areas, then pick the task that best advances the project. Claim the selected task via `ralph task claim <id>`. If no claimable tasks remain, stop gracefully.
 2. If `ralph task claim <id>` exits with code 2 (task no longer eligible — already claimed by another agent, blocked, etc.), select the next best task from the snapshot and retry the claim. Repeat until a claim succeeds or no claimable tasks remain; if none remain, stop gracefully.
-3. Search the codebase with Sonnet subagents before implementing — confirm before assuming missing.
-4. Implement the change.
-5. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
-6. `git add -A` then `git commit` with a message describing the changes.
-7. Run `ralph task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 6.
-8. **IMPORTANT**: DO NOT START A NEW TASK.
+3. Review `blocker_results` from the claim output — if it contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
+4. Search the codebase with Sonnet subagents before implementing — confirm before assuming missing.
+5. Implement the change.
+6. Run tests for the changed code. If functionality is missing, add it as per the application specifications.
+7. `git add -A` then `git commit` with a message describing the changes.
+8. Run `ralph task done <id> --result '{"commit":"<sha>"}'` where `<sha>` is the commit SHA from step 7.
+9. **IMPORTANT**: DO NOT START A NEW TASK.
 
 ## Tasks
-!`ralph task peek -n 10${RALPH_SPEC_FILTER:+ --specs "$RALPH_SPEC_FILTER"}`
+!`ralph task peek -n 10`
 
 ## Rules
 
@@ -25,7 +26,6 @@ description: Ralph build loop
 - When you discover issues, immediately create a task with a subagent (`ralph task create <id> <title>`). When resolved, update the item as done.
 - When authoring documentation, capture the why — tests and implementation importance.
 - Single sources of truth, no migrations/adapters. If tests unrelated to your work fail, resolve them as part of the increment.
-- If `blocker_results` contains commit SHAs, run `git show <sha>` to review upstream changes before implementing.
 - Implement functionality completely. Placeholders and stubs waste efforts and time redoing the same work.
 - You may add extra logging if required to debug issues.
 - When you learn something new about how to run the application, update @AGENTS.md using a subagent but keep it brief. For example if you run commands multiple times before learning the correct command then that file should be updated.

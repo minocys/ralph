@@ -10,7 +10,8 @@
 - If `ralph task plan-status` reports 0 open and 0 active tasks, the loop must exit successfully — there is no work to do
 - If tasks remain (or the check fails), proceed to invoke Claude
 - The loop invokes Claude without pre-fetching task data: `claude -p "$COMMAND"` (plus flags for output format, model, etc.)
-- The build skill loads its own task landscape via `!`command`` preprocessing in SKILL.md — the loop does not pass task data through the prompt
+- The build skill loads its own task landscape via `` !`command` `` preprocessing in SKILL.md — the loop does not pass task data through the prompt
+- The loop exports `RALPH_SPEC_FILTER` into the environment when `SPEC_FILTER` is non-empty — the task CLI reads this automatically, so the skill's `` !`ralph task peek -n 10` `` command produces filtered results without needing bash variable expansion in the SKILL.md template
 
 ### Post-invocation Checks
 

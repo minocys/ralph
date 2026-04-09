@@ -373,6 +373,11 @@ cmd_plan_sync() {
         esac
     done
 
+    # Fall back to RALPH_SPEC_FILTER env var when --specs not provided
+    if [[ -z "$specs" && -n "${RALPH_SPEC_FILTER:-}" ]]; then
+        specs="$RALPH_SPEC_FILTER"
+    fi
+
     # Read all stdin lines into an array
     local lines=()
     while IFS= read -r line; do
@@ -638,6 +643,11 @@ cmd_plan_status() {
         esac
     done
 
+    # Fall back to RALPH_SPEC_FILTER env var when --specs not provided
+    if [[ -z "$specs" && -n "${RALPH_SPEC_FILTER:-}" ]]; then
+        specs="$RALPH_SPEC_FILTER"
+    fi
+
     # Build optional spec-slug filter clause
     local spec_clause=""
     if [[ -n "$specs" ]]; then
@@ -684,6 +694,11 @@ cmd_peek() {
             *) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
         esac
     done
+
+    # Fall back to RALPH_SPEC_FILTER env var when --specs not provided
+    if [[ -z "$specs" && -n "${RALPH_SPEC_FILTER:-}" ]]; then
+        specs="$RALPH_SPEC_FILTER"
+    fi
 
     # Build optional spec-slug filter clause
     local spec_clause=""
